@@ -11,9 +11,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [localError, setLocalError] = useState(null);
 
-  const { loginWithEmail, loginWithGoogle } = useAuth();
+  const { loginWithEmail, loginWithGoogle, authError, serverUnavailable } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -27,9 +27,11 @@ export function LoginPage() {
   const rawFrom = location.state?.from?.pathname;
   const from = typeof rawFrom === 'string' && SAFE_RETURN_PATHS.has(rawFrom) ? rawFrom : '/app';
 
+  const displayedError = localError || authError;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    setLocalError(null);
     setLoading(true);
 
     try {
@@ -40,23 +42,32 @@ export function LoginPage() {
       }
       navigate(from, { replace: true });
     } catch (err) {
-      console.error('Login error:', err);
-      let userFriendlyMessage = 'Credenciales inválidas o error de autenticación.';
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        userFriendlyMessage = 'Correo o contraseña incorrectos. Verifica tus credenciales.';
+      console.warn('[LOGIN] Authentication failed:', {
+        errorCode: err.code || 'UNKNOWN',
+        errorName: err.name,
+      });
+
+      let userFriendlyMessage = 'Credenciales no válidas o error de autenticación.';
+      if (
+        err.code === 'auth/user-not-found' ||
+        err.code === 'auth/wrong-password' ||
+        err.code === 'auth/invalid-credential'
+      ) {
+        userFriendlyMessage =
+          'Correo o contraseña incorrectos. Si te registraste originalmente con Google, ingresa con el botón de Google o restablece tu contraseña.';
       } else if (err.code === 'auth/too-many-requests') {
         userFriendlyMessage = 'Demasiados intentos fallidos. Por favor, intenta más tarde o restablece tu contraseña.';
       } else if (err.message) {
         userFriendlyMessage = err.message;
       }
-      setError(userFriendlyMessage);
+      setLocalError(userFriendlyMessage);
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    setError(null);
+    setLocalError(null);
     setLoading(true);
 
     try {
@@ -67,9 +78,12 @@ export function LoginPage() {
       }
       navigate(from, { replace: true });
     } catch (err) {
-      console.error('Google login error:', err);
+      console.warn('[LOGIN] Google Sign-In failed:', {
+        errorCode: err.code || 'UNKNOWN',
+        errorName: err.name,
+      });
       if (err.code !== 'auth/popup-closed-by-user') {
-        setError('No se pudo completar el inicio de sesión con Google. Intenta nuevamente.');
+        setLocalError('No se pudo completar el inicio de sesión con Google. Intenta nuevamente.');
       }
     } finally {
       setLoading(false);
@@ -92,9 +106,9 @@ export function LoginPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white py-8 px-6 sm:px-10 border border-brand-border rounded-lg shadow-card">
-          {error && (
-            <Alert variant="error" className="mb-6">
-              {error}
+          {displayedError && (
+            <Alert variant={serverUnavailable ? 'warning' : 'error'} className="mb-6">
+              {displayedError}
             </Alert>
           )}
 

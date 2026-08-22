@@ -1,9 +1,10 @@
 import { getFirebaseAuth } from './firebaseAdmin.js';
 
 export async function verifyAuth(event) {
-  const authHeader = event.headers.authorization || event.headers.Authorization;
+  const authHeader = event.headers?.authorization || event.headers?.Authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // 1. Validate presence of Authorization header
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
     return {
       authenticated: false,
       user: null,
@@ -13,9 +14,10 @@ export async function verifyAuth(event) {
     };
   }
 
-  const token = authHeader.split('Bearer ')[1].trim();
+  const rawToken = authHeader.substring(7).trim();
 
-  if (!token) {
+  // 2. Strict JWT format validations (never log token content)
+  if (!rawToken || typeof rawToken !== 'string') {
     return {
       authenticated: false,
       user: null,
@@ -25,9 +27,50 @@ export async function verifyAuth(event) {
     };
   }
 
+  const segments = rawToken.split('.');
+  if (rawToken.length < 50 || segments.length !== 3 || !segments[0] || !segments[1] || !segments[2]) {
+    console.warn('[AUTH_DIAGNOSTIC] Token format validation failed:', {
+      tokenType: typeof rawToken,
+      tokenLength: rawToken.length,
+      tokenSegmentCount: segments.length,
+    });
+    return {
+      authenticated: false,
+      user: null,
+      status: 401,
+      error: 'Formato de token JWT inválido.',
+      code: 'AUTH_TOKEN_MALFORMED',
+    };
+  }
+
+  // 3. Obtain Firebase Auth instance (Catch configuration/initialization errors)
+  let auth;
   try {
-    const auth = getFirebaseAuth();
-    const decodedToken = await auth.verifyIdToken(token);
+    auth = getFirebaseAuth();
+  } catch (initError) {
+    console.error('[AUTH_DIAGNOSTIC] Auth Service Misconfigured:', {
+      errorName: initError.name,
+      errorCode: initError.code || 'INIT_ERROR',
+      errorMessage: initError.message,
+      errorStack: initError.stack?.split('\n').slice(0, 3).join(' | '),
+      firebaseProjectIdPresent: Boolean(process.env.FIREBASE_PROJECT_ID),
+      firebaseClientEmailPresent: Boolean(process.env.FIREBASE_CLIENT_EMAIL),
+      firebasePrivateKeyPresent: Boolean(process.env.FIREBASE_PRIVATE_KEY),
+      privateKeyHasBeginMarker: Boolean(process.env.FIREBASE_PRIVATE_KEY?.includes('BEGIN PRIVATE KEY')),
+      privateKeyHasEndMarker: Boolean(process.env.FIREBASE_PRIVATE_KEY?.includes('END PRIVATE KEY')),
+    });
+    return {
+      authenticated: false,
+      user: null,
+      status: 500,
+      error: 'El servicio de autenticación no está configurado correctamente en el servidor.',
+      code: 'AUTH_SERVER_MISCONFIGURED',
+    };
+  }
+
+  // 4. Verify ID Token via Firebase Admin SDK
+  try {
+    const decodedToken = await auth.verifyIdToken(rawToken);
 
     if (!decodedToken.email_verified) {
       return {
@@ -46,14 +89,48 @@ export async function verifyAuth(event) {
       error: null,
       code: null,
     };
-  } catch (err) {
-    console.error('Error verifying Firebase ID token:', err.code || err.message);
+  } catch (verifyErr) {
+    console.error('[AUTH_DIAGNOSTIC] Token Verification Failed:', {
+      errorName: verifyErr.name,
+      errorCode: verifyErr.code || 'VERIFICATION_ERROR',
+      errorMessage: verifyErr.message,
+      errorStack: verifyErr.stack?.split('\n').slice(0, 3).join(' | '),
+      tokenType: typeof rawToken,
+      tokenLength: rawToken.length,
+      tokenSegmentCount: segments.length,
+      firebaseProjectIdPresent: Boolean(process.env.FIREBASE_PROJECT_ID),
+      firebaseClientEmailPresent: Boolean(process.env.FIREBASE_CLIENT_EMAIL),
+      firebasePrivateKeyPresent: Boolean(process.env.FIREBASE_PRIVATE_KEY),
+      privateKeyHasBeginMarker: Boolean(process.env.FIREBASE_PRIVATE_KEY?.includes('BEGIN PRIVATE KEY')),
+      privateKeyHasEndMarker: Boolean(process.env.FIREBASE_PRIVATE_KEY?.includes('END PRIVATE KEY')),
+    });
+
+    // Distinguish expected client-token errors from unexpected runtime crashes / TypeErrors
+    const isClientAuthError =
+      verifyErr.code === 'auth/id-token-expired' ||
+      verifyErr.code === 'auth/argument-error' ||
+      verifyErr.code === 'auth/invalid-id-token' ||
+      verifyErr.code === 'auth/id-token-revoked';
+
+    if (isClientAuthError) {
+      return {
+        authenticated: false,
+        user: null,
+        status: 401,
+        error: verifyErr.code === 'auth/id-token-expired'
+          ? 'El token de sesión ha expirado.'
+          : 'Token de autenticación inválido.',
+        code: verifyErr.code === 'auth/id-token-expired' ? 'AUTH_TOKEN_EXPIRED' : 'AUTH_TOKEN_INVALID',
+      };
+    }
+
+    // Unexpected internal / TypeError crash during verification
     return {
       authenticated: false,
       user: null,
-      status: 401,
-      error: 'Token de autenticación inválido o expirado.',
-      code: 'AUTH_TOKEN_INVALID',
+      status: 500,
+      error: 'Error interno al verificar las credenciales de autenticación.',
+      code: 'AUTH_VERIFICATION_FAILED',
     };
   }
 }

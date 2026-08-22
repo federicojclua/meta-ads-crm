@@ -17,23 +17,43 @@ export function getFirebaseAdmin() {
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error('Firebase Admin environment variables are not fully configured.');
+    const error = new Error('Firebase Admin environment variables are incomplete.');
+    error.code = 'FIREBASE_CONFIG_MISSING';
+    throw error;
   }
 
-  // Normalize private key handling escaped newlines
+  // Sanitize and normalize private key formatting
+  privateKey = privateKey.trim();
+  // Strip outer quotes if any were wrapped by environment managers
+  privateKey = privateKey.replace(/^["']|["']$/g, '');
+  // Normalize literal \n into real newlines
   if (privateKey.includes('\\n')) {
     privateKey = privateKey.replace(/\\n/g, '\n');
   }
 
-  firebaseAdminApp = admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId,
-      clientEmail,
-      privateKey: privateKey.trim(),
-    }),
-  });
-
-  return firebaseAdminApp;
+  try {
+    firebaseAdminApp = admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+    });
+    return firebaseAdminApp;
+  } catch (initErr) {
+    console.error('[AUTH_DIAGNOSTIC] Firebase Admin Initialization Failed:', {
+      errorName: initErr.name,
+      errorCode: initErr.code || 'INIT_ERROR',
+      errorMessage: initErr.message,
+      errorStack: initErr.stack?.split('\n').slice(0, 3).join(' | '),
+      firebaseProjectIdPresent: Boolean(projectId),
+      firebaseClientEmailPresent: Boolean(clientEmail),
+      firebasePrivateKeyPresent: Boolean(privateKey),
+      privateKeyHasBeginMarker: Boolean(privateKey?.includes('BEGIN PRIVATE KEY')),
+      privateKeyHasEndMarker: Boolean(privateKey?.includes('END PRIVATE KEY')),
+    });
+    throw initErr;
+  }
 }
 
 export function getFirebaseAuth() {

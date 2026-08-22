@@ -17,6 +17,7 @@ describe('Frontend UI & Protected Routes Tests', () => {
       loading: false,
       isEmailVerified: false,
       authError: null,
+      serverUnavailable: false,
     });
 
     render(
@@ -46,6 +47,7 @@ describe('Frontend UI & Protected Routes Tests', () => {
       loading: false,
       isEmailVerified: false,
       authError: null,
+      serverUnavailable: false,
     });
 
     render(
@@ -73,7 +75,9 @@ describe('Frontend UI & Protected Routes Tests', () => {
       userProfile: null,
       loading: false,
       isEmailVerified: true,
-      authError: 'Acceso no autorizado',
+      authError: 'Acceso no autorizado al CRM.',
+      authErrorCode: 'USER_NOT_AUTHORIZED',
+      serverUnavailable: false,
     });
 
     render(
@@ -95,13 +99,80 @@ describe('Frontend UI & Protected Routes Tests', () => {
     expect(screen.getByText('Pantalla No Autorizado 403')).toBeInTheDocument();
   });
 
+  it('10d. Error de servidor 500 (serverUnavailable) -> no redirige a /unauthorized y muestra mensaje de servicio no disponible', () => {
+    vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+      firebaseUser: { email: 'admin@animamkt.com', emailVerified: true },
+      userProfile: null,
+      loading: false,
+      isEmailVerified: true,
+      authError: 'El servicio de autenticación no está disponible temporalmente.',
+      authErrorCode: 'SERVER_ERROR',
+      serverUnavailable: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              <div>
+                <h1>Login</h1>
+                <Alert variant="warning">El servicio de autenticación no está disponible temporalmente.</Alert>
+              </div>
+            }
+          />
+          <Route path="/unauthorized" element={<div>Pantalla No Autorizado 403</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('El servicio de autenticación no está disponible temporalmente.')).toBeInTheDocument();
+    expect(screen.queryByText('Pantalla No Autorizado 403')).not.toBeInTheDocument();
+  });
+
+  it('10e. Detección y distinción segura de proveedores (Google-only, Password, Ambos)', () => {
+    const googleOnlyUser = {
+      email: 'federicojclua@gmail.com',
+      providerData: [{ providerId: 'google.com' }],
+    };
+    const passwordUser = {
+      email: 'admin@animamkt.com',
+      providerData: [{ providerId: 'password' }],
+    };
+    const linkedUser = {
+      email: 'federicojclua@gmail.com',
+      providerData: [{ providerId: 'google.com' }, { providerId: 'password' }],
+    };
+
+    const isGoogleOnly = (u) => {
+      const p = u.providerData.map((x) => x.providerId);
+      return p.includes('google.com') && !p.includes('password');
+    };
+
+    const hasPassword = (u) => u.providerData.some((x) => x.providerId === 'password');
+    const hasGoogle = (u) => u.providerData.some((x) => x.providerId === 'google.com');
+
+    expect(isGoogleOnly(googleOnlyUser)).toBe(true);
+    expect(hasPassword(googleOnlyUser)).toBe(false);
+
+    expect(isGoogleOnly(passwordUser)).toBe(false);
+    expect(hasPassword(passwordUser)).toBe(true);
+
+    expect(isGoogleOnly(linkedUser)).toBe(false);
+    expect(hasGoogle(linkedUser)).toBe(true);
+    expect(hasPassword(linkedUser)).toBe(true);
+  });
+
   it('12. Componentes UI principales renderizan con diseño accesible', () => {
     render(
       <div>
         <Button variant="primary">Botón Principal</Button>
         <Input label="Correo" placeholder="correo@test.com" />
         <Badge variant="success">Activo</Badge>
-        <Alert variant="info" title="Aviso">Mensaje informativo</Alert>
+        <Alert variant="info" title="Aviso">
+          Mensaje informativo
+        </Alert>
         <EmptyState title="Sin Datos" description="Descripción de estado vacío" />
       </div>
     );

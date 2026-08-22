@@ -4,8 +4,8 @@
 
 | Level              | Tool / Method             | Stage  | Estado |
 |--------------------|---------------------------|--------|--------|
-| Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 12 tests pasados |
-| Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 4 tests pasados |
+| Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 16 tests pasados |
+| Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 6 tests pasados |
 | Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 9 tests pasados |
 | Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
 | Netlify Dev Smoke  | Netlify CLI (HTTP real)    | 1+     | ✅ Validado (HTTP 401 JSON) |
@@ -14,29 +14,35 @@
 
 ---
 
-### Matriz de 27 Pruebas Automatizadas Implementadas (Stage 1)
+### Matriz de 33 Pruebas Automatizadas Implementadas (Stage 1 + Hotfix)
 
-1. **`auth-backend.test.js`**
+1. **`auth-backend.test.js` (16 pruebas)**
    - `1. Sin token -> responde 401 (AUTH_TOKEN_MISSING)`
-   - `2. Token inválido -> responde 401 (AUTH_TOKEN_INVALID)`
-   - `3. Email no verificado -> responde 403 (AUTH_EMAIL_NOT_VERIFIED)`
-   - `4. Firebase válido sin usuario en MongoDB y no es super_admin -> responde 403 (USER_NOT_AUTHORIZED)`
-   - `5. Correo distinto a SUPER_ADMIN_EMAIL no obtiene super_admin`
-   - `6. Super_admin correcto -> bootstrap atómico con findOneAndUpdate y upsert`
-   - `7. Recuperación explícita de colisión E11000 en bootstrap simultáneo`
-   - `8. Rechazo de Identity Mismatch: mismo correo con UID diferente -> 403 (IDENTITY_MISMATCH)`
-   - `9. Rechazo de Identity Mismatch: mismo UID con correo diferente -> 403 (IDENTITY_MISMATCH)`
-   - `10. Segundo login de super_admin -> idempotente y no sobrescribe datos`
-   - `11. Usuario suspendido en MongoDB -> responde 403 (USER_SUSPENDED)`
-   - `12. Rol enviado desde frontend o parámetros es ignorado (solo GET /auth/me usa MongoDB)`
+   - `2. Token malformado (sin 3 segmentos) -> responde 401 (AUTH_TOKEN_MALFORMED)`
+   - `3. Token malformado (longitud muy corta) -> responde 401 (AUTH_TOKEN_MALFORMED)`
+   - `4. Error de configuración de Firebase Admin -> responde 500 (AUTH_SERVER_MISCONFIGURED)`
+   - `5. Error de verificación de Firebase (token expirado) -> responde 401 (AUTH_TOKEN_EXPIRED)`
+   - `6. TypeError / fallo interno durante verificación -> responde 500 (AUTH_VERIFICATION_FAILED)`
+   - `7. Email no verificado -> responde 403 (AUTH_EMAIL_NOT_VERIFIED)`
+   - `8. Firebase válido sin usuario en MongoDB y no es super_admin -> responde 403 (USER_NOT_AUTHORIZED)`
+   - `9. Correo distinto a SUPER_ADMIN_EMAIL no obtiene super_admin`
+   - `10. Super_admin correcto -> bootstrap atómico con findOneAndUpdate y upsert`
+   - `11. Recuperación explícita de colisión E11000 en bootstrap simultáneo`
+   - `12. Rechazo de Identity Mismatch: mismo correo con UID diferente -> 403 (IDENTITY_MISMATCH)`
+   - `13. Rechazo de Identity Mismatch: mismo UID con correo diferente -> 403 (IDENTITY_MISMATCH)`
+   - `14. Segundo login de super_admin -> idempotente y no sobrescribe datos`
+   - `15. Usuario suspendido en MongoDB -> responde 403 (USER_SUSPENDED)`
+   - `16. Rol enviado desde frontend o parámetros es ignorado (solo GET /auth/me usa MongoDB)`
 
-2. **`auth-frontend.test.jsx`**
+2. **`auth-frontend.test.jsx` (6 pruebas)**
    - `10. Rutas privadas -> redirige a /login cuando no hay usuario autenticado`
    - `10b. Usuario autenticado pero email no verificado -> redirige a /verify-email`
    - `10c. Usuario verificado sin perfil en MongoDB (403) -> redirige a /unauthorized`
+   - `10d. Error de servidor 500 (serverUnavailable) -> no redirige a /unauthorized y muestra mensaje de servicio no disponible`
+   - `10e. Detección y distinción segura de proveedores (Google-only, Password, Ambos)`
    - `12. Componentes UI principales renderizan con diseño accesible`
 
-3. **`security.test.js`**
+3. **`security.test.js` (9 pruebas)**
    - `11. Ausencia de variables privadas o secretos en el bundle generado en dist/`
    - `11b. Variables públicas autorizadas utilizan exclusivamente prefijo VITE_`
    - `11c. Firebase Client Auth está explícitamente configurado con browserSessionPersistence`
@@ -47,7 +53,7 @@
    - `11e.4 Rechaza caracteres de escape con barra invertida (/app\evil.example)`
    - `11e.5 Rechaza valores nulos, undefined, objetos y arrays -> fallback /app`
 
-4. **`routes.test.js`**
+4. **`routes.test.js` (2 pruebas)**
    - `1. netlify.toml define el redirect exacto de /api/auth/me hacia /.netlify/functions/api-auth-me con force = true`
    - `2. Smoke test: /api/auth/me alcanza directamente el handler real y responde JSON 401 sin token`
 

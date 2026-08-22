@@ -30,10 +30,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - Bloqueo 403 Forbidden para usuarios de Firebase no autorizados o suspendidos.
 - **Runtime & Dependencias:**
   - Ejecución y validación local bajo Node.js 24 LTS (`v24.19.0`, npm `11.17.0`) y fijación en `.nvmrc`, `package.json` (`"engines": { "node": ">=24 <25" }`) y `netlify.toml` (`NODE_VERSION = "24"`).
-  - Actualización de dependencias críticas a versiones estables compatibles (`firebase-admin@14.3.0`, `firebase@11.4.0`, `react-router-dom@6.30.6`).
+  - Configuración de empaquetado de funciones en `netlify.toml` con `node_bundler = "esbuild"` y `external_node_modules = ["mongodb", "firebase-admin"]`.
   - Cero vulnerabilidades críticas y altas en producción (`npm audit --omit=dev`).
+- **Diagnóstico Seguro & Robustecimiento de Autenticación (Hotfix):**
+  - Validación estricta de estructura JWT (3 segmentos, longitud mínima, tipo string) con retorno `401 AUTH_TOKEN_MALFORMED` antes de procesar tokens mal formados.
+  - Separación de fallos del servidor (`500 AUTH_SERVER_MISCONFIGURED` y `500 AUTH_VERIFICATION_FAILED`) de errores de credenciales cliente (`401`) y rechazos de acceso (`403`).
+  - Logs estructurados seguros en backend que registran únicamente metadatos de error, booleanos de presencia de variables y conteo de segmentos (nunca tokens, claves ni correos).
+  - Manejo en frontend de reintento transparente ante `401` (`getIdToken(true)` una sola vez) y mensajes de servicio no disponible ante `500` sin redirigir erróneamente a `/unauthorized`.
+  - Normalización y saneamiento de formato de clave privada (`FIREBASE_PRIVATE_KEY`) eliminando comillas envolventes y resolviendo `\n` literales.
+  - Distinción en frontend de proveedores asociados (`google.com`, `password`) y preparación de helper de vinculación `linkPasswordAccount` con `linkWithCredential`.
 - **Calidad & Pruebas:**
-  - 27 pruebas automatizadas con Vitest y Testing Library (backend auth, bootstrap atómico, recuperación E11000, identity mismatch, persistencia de sesión, ausencia de roles en storage de cliente, allowlist estricta de redirección interna post-login, componentes UI, seguridad de secretos y enrutamiento Netlify).
+  - 33 pruebas automatizadas con Vitest y Testing Library (backend auth, manejo de errores 401/403/500, tokens malformados, separación de excepciones, bootstrap atómico, recuperación E11000, identity mismatch, persistencia de sesión, allowlist estricta de redirección, componentes UI, proveedores Google vs Password y seguridad de secretos).
   - ESLint limpio con 0 errores y 0 warnings.
   - Build de producción (`npm run build`) validado exitosamente bajo Node 24.
 
