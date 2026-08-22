@@ -1,12 +1,19 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import { ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
 
 export function UnauthorizedPage() {
-  const { firebaseUser, logout, refreshProfile } = useAuth();
+  const { firebaseUser, logout, refreshProfile, serverUnavailable } = useAuth();
   const location = useLocation();
-  const errorMessage = location.state?.error || 'Tu cuenta de Firebase no tiene un perfil activo ni autorizado en Anima MKT CRM.';
+
+  if (serverUnavailable) {
+    return <Navigate to="/service-unavailable" replace />;
+  }
+
+  const errorMessage =
+    location.state?.error ||
+    'Tu cuenta de Firebase no tiene un perfil activo ni autorizado en Anima MKT CRM.';
 
   return (
     <div className="min-h-screen bg-brand-bg flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -20,14 +27,14 @@ export function UnauthorizedPage() {
         </h2>
 
         <div className="p-3.5 bg-[#F7F6F2] border border-brand-border rounded-md text-xs text-brand-text-primary mb-5 text-left leading-relaxed">
-          <p className="font-semibold text-brand-primary mb-1">Identidad confirmada:</p>
-          <p className="font-mono text-[11px] break-all">{firebaseUser?.email || 'Sin usuario activo'}</p>
+          <p className="font-semibold text-brand-primary mb-1">Cuenta autenticada en Firebase:</p>
+          <p className="font-mono text-[11px] break-all">{firebaseUser?.email || 'Sin sesión activa'}</p>
         </div>
 
         <p className="text-xs text-brand-text-secondary mb-6 leading-relaxed">
           {errorMessage}
           <span className="block mt-2">
-            La creación de cuentas es estrictamente restringida. Contacta al <strong>Super Administrador</strong> de la agencia para que te asigne un rol y empresas autorizadas.
+            La creación de cuentas es estrictamente restringida. Contacta al <strong>Super Administrador</strong> de la agencia para que te asigne un rol y clientes autorizados.
           </span>
         </p>
 

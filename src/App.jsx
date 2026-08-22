@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
+import { ServiceUnavailablePage } from './pages/ServiceUnavailablePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { LeadsPage } from './pages/LeadsPage';
@@ -20,6 +21,7 @@ export function App() {
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="/service-unavailable" element={<ServiceUnavailablePage />} />
 
       {/* Root redirect to App */}
       <Route path="/" element={<Navigate to="/app" replace />} />

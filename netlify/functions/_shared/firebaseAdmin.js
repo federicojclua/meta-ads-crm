@@ -1,47 +1,62 @@
-import admin from 'firebase-admin';
+import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
-let firebaseAdminApp = null;
+let firebaseAuthInstance = null;
+
+function normalizePrivateKey(rawKey) {
+  if (!rawKey || typeof rawKey !== 'string') return '';
+  let key = rawKey.trim();
+  // Strip outer quotes if added by env variable managers
+  key = key.replace(/^["']|["']$/g, '');
+  // Normalize \n
+  if (key.includes('\\n')) {
+    key = key.replace(/\\n/g, '\n');
+  }
+  return key;
+}
 
 export function getFirebaseAdmin() {
-  if (firebaseAdminApp) {
-    return firebaseAdminApp;
-  }
-
-  if (admin.apps.length > 0) {
-    firebaseAdminApp = admin.apps[0];
-    return firebaseAdminApp;
+  if (firebaseAuthInstance) {
+    return firebaseAuthInstance;
   }
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (!projectId || !clientEmail || !privateKey) {
+  if (!projectId || !clientEmail || !rawPrivateKey) {
     const error = new Error('Firebase Admin environment variables are incomplete.');
     error.code = 'FIREBASE_CONFIG_MISSING';
     throw error;
   }
 
-  // Sanitize and normalize private key formatting
-  privateKey = privateKey.trim();
-  // Strip outer quotes if any were wrapped by environment managers
-  privateKey = privateKey.replace(/^["']|["']$/g, '');
-  // Normalize literal \n into real newlines
-  if (privateKey.includes('\\n')) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
+  const privateKey = normalizePrivateKey(rawPrivateKey);
+
+  console.log('[AUTH_CHECKPOINT] FIREBASE_INIT_ENV_READY', {
+    hasProjectId: Boolean(projectId),
+    hasClientEmail: Boolean(clientEmail),
+    hasPrivateKey: Boolean(privateKey),
+    privateKeyHasBeginMarker: privateKey.includes('BEGIN PRIVATE KEY'),
+    privateKeyHasEndMarker: privateKey.includes('END PRIVATE KEY'),
+  });
 
   try {
-    firebaseAdminApp = admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
+    const credential = cert({
+      projectId,
+      clientEmail,
+      privateKey,
     });
-    return firebaseAdminApp;
+    console.log('[AUTH_CHECKPOINT] FIREBASE_INIT_CREDENTIAL_READY');
+
+    const app = getApps().length > 0 ? getApp() : initializeApp({ credential });
+    console.log('[AUTH_CHECKPOINT] FIREBASE_INIT_APP_READY');
+
+    firebaseAuthInstance = getAuth(app);
+    console.log('[AUTH_CHECKPOINT] FIREBASE_INIT_AUTH_READY');
+
+    return firebaseAuthInstance;
   } catch (initErr) {
-    console.error('[AUTH_DIAGNOSTIC] Firebase Admin Initialization Failed:', {
+    console.error('[AUTH_DIAGNOSTIC] Firebase Admin Modular Initialization Failed:', {
       errorName: initErr.name,
       errorCode: initErr.code || 'INIT_ERROR',
       errorMessage: initErr.message,
@@ -57,6 +72,5 @@ export function getFirebaseAdmin() {
 }
 
 export function getFirebaseAuth() {
-  const app = getFirebaseAdmin();
-  return admin.auth(app);
+  return getFirebaseAdmin();
 }

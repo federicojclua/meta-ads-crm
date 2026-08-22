@@ -122,4 +122,25 @@ describe('Security & Secrets Leak Prevention Tests', () => {
       expect(sanitizeRedirect([])).toBe('/app');
     });
   });
+
+  it('11f. firebaseAdmin.js utiliza exclusivamente imports modulares y no usa import default ni admin.apps', () => {
+    const firebaseAdminPath = path.resolve(process.cwd(), 'netlify/functions/_shared/firebaseAdmin.js');
+    const content = fs.readFileSync(firebaseAdminPath, 'utf-8');
+
+    // Forbidden patterns that cause CJS/ESM undefined reading 'length' crashes in esbuild
+    expect(content).not.toMatch(/import\s+admin\s+from\s+['"]firebase-admin['"]/);
+    expect(content).not.toContain('admin.apps');
+    expect(content).not.toContain('admin.initializeApp');
+    expect(content).not.toContain('admin.credential');
+    expect(content).not.toContain('admin.auth');
+
+    // Required modern modular imports
+    expect(content).toContain("from 'firebase-admin/app'");
+    expect(content).toContain("from 'firebase-admin/auth'");
+    expect(content).toContain('getApps()');
+    expect(content).toContain('getApp()');
+    expect(content).toContain('initializeApp(');
+    expect(content).toContain('cert(');
+    expect(content).toContain('getAuth(');
+  });
 });

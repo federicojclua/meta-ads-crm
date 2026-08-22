@@ -1,8 +1,9 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { ServiceUnavailablePage } from '../../pages/ServiceUnavailablePage';
 
 export function ProtectedRoute({ children, allowedRoles }) {
-  const { firebaseUser, userProfile, loading, isEmailVerified, authError } = useAuth();
+  const { firebaseUser, userProfile, loading, isEmailVerified, authError, serverUnavailable } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -16,20 +17,35 @@ export function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
+  // 1. Unauthenticated in Firebase -> redirect to login
   if (!firebaseUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // 2. Email unverified -> redirect to verification
   if (!isEmailVerified) {
     return <Navigate to="/verify-email" replace />;
   }
 
+  // 3. Server 500 / Misconfiguration / Unavailable -> Show dedicated Service Unavailable screen (NOT 403)
+  if (serverUnavailable) {
+    return <ServiceUnavailablePage />;
+  }
+
+  // 4. Authenticated in Firebase but unauthorized in MongoDB (403 real)
   if (!userProfile) {
     return <Navigate to="/unauthorized" state={{ error: authError }} replace />;
   }
 
+  // 5. Role restrictions check
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userProfile.role)) {
-    return <Navigate to="/unauthorized" state={{ error: 'No tienes permisos suficientes para acceder a esta sección.' }} replace />;
+    return (
+      <Navigate
+        to="/unauthorized"
+        state={{ error: 'No tienes permisos suficientes para acceder a esta sección.' }}
+        replace
+      />
+    );
   }
 
   return children;

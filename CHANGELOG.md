@@ -33,14 +33,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - Configuración de empaquetado de funciones en `netlify.toml` con `node_bundler = "esbuild"` y `external_node_modules = ["mongodb", "firebase-admin"]`.
   - Cero vulnerabilidades críticas y altas en producción (`npm audit --omit=dev`).
 - **Diagnóstico Seguro & Robustecimiento de Autenticación (Hotfix):**
+  - Migración completa de `firebaseAdmin.js` a la API modular oficial de Firebase Admin (`import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app'` y `import { getAuth } from 'firebase-admin/auth'`), eliminando el import default y la lectura de `admin.apps.length` que generaba `TypeError: Cannot read properties of undefined (reading 'length')` bajo ESM/esbuild en Netlify Functions.
+  - Inicialización idempotente y caching exclusivo de la instancia `getAuth(app)`.
+  - Checkpoints de diagnóstico sin secretos (`FIREBASE_INIT_ENV_READY`, `FIREBASE_INIT_CREDENTIAL_READY`, `FIREBASE_INIT_APP_READY`, `FIREBASE_INIT_AUTH_READY`).
   - Validación estricta de estructura JWT (3 segmentos, longitud mínima, tipo string) con retorno `401 AUTH_TOKEN_MALFORMED` antes de procesar tokens mal formados.
   - Separación de fallos del servidor (`500 AUTH_SERVER_MISCONFIGURED` y `500 AUTH_VERIFICATION_FAILED`) de errores de credenciales cliente (`401`) y rechazos de acceso (`403`).
-  - Logs estructurados seguros en backend que registran únicamente metadatos de error, booleanos de presencia de variables y conteo de segmentos (nunca tokens, claves ni correos).
-  - Manejo en frontend de reintento transparente ante `401` (`getIdToken(true)` una sola vez) y mensajes de servicio no disponible ante `500` sin redirigir erróneamente a `/unauthorized`.
+  - Manejo en frontend de estado dedicado para fallos de servidor (500) a través de `ServiceUnavailablePage` y `ProtectedRoute` sin redirigir erróneamente a `/unauthorized` ni mezclarlo con 403.
   - Normalización y saneamiento de formato de clave privada (`FIREBASE_PRIVATE_KEY`) eliminando comillas envolventes y resolviendo `\n` literales.
   - Distinción en frontend de proveedores asociados (`google.com`, `password`) y preparación de helper de vinculación `linkPasswordAccount` con `linkWithCredential`.
 - **Calidad & Pruebas:**
-  - 33 pruebas automatizadas con Vitest y Testing Library (backend auth, manejo de errores 401/403/500, tokens malformados, separación de excepciones, bootstrap atómico, recuperación E11000, identity mismatch, persistencia de sesión, allowlist estricta de redirección, componentes UI, proveedores Google vs Password y seguridad de secretos).
+  - 34 pruebas automatizadas con Vitest y Testing Library (backend auth, manejo de errores 401/403/500, tokens malformados, separación de excepciones, prevención estática de regresión a imports default de `firebase-admin`, bootstrap atómico, recuperación E11000, identity mismatch, persistencia de sesión, allowlist estricta de redirección, componentes UI, proveedores Google vs Password y seguridad de secretos).
   - ESLint limpio con 0 errores y 0 warnings.
   - Build de producción (`npm run build`) validado exitosamente bajo Node 24.
 

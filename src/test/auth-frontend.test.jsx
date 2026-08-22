@@ -99,7 +99,7 @@ describe('Frontend UI & Protected Routes Tests', () => {
     expect(screen.getByText('Pantalla No Autorizado 403')).toBeInTheDocument();
   });
 
-  it('10d. Error de servidor 500 (serverUnavailable) -> no redirige a /unauthorized y muestra mensaje de servicio no disponible', () => {
+  it('10d. Error de servidor 500 (serverUnavailable) en ProtectedRoute -> muestra pantalla Servicio No Disponible sin redirigir a /unauthorized', () => {
     vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
       firebaseUser: { email: 'admin@animamkt.com', emailVerified: true },
       userProfile: null,
@@ -108,27 +108,30 @@ describe('Frontend UI & Protected Routes Tests', () => {
       authError: 'El servicio de autenticación no está disponible temporalmente.',
       authErrorCode: 'SERVER_ERROR',
       serverUnavailable: true,
+      logout: vi.fn(),
+      refreshProfile: vi.fn(),
     });
 
     render(
-      <MemoryRouter initialEntries={['/login']}>
+      <MemoryRouter initialEntries={['/app']}>
         <Routes>
+          <Route path="/unauthorized" element={<div>Pantalla No Autorizado 403</div>} />
           <Route
-            path="/login"
+            path="/app"
             element={
-              <div>
-                <h1>Login</h1>
-                <Alert variant="warning">El servicio de autenticación no está disponible temporalmente.</Alert>
-              </div>
+              <ProtectedRoute>
+                <div>Contenido Privado del CRM</div>
+              </ProtectedRoute>
             }
           />
-          <Route path="/unauthorized" element={<div>Pantalla No Autorizado 403</div>} />
         </Routes>
       </MemoryRouter>
     );
 
-    expect(screen.getByText('El servicio de autenticación no está disponible temporalmente.')).toBeInTheDocument();
+    expect(screen.getByText('Servicio No Disponible')).toBeInTheDocument();
+    expect(screen.getByText('Reintentar Conexión')).toBeInTheDocument();
     expect(screen.queryByText('Pantalla No Autorizado 403')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contenido Privado del CRM')).not.toBeInTheDocument();
   });
 
   it('10e. Detección y distinción segura de proveedores (Google-only, Password, Ambos)', () => {

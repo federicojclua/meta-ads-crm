@@ -6,7 +6,7 @@
 |--------------------|---------------------------|--------|--------|
 | Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 16 tests pasados |
 | Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 6 tests pasados |
-| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 9 tests pasados |
+| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 10 tests pasados |
 | Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
 | Netlify Dev Smoke  | Netlify CLI (HTTP real)    | 1+     | ✅ Validado (HTTP 401 JSON) |
 | Integration tests  | Multi-tenant manual        | 2+     | Pendiente Stage 2 |
@@ -14,7 +14,7 @@
 
 ---
 
-### Matriz de 33 Pruebas Automatizadas Implementadas (Stage 1 + Hotfix)
+### Matriz de 34 Pruebas Automatizadas Implementadas (Stage 1 + Hotfix Modular)
 
 1. **`auth-backend.test.js` (16 pruebas)**
    - `1. Sin token -> responde 401 (AUTH_TOKEN_MISSING)`
@@ -38,11 +38,11 @@
    - `10. Rutas privadas -> redirige a /login cuando no hay usuario autenticado`
    - `10b. Usuario autenticado pero email no verificado -> redirige a /verify-email`
    - `10c. Usuario verificado sin perfil en MongoDB (403) -> redirige a /unauthorized`
-   - `10d. Error de servidor 500 (serverUnavailable) -> no redirige a /unauthorized y muestra mensaje de servicio no disponible`
+   - `10d. Error de servidor 500 (serverUnavailable) en ProtectedRoute -> muestra pantalla Servicio No Disponible sin redirigir a /unauthorized`
    - `10e. Detección y distinción segura de proveedores (Google-only, Password, Ambos)`
    - `12. Componentes UI principales renderizan con diseño accesible`
 
-3. **`security.test.js` (9 pruebas)**
+3. **`security.test.js` (10 pruebas)**
    - `11. Ausencia de variables privadas o secretos en el bundle generado en dist/`
    - `11b. Variables públicas autorizadas utilizan exclusivamente prefijo VITE_`
    - `11c. Firebase Client Auth está explícitamente configurado con browserSessionPersistence`
@@ -52,6 +52,7 @@
    - `11e.3 Rechaza open redirects relativos/absolutos (//evil.example, https://evil.com)`
    - `11e.4 Rechaza caracteres de escape con barra invertida (/app\evil.example)`
    - `11e.5 Rechaza valores nulos, undefined, objetos y arrays -> fallback /app`
+   - `11f. firebaseAdmin.js utiliza exclusivamente imports modulares y no usa import default ni admin.apps`
 
 4. **`routes.test.js` (2 pruebas)**
    - `1. netlify.toml define el redirect exacto de /api/auth/me hacia /.netlify/functions/api-auth-me con force = true`
