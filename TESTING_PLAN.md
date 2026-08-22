@@ -6,7 +6,7 @@
 |--------------------|---------------------------|--------|--------|
 | Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 16 tests pasados |
 | Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 6 tests pasados |
-| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 10 tests pasados |
+| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 11 tests pasados |
 | Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
 | Netlify Dev Smoke  | Netlify CLI (HTTP real)    | 1+     | ✅ Validado (HTTP 401 JSON) |
 | Integration tests  | Multi-tenant manual        | 2+     | Pendiente Stage 2 |
@@ -14,7 +14,7 @@
 
 ---
 
-### Matriz de 34 Pruebas Automatizadas Implementadas (Stage 1 + Hotfix Modular)
+### Matriz de 35 Pruebas Automatizadas Implementadas (Stage 1 + Hotfix Modular & Version Pinning)
 
 1. **`auth-backend.test.js` (16 pruebas)**
    - `1. Sin token -> responde 401 (AUTH_TOKEN_MISSING)`
@@ -42,7 +42,7 @@
    - `10e. Detección y distinción segura de proveedores (Google-only, Password, Ambos)`
    - `12. Componentes UI principales renderizan con diseño accesible`
 
-3. **`security.test.js` (10 pruebas)**
+3. **`security.test.js` (11 pruebas)**
    - `11. Ausencia de variables privadas o secretos en el bundle generado en dist/`
    - `11b. Variables públicas autorizadas utilizan exclusivamente prefijo VITE_`
    - `11c. Firebase Client Auth está explícitamente configurado con browserSessionPersistence`
@@ -53,6 +53,7 @@
    - `11e.4 Rechaza caracteres de escape con barra invertida (/app\evil.example)`
    - `11e.5 Rechaza valores nulos, undefined, objetos y arrays -> fallback /app`
    - `11f. firebaseAdmin.js utiliza exclusivamente imports modulares y no usa import default ni admin.apps`
+   - `11g. Control de dependencias: firebase-admin permanece fijado en 13.10.0 evitando jwks-rsa 4 y jose 6 ESM-only`
 
 4. **`routes.test.js` (2 pruebas)**
    - `1. netlify.toml define el redirect exacto de /api/auth/me hacia /.netlify/functions/api-auth-me con force = true`

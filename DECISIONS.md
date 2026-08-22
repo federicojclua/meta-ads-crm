@@ -254,3 +254,25 @@ Each decision records:
 
 **Consequences:**
 - Tested with 20 automated Vitest test cases covering concurrency, identity mismatch, routing, and security.
+
+---
+
+## ADR-014: Firebase Admin Modular API & Version 13.10.0 Pinning
+
+**Date:** 2026-08-22
+
+**Decision:**
+1. Migrate serverless function authentication from the legacy default import (`import admin from 'firebase-admin'`) to the official modular API (`firebase-admin/app` and `firebase-admin/auth`).
+2. Temporarily pin `firebase-admin` to exact version `13.10.0` in `package.json` and remove `external_node_modules = ["firebase-admin"]` from `netlify.toml`.
+
+**Rationale:**
+- In `firebase-admin@14.x`, the sub-dependency `jwks-rsa@4.x` attempts to `require('jose')`, but `jose@6.x` is strictly ESM-only, triggering an uncatchable `ERR_REQUIRE_ESM` error when Netlify Functions load the module in CommonJS/esbuild environments.
+- `firebase-admin@13.10.0` uses `jwks-rsa@3.x` with `jose@4.x` (fully compatible with Node 24 and CJS/ESM bundling), preserving the modern modular imports (`cert`, `initializeApp`, `getApps`, `getApp`, `getAuth`) without runtime module resolution crashes.
+
+**Alternatives Discarded:**
+- Patching `node_modules` locally (fragile and non-reproducible in CI/CD).
+- Forcing resolutions or overrides for `jose` in `package.json` (can break internal cryptographic interfaces).
+
+**Consequences:**
+- Zero `ERR_REQUIRE_ESM` runtime errors in Netlify Functions.
+- Validated with automated dependency tree checks and 35/35 automated unit & security tests.

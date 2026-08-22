@@ -143,4 +143,35 @@ describe('Security & Secrets Leak Prevention Tests', () => {
     expect(content).toContain('cert(');
     expect(content).toContain('getAuth(');
   });
+
+  it('11g. Control de dependencias: firebase-admin permanece fijado en 13.10.0 evitando jwks-rsa 4 y jose 6 ESM-only', () => {
+    const pkgPath = path.resolve(process.cwd(), 'package.json');
+    const pkgLockPath = path.resolve(process.cwd(), 'package-lock.json');
+
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    expect(pkg.dependencies['firebase-admin']).toBe('13.10.0');
+
+    if (fs.existsSync(pkgLockPath)) {
+      const pkgLock = JSON.parse(fs.readFileSync(pkgLockPath, 'utf-8'));
+      const packages = pkgLock.packages || {};
+
+      // Ensure firebase-admin is 13.10.0
+      const fbAdmin = packages['node_modules/firebase-admin'];
+      if (fbAdmin) {
+        expect(fbAdmin.version).toMatch(/^13\.10\./);
+      }
+
+      // Ensure jwks-rsa resolved within dependencies is 3.x, NOT 4.x
+      const jwksRsa = packages['node_modules/jwks-rsa'];
+      if (jwksRsa) {
+        expect(jwksRsa.version).toMatch(/^3\./);
+      }
+
+      // Ensure jose resolved within jwks-rsa is 4.x, NOT 6.x
+      const jose = packages['node_modules/jose'];
+      if (jose) {
+        expect(jose.version).toMatch(/^4\./);
+      }
+    }
+  });
 });
