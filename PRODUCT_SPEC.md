@@ -4,7 +4,26 @@
 
 Anima MKT CRM is a **multi-tenant revenue intelligence platform** for digital marketing agencies. It connects the entire commercial cycle — from ad spend to closed revenue — providing visibility into CPL, CPA, ROAS, and campaign performance per client, campaign, and salesperson.
 
-## 2. Target Users
+## 2. Visual Identity & Design Principles
+
+Anima MKT CRM is designed as a **firm, operational, professional, and accessible commercial tool**, avoiding generic "AI product" aesthetics:
+
+- **Color Palette & Functional Tokens:**
+  - **General Background:** `#F7F6F2` (warm clean off-white).
+  - **Surface & Cards:** `#FFFFFF` (pure white for content containment).
+  - **Primary Brand & Active State:** `#B91C1C` (deep primary red) and `#7F1D1D` (dark red hover/accent). Used for brand identity, active navigation states, and primary critical actions.
+  - **Success / Healthy:** `#15803D` (functional green). Strictly reserved for positive revenue metrics, healthy sync status, and completed conversions.
+  - **Warning / Attention:** `#F4C430` (warm functional amber/yellow). Used for pending verifications, review flags, and required alerts (always paired with dark readable text).
+  - **Typography & Neutral Contrast:** `#202020` (charcoal primary text) and `#666666` (muted secondary text).
+  - **Borders & Dividers:** `#E5E0D8` (subtle crisp borders).
+- **Design Constraints & Rules:**
+  - **No generic AI / SaaS tropes:** No purple/cyan/fuchsia gradients, no iridescent glowing effects, no neon glows.
+  - **No decorative color blending:** Red, green, and yellow possess strict functional meanings and are never mixed decoratively.
+  - **No excessive glassmorphism or floating layers:** Clear borders, discrete shadows, moderate border radii (`rounded-md` / `rounded-lg`).
+  - **High Accessibility:** Full WCAG AA color contrast compliance. Information is never conveyed by color alone (always paired with text/icons).
+  - **Temporary Wordmark:** Textual "ANIMA MKT CRM" wordmark until a final emblem/logo is established.
+
+## 3. Target Users
 
 | Role         | Description                                                   |
 |--------------|---------------------------------------------------------------|
@@ -13,16 +32,16 @@ Anima MKT CRM is a **multi-tenant revenue intelligence platform** for digital ma
 | client       | End client. Sees only their own data, metrics, campaigns      |
 | salesperson  | Sales rep. Sees only their assigned leads and pipeline         |
 
-## 3. Core Features (by Stage)
+## 4. Core Features (by Stage)
 
 ### Stage 1 — Foundation, Auth & Minimal User DB
 - React + Vite + Tailwind CSS app shell
-- Firebase Authentication (email/password, initial super_admin created in Firebase Console)
+- Firebase Authentication (email/password + optional Google sign-in)
 - Minimal MongoDB connection for the `users` collection (`anima_mkt_crm`)
 - Master access bootstrap (`SUPER_ADMIN_EMAIL` server-side variable)
 - Email verification requirement (`email_verified: true`), with frontend resend flow
 - Protected routes by role and verified email status
-- Useful empty states (no crashes on missing data)
+- Responsive layout with sidebar, header, and useful empty states (no crashes on missing data)
 
 ### Stage 2 — Multi-tenant Core & Clients
 - Expanded MongoDB Atlas collections (`clients`, `audit_logs`)
@@ -93,7 +112,7 @@ Anima MKT CRM is a **multi-tenant revenue intelligence platform** for digital ma
 - Staging preview
 - Controlled migration to production domain
 
-## 4. Non-Functional Requirements & Design Targets
+## 5. Non-Functional Requirements & Design Targets
 
 | Requirement     | Product Target                                   | Notes |
 |-----------------|--------------------------------------------------|-------|
@@ -104,7 +123,7 @@ Anima MKT CRM is a **multi-tenant revenue intelligence platform** for digital ma
 | Function limits | Max 60s sync / 30s scheduled / 15m background    | Enforced by Netlify platform |
 | Data freshness  | Meta sync periodic, on-demand refresh available  | Configurable via sync checkpoints |
 
-## 5. Out of Scope (current version)
+## 6. Out of Scope (current version)
 
 - Public self-registration (all users created by super_admin/admin)
 - Payment/billing checkout system

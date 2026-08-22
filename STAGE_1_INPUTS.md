@@ -1,6 +1,6 @@
 # Anima MKT CRM — Estado de Insumos para Iniciar la Etapa 1
 
-Estado y registro de variables requeridas antes de comenzar la **Etapa 1 (Foundation, Auth & Minimal User DB)**:
+Estado y registro de variables e insumos requeridos para la **Etapa 1 (Foundation, Auth & Minimal User DB)**:
 
 ---
 
@@ -9,9 +9,10 @@ Estado y registro de variables requeridas antes de comenzar la **Etapa 1 (Founda
 - **Estado:** ✅ Preparado.
 - **Base de datos configurada:** `anima_mkt_crm` (`MONGODB_DB_NAME=anima_mkt_crm`).
 - **Cadena de conexión (`MONGODB_URI`):** ✅ Cargada en Netlify como variable server-side.
-- **Confirmación de seguridad pendiente:**
-  - [ ] Verificar que el usuario de base de datos cuente con rol `readWrite` exclusivo únicamente sobre la base `anima_mkt_crm`.
-  - [ ] Verificar que la lista de acceso de red (Network Access IP Whitelist) en MongoDB Atlas incluya `0.0.0.0/0` para permitir llamadas desde las Netlify Functions serverless.
+- **Seguridad configurada:**
+  - Usuario de base de datos con rol `readWrite` exclusivo únicamente sobre la base `anima_mkt_crm`.
+  - Acceso de red (Network Access IP Whitelist) en MongoDB Atlas con `0.0.0.0/0` para permitir llamadas desde las Netlify Functions serverless.
+  - IP de desarrollo autorizada.
 
 ---
 
@@ -20,28 +21,39 @@ Estado y registro de variables requeridas antes de comenzar la **Etapa 1 (Founda
 - **Estado:** ✅ Preparado.
 - **Proyecto nuevo creado en Netlify:** `anima-mkt-crm` vinculado al repositorio GitHub (`federicojclua/meta-ads-crm`).
 - **Sitio anterior:** El sitio legacy `crmmet.netlify.app` permanece intacto y **no debe tocarse**.
+- **URL de Aplicación:** `APP_URL=https://anima-mkt-crm.netlify.app`.
 
 ---
 
 ## 3. Autenticación (Firebase Authentication)
 
-- **Estado:** 🟡 Pendiente de creación y configuración.
-- **Acciones pendientes en Firebase Console:**
-  1. [ ] Crear proyecto en [Firebase Console](https://console.firebase.google.com) (ej. `anima-mkt-crm`).
-  2. [ ] Habilitar proveedor **Email/Password** en *Authentication → Sign-in method*.
-  3. [ ] Agregar dominios autorizados (`localhost`, `anima-mkt-crm.netlify.app`).
-  4. [ ] Crear manualmente el primer usuario para el `super_admin` con el correo exacto que se configurará en `SUPER_ADMIN_EMAIL`.
-  5. [ ] Obtener configuración pública del cliente y configurar en `.env.local` y Netlify:
-     - `VITE_FIREBASE_API_KEY`
-     - `VITE_FIREBASE_AUTH_DOMAIN`
-     - `VITE_FIREBASE_PROJECT_ID`
-     - `VITE_FIREBASE_APP_ID`
-  6. [ ] Generar clave privada de Service Account (*Project Settings → Service Accounts*) y configurar como variables server-side en Netlify y `.env.local`:
-     - `FIREBASE_PROJECT_ID`
-     - `FIREBASE_CLIENT_EMAIL`
-     - `FIREBASE_PRIVATE_KEY`
-  7. [ ] Configurar variable server-side `SUPER_ADMIN_EMAIL=<tu-correo-super-admin>`.
+- **Estado:** ✅ Configurado en Firebase Console.
+- **Proyecto:** Anima MKT CRM.
+- **Proveedores habilitados:** Email/Password + Google Sign-In.
+- **Aplicación web registrada.**
+- **Variables públicas (Frontend):**
+  - `VITE_FIREBASE_API_KEY`
+  - `VITE_FIREBASE_AUTH_DOMAIN`
+  - `VITE_FIREBASE_PROJECT_ID`
+  - `VITE_FIREBASE_APP_ID`
+- **Variables privadas (Netlify Functions):**
+  - `SUPER_ADMIN_EMAIL`
+  - `FIREBASE_PROJECT_ID`
+  - `FIREBASE_CLIENT_EMAIL`
+  - `FIREBASE_PRIVATE_KEY`
+- **Acción Manual de Verificación:** Asegurar que `anima-mkt-crm.netlify.app` y `localhost` estén en la lista de dominios autorizados en Firebase Authentication.
 
 ---
 
-> ⚠️ **Resumen de Bloqueo:** La Etapa 1 podrá iniciarse en cuanto se disponga de la configuración de Firebase Authentication y se realice la verificación del email del super_admin.
+## 4. Identidad Visual Funcional
+
+- **Tokens definidos:**
+  - Fondo general: `#F7F6F2`
+  - Superficie: `#FFFFFF`
+  - Rojo principal: `#B91C1C` / `#7F1D1D`
+  - Texto principal: `#202020`
+  - Texto secundario: `#666666`
+  - Borde: `#E5E0D8`
+  - Verde éxito: `#15803D`
+  - Amarillo atención: `#F4C430` (con texto oscuro)
+  - Wordmark: "ANIMA MKT CRM"

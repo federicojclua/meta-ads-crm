@@ -197,3 +197,24 @@ Each decision records:
 **Consequences:**
 - Compound indexes with `clientId` as primary key on all tenant collections
 - Strict verification in Netlify Functions before database query execution
+
+---
+
+## ADR-011: Operational Commercial Visual Identity (No Generic AI Aesthetics)
+
+**Date:** 2026-08-22
+
+**Decision:** Adopt a firm, high-density, professional visual design system based on a warm off-white canvas (`#F7F6F2`), pure white surfaces (`#FFFFFF`), primary brand red (`#B91C1C` / `#7F1D1D`), charcoal typography (`#202020`), discrete borders (`#E5E0D8`), and strict functional green (`#15803D`) and yellow/amber (`#F4C430`).
+
+**Rationale:**
+- Positions Anima MKT CRM as an authoritative commercial and financial tool rather than a toy AI wrapper.
+- Eliminates visual fatigue from generic purple/cyan glowing gradients, exaggerated floating cards, and glassmorphism.
+- Guarantees strict WCAG AA contrast compliance and semantic functional color usage.
+
+**Alternatives Discarded:**
+- Generic AI SaaS templates (dark theme with cyan/fuchsia neon gradients).
+- Heavy glassmorphism and pastel aesthetic.
+
+**Consequences:**
+- Color tokens centralized in Tailwind config (`tailwind.config.js`).
+- Colors never mixed decoratively; always paired with textual/iconographic status indicators.

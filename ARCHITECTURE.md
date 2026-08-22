@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        BROWSER (Client)                         │
 │                                                                 │
-│  React + Vite + Tailwind CSS                                    │
+│  React + Vite + Tailwind CSS (Anima Design System Tokens)       │
 │  ┌──────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
 │  │ Firebase │  │ React Router │  │ TanStack Query            │  │
 │  │ Auth SDK │  │ (protected)  │  │ (data fetching + cache)   │  │
@@ -64,8 +64,8 @@
 │          │      │  Auth       │      │ (api-auth-me)     │      │ (users)  │
 └────┬─────┘      └──────┬─────┘      └────────┬──────────┘      └────┬─────┘
      │                   │                      │                      │
-     │ 1. Login (email,  │                      │                      │
-     │    password)       │                      │                      │
+     │ 1. Login (email/  │                      │                      │
+     │    pw or Google)  │                      │                      │
      ├──────────────────►│                      │                      │
      │                   │                      │                      │
      │ 2. ID Token       │                      │                      │
@@ -76,7 +76,7 @@
      │    + button to resend verification       │                      │
      │    (blocked until verified)              │                      │
      │                   │                      │                      │
-     │ 4. GET /api/auth-me                      │                      │
+     │ 4. GET /api/auth/me                      │                      │
      │   Authorization: Bearer <idToken>        │                      │
      ├─────────────────────────────────────────►│                      │
      │                   │                      │                      │
@@ -108,7 +108,37 @@
      │◄─────────────────────────────────────────┤                      │
 ```
 
-## 3. Multi-Tenant Data Isolation
+## 3. Frontend Design System & UI Architecture
+
+Anima MKT CRM defines central design tokens in `tailwind.config.js` and `index.css`:
+
+```javascript
+// Design System Token Mapping
+colors: {
+  brand: {
+    bg: '#F7F6F2',          // Clean warm off-white background
+    surface: '#FFFFFF',     // Pure white content surface
+    primary: '#B91C1C',     // Deep functional red
+    dark: '#7F1D1D',        // Dark red hover/accent
+    border: '#E5E0D8',      // Crisp subtle border
+    text: {
+      primary: '#202020',   // Charcoal dark primary text
+      secondary: '#666666', // Muted secondary text
+    }
+  },
+  status: {
+    success: '#15803D',     // Functional green (healthy sync, positive metrics)
+    warning: '#F4C430',     // Functional yellow/amber (requires attention)
+  }
+}
+```
+
+**Architectural UI Guidelines:**
+- Crisp borders, light elevation shadows, moderate border radii (`rounded-md` / `rounded-lg`).
+- High-density, data-focused layout suitable for operational CRM workflows.
+- Accessible WCAG AA contrast ratio throughout all screens.
+
+## 4. Multi-Tenant Data Isolation
 
 Every data query in Netlify Functions MUST include `clientId` filtering:
 
@@ -123,21 +153,15 @@ Request Flow:
 7. If a non-super_admin user requests data for an unassigned clientId → 403 Forbidden
 ```
 
-**Rules:**
-- `clientId` is NEVER trusted directly from frontend request parameters
-- `clientId` is ALWAYS validated against the authenticated user's MongoDB profile
-- `super_admin` can explicitly select a `clientId` for context filtering ("View As" mode)
-- All other roles (`admin`, `client`, `salesperson`) are restricted strictly to their assigned `clientIds[]`
-
-## 4. Execution Limits & Serverless Architecture
+## 5. Execution Limits & Serverless Architecture
 
 | Function Type | Netlify Max Timeout | Usage Pattern |
 |---------------|---------------------|---------------|
-| Synchronous Functions | 60 seconds | API endpoints: `api-auth-me`, CRUD, queries |
+| Synchronous Functions | 60 seconds | API endpoints: `api/auth/me`, CRUD, queries |
 | Scheduled Functions | 30 seconds | Cron tasks: trigger daily sync checkpoints |
 | Background Functions (`*-background.js`) | Hasta 15 minutos | Sincronizaciones extensas de Meta Marketing API |
 
-## 5. Directory Structure (Planned)
+## 6. Directory Structure (Planned)
 
 ```
 anima-mkt-crm/
@@ -172,6 +196,9 @@ anima-mkt-crm/
 │   │       └── Badge.jsx
 │   ├── pages/
 │   │   ├── LoginPage.jsx
+│   │   ├── VerifyEmailPage.jsx
+│   │   ├── ForgotPasswordPage.jsx
+│   │   ├── UnauthorizedPage.jsx
 │   │   ├── DashboardPage.jsx
 │   │   ├── ClientsPage.jsx
 │   │   ├── UsersPage.jsx
@@ -188,10 +215,10 @@ anima-mkt-crm/
 │   │   ├── api.js                  # Fetch wrapper with Bearer token
 │   │   └── constants.js
 │   └── styles/
-│       └── index.css               # Tailwind CSS directives
+│       └── index.css               # Tailwind CSS directives & tokens
 ├── netlify/
 │   └── functions/
-│       ├── api-auth-me.js          # Session / user profile bootstrap
+│       ├── api-auth-me.js          # Session / user profile bootstrap (mapped to /api/auth/me)
 │       ├── api-clients.js          # Client CRUD (Stage 2)
 │       ├── api-users.js            # User CRUD + invites (Stage 2)
 │       ├── api-leads.js            # Lead management (Stage 3)
@@ -222,7 +249,7 @@ anima-mkt-crm/
 └── [documentation files]
 ```
 
-## 6. Key Technical Decisions
+## 7. Key Technical Decisions
 
 | Decision                        | Rationale                                                |
 |---------------------------------|----------------------------------------------------------|
@@ -232,3 +259,4 @@ anima-mkt-crm/
 | TanStack Query                  | Automatic client caching, background refetching and optimistic state updates |
 | Tailwind CSS                    | Consistent design tokens, rapid layout development       |
 | Server-side role enforcement    | Authorization is strictly verified in functions, never trusted from client |
+| Distinct Visual Identity        | Operational commercial aesthetic (white/warm-neutral/red/charcoal), no generic AI glow |
