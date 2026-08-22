@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables (NEVER commit real credentials)
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*.local
+
+# Firebase credentials / service account keys
+*-firebase-adminsdk-*.json
+firebase-service-account.json
+serviceAccountKey.json
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Client data exports (sensitive)
+exports/
+client-data/
+*.csv
+*.xlsx
+
+# Coverage / test output
+coverage/
+.nyc_output/
+
+# Netlify
+.netlify/
+
+# Misc
+*.tgz
+*.tar.gz
