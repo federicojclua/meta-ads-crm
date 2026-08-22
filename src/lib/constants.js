@@ -12,8 +12,8 @@ export const USER_STATUS = {
 };
 
 export const ROLE_LABELS = {
-  [ROLES.SUPER_ADMIN]: 'Super Administrador',
-  [ROLES.ADMIN]: 'Administrador',
-  [ROLES.CLIENT]: 'Cliente',
-  [ROLES.SALESPERSON]: 'Vendedor',
+  [ROLES.SUPER_ADMIN]: 'SUPER ADMINISTRADOR',
+  [ROLES.ADMIN]: 'ADMINISTRADOR',
+  [ROLES.CLIENT]: 'CLIENTE',
+  [ROLES.SALESPERSON]: 'VENDEDOR',
 };

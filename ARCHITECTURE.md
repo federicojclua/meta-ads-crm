@@ -266,3 +266,5 @@ anima-mkt-crm/
 | Tailwind CSS                    | Consistent design tokens, rapid layout development       |
 | Server-side role enforcement    | Authorization is strictly verified in functions, never trusted from client |
 | Distinct Visual Identity        | Operational commercial aesthetic (white/warm-neutral/red/charcoal), no generic AI glow |
+| Firebase Admin 13.10.0 Pinning  | Modular API pinned to 13.10.0 to prevent upstream jwks-rsa 4 / jose 6 ESM conflicts |
+| Hybrid Auth & Password Linking  | In-app password linking for Google-only users without duplicate accounts or UID change |

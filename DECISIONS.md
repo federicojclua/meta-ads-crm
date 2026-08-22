@@ -276,3 +276,25 @@ Each decision records:
 **Consequences:**
 - Zero `ERR_REQUIRE_ESM` runtime errors in Netlify Functions.
 - Validated with automated dependency tree checks and 35/35 automated unit & security tests.
+
+---
+
+## ADR-015: Hybrid Auth Lifecycle, Dynamic Password Policy & Authoritative DB Suspension
+
+**Date:** 2026-08-22
+
+**Decision:**
+1. Support hybrid authentication by allowing Google-authenticated users to link a direct password via `linkWithCredential` and `EmailAuthProvider.credential(user.email, password)` without altering the user's `firebaseUid` or MongoDB record.
+2. Enforce dynamic password validation in the frontend via `validatePassword(auth, password)` aligning directly with the configured Firebase project policy (e.g., minimum 10-12 characters, uppercase, lowercase, numbers).
+3. Explicitly reject automatic account merging on `auth/credential-already-in-use` during MVP to prevent unauthorized role escalation or credential hijacking across identities.
+4. Establish that effective account suspension or offboarding must **always be performed authoritatively in MongoDB (`status: "suspended"`)**, as a linked password enables authentication independently of external Google Workspace account state.
+
+**Rationale:**
+- Prevents UI/backend validation divergence when Firebase enforces custom security policies.
+- Protects multi-tenant isolation by avoiding silent account merges.
+- Guarantees immediate revocation of all CRM API access across all authentication providers upon setting `status: "suspended"` in MongoDB.
+
+**Consequences:**
+- The password is removed immediately from React state after submission or cancellation and is never persisted or logged.
+- Revocation of access is 100% authoritative in MongoDB Atlas.
+- Full test coverage for Google-only, password linking, validation errors, and provider collision handling.

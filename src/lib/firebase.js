@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   browserSessionPersistence,
   setPersistence,
+  validatePassword,
 } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -23,5 +24,12 @@ setPersistence(auth, browserSessionPersistence).catch((err) => {
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export async function validatePasswordPolicy(authInstance, password) {
+  if (typeof validatePassword === 'function') {
+    return validatePassword(authInstance, password);
+  }
+  return { isValid: true };
+}
 
 export { app, auth, googleProvider, browserSessionPersistence };

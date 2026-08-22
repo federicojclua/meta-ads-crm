@@ -186,4 +186,220 @@ describe('Frontend UI & Protected Routes Tests', () => {
     expect(screen.getByText('Aviso')).toBeInTheDocument();
     expect(screen.getByText('Sin Datos')).toBeInTheDocument();
   });
+
+  describe('SettingsPage - Seguridad de Acceso & Vinculación de Contraseña', () => {
+    it('13a. Cuenta Google-only renderiza estados y permite desplegar el formulario de crear contraseña', async () => {
+      const { SettingsPage } = await import('../pages/SettingsPage');
+      vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+        userProfile: { email: 'federicojclua@gmail.com', role: 'super_admin' },
+        firebaseUser: { email: 'federicojclua@gmail.com', uid: 'uid-12345' },
+        hasGoogleProvider: true,
+        hasPasswordProvider: false,
+        linkPasswordAccount: vi.fn(),
+        sendPasswordReset: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      );
+
+      // Verify Role is displayed normalized as SUPER ADMINISTRADOR
+      expect(screen.getAllByText('SUPER ADMINISTRADOR').length).toBeGreaterThan(0);
+      expect(screen.queryByText('super_admin')).not.toBeInTheDocument();
+
+      // Verify Provider Statuses
+      expect(screen.getByText('Conectado')).toBeInTheDocument();
+      expect(screen.getByText('No configurada')).toBeInTheDocument();
+      expect(screen.getByText('Crear Contraseña')).toBeInTheDocument();
+    });
+
+    it('13b. Formulario de contraseña valida largo mínimo y coincidencia de contraseñas', async () => {
+      const { SettingsPage } = await import('../pages/SettingsPage');
+      const { fireEvent } = await import('@testing-library/react');
+
+      vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+        userProfile: { email: 'federicojclua@gmail.com', role: 'super_admin' },
+        firebaseUser: { email: 'federicojclua@gmail.com', uid: 'uid-12345' },
+        hasGoogleProvider: true,
+        hasPasswordProvider: false,
+        linkPasswordAccount: vi.fn(),
+        sendPasswordReset: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      );
+
+      // Open password form
+      fireEvent.click(screen.getByText('Crear Contraseña'));
+
+      const newPassInput = screen.getByLabelText('Nueva Contraseña');
+      const confirmPassInput = screen.getByLabelText('Confirmar Contraseña');
+      const submitBtn = screen.getByRole('button', { name: /Establecer Contraseña/i });
+
+      // Initially disabled
+      expect(submitBtn).toBeDisabled();
+
+      // Password too short (< 6 chars)
+      fireEvent.change(newPassInput, { target: { value: '123' } });
+      fireEvent.change(confirmPassInput, { target: { value: '123' } });
+      expect(submitBtn).toBeDisabled();
+
+      // Passwords mismatch
+      fireEvent.change(newPassInput, { target: { value: 'password123' } });
+      fireEvent.change(confirmPassInput, { target: { value: 'different123' } });
+      expect(screen.getByText('Las contraseñas no coinciden')).toBeInTheDocument();
+      expect(submitBtn).toBeDisabled();
+
+      // Valid match (>= 6 chars)
+      fireEvent.change(confirmPassInput, { target: { value: 'password123' } });
+      expect(screen.getByText('Las contraseñas coinciden')).toBeInTheDocument();
+      expect(submitBtn).not.toBeDisabled();
+    });
+
+    it('13c. Vinculación exitosa conserva el mismo firebaseUid y actualiza el estado', async () => {
+      const { SettingsPage } = await import('../pages/SettingsPage');
+      const { fireEvent, waitFor } = await import('@testing-library/react');
+
+      const mockLink = vi.fn().mockResolvedValue({
+        uid: 'uid-12345',
+        email: 'federicojclua@gmail.com',
+        providerData: [{ providerId: 'google.com' }, { providerId: 'password' }],
+      });
+
+      vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+        userProfile: { email: 'federicojclua@gmail.com', role: 'super_admin' },
+        firebaseUser: { email: 'federicojclua@gmail.com', uid: 'uid-12345' },
+        hasGoogleProvider: true,
+        hasPasswordProvider: false,
+        linkPasswordAccount: mockLink,
+        sendPasswordReset: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByText('Crear Contraseña'));
+
+      const newPassInput = screen.getByLabelText('Nueva Contraseña');
+      const confirmPassInput = screen.getByLabelText('Confirmar Contraseña');
+      const submitBtn = screen.getByRole('button', { name: /Establecer Contraseña/i });
+
+      fireEvent.change(newPassInput, { target: { value: 'MiClaveSegura2026' } });
+      fireEvent.change(confirmPassInput, { target: { value: 'MiClaveSegura2026' } });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(mockLink).toHaveBeenCalledWith('MiClaveSegura2026');
+        expect(screen.getByText(/¡Contraseña vinculada exitosamente!/i)).toBeInTheDocument();
+      });
+    });
+
+    it('13d. Manejo de error cuando la credencial ya está en uso (credential-already-in-use)', async () => {
+      const { SettingsPage } = await import('../pages/SettingsPage');
+      const { fireEvent, waitFor } = await import('@testing-library/react');
+
+      const mockError = new Error('Credencial duplicada');
+      mockError.code = 'auth/credential-already-in-use';
+      const mockLink = vi.fn().mockRejectedValue(mockError);
+
+      vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+        userProfile: { email: 'federicojclua@gmail.com', role: 'super_admin' },
+        firebaseUser: { email: 'federicojclua@gmail.com', uid: 'uid-12345' },
+        hasGoogleProvider: true,
+        hasPasswordProvider: false,
+        linkPasswordAccount: mockLink,
+        sendPasswordReset: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByText('Crear Contraseña'));
+
+      fireEvent.change(screen.getByLabelText('Nueva Contraseña'), { target: { value: 'password123' } });
+      fireEvent.change(screen.getByLabelText('Confirmar Contraseña'), { target: { value: 'password123' } });
+      fireEvent.click(screen.getByRole('button', { name: /Establecer Contraseña/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Esta credencial ya se encuentra en uso/i)).toBeInTheDocument();
+      });
+    });
+
+    it('13e. Cuenta con contraseña configurada muestra estado y opción de restablecimiento', async () => {
+      const { SettingsPage } = await import('../pages/SettingsPage');
+      vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+        userProfile: { email: 'federicojclua@gmail.com', role: 'super_admin' },
+        firebaseUser: { email: 'federicojclua@gmail.com', uid: 'uid-12345' },
+        hasGoogleProvider: true,
+        hasPasswordProvider: true,
+        linkPasswordAccount: vi.fn(),
+        sendPasswordReset: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByText('Configurada')).toBeInTheDocument();
+      expect(screen.getByText('Restablecer vía Email')).toBeInTheDocument();
+      expect(screen.queryByText('Crear Contraseña')).not.toBeInTheDocument();
+    });
+
+    it('13f. Rechazo dinámico cuando validatePassword de Firebase indica que la contraseña no cumple la política activa', async () => {
+      const { SettingsPage } = await import('../pages/SettingsPage');
+      const { fireEvent, waitFor } = await import('@testing-library/react');
+      const FirebaseModule = await import('../lib/firebase');
+
+      // Mock validatePasswordPolicy to return invalid status
+      vi.spyOn(FirebaseModule, 'validatePasswordPolicy').mockResolvedValue({
+        isValid: false,
+        meetsMinPasswordLength: false,
+        containsLowercaseLetter: true,
+        containsUppercaseLetter: false,
+        containsNumericCharacter: false,
+        containsNonAlphanumericCharacter: false,
+      });
+
+      const mockLink = vi.fn();
+
+      vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+        userProfile: { email: 'federicojclua@gmail.com', role: 'super_admin' },
+        firebaseUser: { email: 'federicojclua@gmail.com', uid: 'uid-12345' },
+        hasGoogleProvider: true,
+        hasPasswordProvider: false,
+        linkPasswordAccount: mockLink,
+        sendPasswordReset: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByText('Crear Contraseña'));
+
+      fireEvent.change(screen.getByLabelText('Nueva Contraseña'), { target: { value: 'password123' } });
+      fireEvent.change(screen.getByLabelText('Confirmar Contraseña'), { target: { value: 'password123' } });
+      fireEvent.click(screen.getByRole('button', { name: /Establecer Contraseña/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/La contraseña no cumple con la política de seguridad configurada en Firebase/i)).toBeInTheDocument();
+        expect(mockLink).not.toHaveBeenCalled();
+      });
+    });
+  });
 });

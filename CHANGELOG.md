@@ -41,8 +41,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - Manejo en frontend de estado dedicado para fallos de servidor (500) a través de `ServiceUnavailablePage` y `ProtectedRoute` sin redirigir erróneamente a `/unauthorized` ni mezclarlo con 403.
   - Normalización y saneamiento de formato de clave privada (`FIREBASE_PRIVATE_KEY`) eliminando comillas envolventes y resolviendo `\n` literales.
   - Distinción en frontend de proveedores asociados (`google.com`, `password`) y preparación de helper de vinculación `linkPasswordAccount` con `linkWithCredential`.
+- **Cierre Final de Etapa 1 & Vinculación Híbrida de Credenciales:**
+  - Sección "Seguridad de Acceso & Proveedores Vinculados" en `SettingsPage.jsx`.
+  - Visualización del estado de proveedores conectados (Google Workspace / Gmail y Contraseña Directa).
+  - Formulario interactivo para vincular contraseña a cuentas Google-only mediante `linkWithCredential` y `EmailAuthProvider.credential(user.email, newPassword)` sin crear cuentas duplicadas ni alterar el `firebaseUid`.
+  - Validación reactiva de contraseña (mínimo 6 caracteres, coincidencia en tiempo real, limpieza inmediata de inputs sensibles en memoria y sin persistencia en logs o almacenamiento local).
+  - Manejo de restablecimiento de contraseña vía email (`sendPasswordReset`).
+  - Normalización estricta de la visualización de roles en la interfaz a `"SUPER ADMINISTRADOR"`, `"ADMINISTRADOR"`, `"MEDIA BUYER"`, `"CLIENTE"` mediante la función utilitaria `formatRole`.
+  - Fijación estricta de `firebase-admin: "13.10.0"` en `package.json` para prevenir el conflicto upstream `ERR_REQUIRE_ESM` entre `jwks-rsa@4` y `jose@6`.
 - **Calidad & Pruebas:**
-  - 34 pruebas automatizadas con Vitest y Testing Library (backend auth, manejo de errores 401/403/500, tokens malformados, separación de excepciones, prevención estática de regresión a imports default de `firebase-admin`, bootstrap atómico, recuperación E11000, identity mismatch, persistencia de sesión, allowlist estricta de redirección, componentes UI, proveedores Google vs Password y seguridad de secretos).
+  - 41 pruebas automatizadas con Vitest y Testing Library (backend auth, manejo de errores 401/403/500, tokens malformados, separación de excepciones, prevención estática de regresión a imports default de `firebase-admin`, bootstrap atómico, recuperación E11000, identity mismatch, persistencia de sesión, allowlist estricta de redirección, componentes UI, proveedores Google vs Password, formulario y validaciones de vinculación de contraseña en Settings, preservación de UID y seguridad de secretos).
   - ESLint limpio con 0 errores y 0 warnings.
   - Build de producción (`npm run build`) validado exitosamente bajo Node 24.
 

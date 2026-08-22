@@ -9,8 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Badge } from '../ui/Badge';
-import { ROLE_LABELS } from '../../lib/constants';
-import { cn } from '../../lib/utils';
+import { cn, formatRole } from '../../lib/utils';
 
 export function Sidebar({ mobileOpen = false, onCloseMobile }) {
   const { userProfile } = useAuth();
@@ -97,7 +96,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
               {userProfile?.displayName || userProfile?.email?.split('@')[0]}
             </span>
             <Badge variant="primary" className="text-[9px] px-1.5 py-0.5">
-              {ROLE_LABELS[userProfile?.role] || userProfile?.role || 'Usuario'}
+              {formatRole(userProfile?.role)}
             </Badge>
           </div>
           <span className="text-[11px] text-brand-text-secondary truncate block" title={userProfile?.email}>

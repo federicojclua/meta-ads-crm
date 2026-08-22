@@ -5,8 +5,8 @@
 | Level              | Tool / Method             | Stage  | Estado |
 |--------------------|---------------------------|--------|--------|
 | Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 16 tests pasados |
-| Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 6 tests pasados |
-| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 11 tests pasados |
+| Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 12 tests pasados |
+| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 12 tests pasados |
 | Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
 | Netlify Dev Smoke  | Netlify CLI (HTTP real)    | 1+     | ✅ Validado (HTTP 401 JSON) |
 | Integration tests  | Multi-tenant manual        | 2+     | Pendiente Stage 2 |
@@ -14,7 +14,7 @@
 
 ---
 
-### Matriz de 35 Pruebas Automatizadas Implementadas (Stage 1 + Hotfix Modular & Version Pinning)
+### Matriz de 42 Pruebas Automatizadas Implementadas (Stage 1 Final)
 
 1. **`auth-backend.test.js` (16 pruebas)**
    - `1. Sin token -> responde 401 (AUTH_TOKEN_MISSING)`
@@ -34,15 +34,21 @@
    - `15. Usuario suspendido en MongoDB -> responde 403 (USER_SUSPENDED)`
    - `16. Rol enviado desde frontend o parámetros es ignorado (solo GET /auth/me usa MongoDB)`
 
-2. **`auth-frontend.test.jsx` (6 pruebas)**
+2. **`auth-frontend.test.jsx` (12 pruebas)**
    - `10. Rutas privadas -> redirige a /login cuando no hay usuario autenticado`
    - `10b. Usuario autenticado pero email no verificado -> redirige a /verify-email`
    - `10c. Usuario verificado sin perfil en MongoDB (403) -> redirige a /unauthorized`
    - `10d. Error de servidor 500 (serverUnavailable) en ProtectedRoute -> muestra pantalla Servicio No Disponible sin redirigir a /unauthorized`
    - `10e. Detección y distinción segura de proveedores (Google-only, Password, Ambos)`
    - `12. Componentes UI principales renderizan con diseño accesible`
+   - `13a. SettingsPage: Cuenta Google-only renderiza estados y permite desplegar el formulario de crear contraseña`
+   - `13b. SettingsPage: Formulario de contraseña valida largo mínimo y coincidencia de contraseñas`
+   - `13c. SettingsPage: Vinculación exitosa conserva el mismo firebaseUid y actualiza el estado`
+   - `13d. SettingsPage: Manejo de error cuando la credencial ya está en uso (credential-already-in-use)`
+   - `13e. SettingsPage: Cuenta con contraseña configurada muestra estado y opción de restablecimiento`
+   - `13f. SettingsPage: Rechazo dinámico cuando validatePassword de Firebase indica que la contraseña no cumple la política activa`
 
-3. **`security.test.js` (11 pruebas)**
+3. **`security.test.js` (12 pruebas)**
    - `11. Ausencia de variables privadas o secretos en el bundle generado en dist/`
    - `11b. Variables públicas autorizadas utilizan exclusivamente prefijo VITE_`
    - `11c. Firebase Client Auth está explícitamente configurado con browserSessionPersistence`
@@ -54,6 +60,7 @@
    - `11e.5 Rechaza valores nulos, undefined, objetos y arrays -> fallback /app`
    - `11f. firebaseAdmin.js utiliza exclusivamente imports modulares y no usa import default ni admin.apps`
    - `11g. Control de dependencias: firebase-admin permanece fijado en 13.10.0 evitando jwks-rsa 4 y jose 6 ESM-only`
+   - `11h. Ausencia de contraseñas en código fuente, logs y almacenamiento`
 
 4. **`routes.test.js` (2 pruebas)**
    - `1. netlify.toml define el redirect exacto de /api/auth/me hacia /.netlify/functions/api-auth-me con force = true`

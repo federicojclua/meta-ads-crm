@@ -174,4 +174,15 @@ describe('Security & Secrets Leak Prevention Tests', () => {
       }
     }
   });
+
+  it('11h. Ausencia de contraseñas en código fuente, logs y almacenamiento', () => {
+    // Check that SettingsPage does not log passwords
+    const settingsPath = path.resolve(process.cwd(), 'src/pages/SettingsPage.jsx');
+    const settingsContent = fs.readFileSync(settingsPath, 'utf-8');
+
+    expect(settingsContent).not.toMatch(/console\.log\(.*newPassword.*\)/);
+    expect(settingsContent).not.toMatch(/console\.log\(.*password.*\)/);
+    expect(settingsContent).not.toMatch(/localStorage\.setItem\(.*password/i);
+    expect(settingsContent).not.toMatch(/sessionStorage\.setItem\(.*password/i);
+  });
 });

@@ -26,6 +26,17 @@
 
 ---
 
+### Vinculación de Contraseñas, Política de Seguridad & Revocación Operativa
+- **Identidad Única Inmutable:** Los usuarios que inician sesión inicialmente mediante Google pueden vincular una credencial de contraseña directa mediante `linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, password))`.
+- **Preservación de UID:** La vinculación de contraseña no crea cuentas duplicadas, no altera el correo electrónico y conserva de forma estricta el mismo `firebaseUid`.
+- **Eliminación Inmediata de Estado:** La contraseña se elimina inmediatamente del estado de React después del envío o cancelación y nunca se persiste ni registra en almacenamiento local, sesión ni logs.
+- **Validación Dinámica de Políticas de Contraseña:** El frontend evalúa las contraseñas contra las políticas activas de Firebase mediante `validatePassword(auth, password)` antes de enviarlas, garantizando alineación con los requerimientos de longitud y complejidad configurados (recomendado: 10-12 caracteres con mayúsculas, minúsculas y números).
+- **Prohibición de Fusión Automática:** Ante errores de tipo `auth/credential-already-in-use`, el sistema **no** implementa fusión automática de cuentas durante el MVP para prevenir traslados involuntarios de permisos o roles a un `firebaseUid` equivocado.
+- **Consecuencia Operativa sobre Revocación:** Después de vincular una contraseña, el usuario podrá autenticarse aunque su cuenta Google Workspace haya sido deshabilitada en el proveedor externo. Por este motivo, la **baja efectiva o suspensión del acceso siempre debe realizarse de forma autoritativa estableciendo `status: "suspended"` en la base de datos MongoDB** y nunca depender únicamente del estado en Google.
+- **Fijación de Firebase Admin (13.10.0):** Para prevenir vulnerabilidades e incompatibilidades upstream de resolución de módulos (`ERR_REQUIRE_ESM` entre `jwks-rsa@4` y `jose@6`), la dependencia `firebase-admin` se mantiene fijada exactamente en `13.10.0` hasta su resolución oficial upstream.
+
+---
+
 ### Sanitización de Navegación & Mitigación de Open Redirects
 - **Control estricto de redirecciones:** Cualquier llamada a `navigate()` o componente `<Navigate>` utiliza exclusivamente rutas constantes internas o destinos validados contra un prefijo permitido (`/app`).
 - **Bloqueo de caracteres de escape:** Se rechazan explícitamente caracteres de redirección relativa maliciosa (`\\` y `//`).

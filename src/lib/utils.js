@@ -25,3 +25,24 @@ export function formatDate(dateString) {
     minute: '2-digit',
   }).format(date);
 }
+
+export function formatRole(role) {
+  if (!role) return 'USUARIO';
+  const normalized = String(role).toLowerCase().trim();
+  if (normalized === 'super_admin' || normalized === 'super admin' || normalized === 'super_administrador' || normalized === 'super administrador') {
+    return 'SUPER ADMINISTRADOR';
+  }
+  if (normalized === 'admin' || normalized === 'administrador') {
+    return 'ADMINISTRADOR';
+  }
+  if (normalized === 'client' || normalized === 'cliente') {
+    return 'CLIENTE';
+  }
+  if (normalized === 'media_buyer' || normalized === 'media buyer') {
+    return 'MEDIA BUYER';
+  }
+  if (normalized === 'salesperson' || normalized === 'vendedor') {
+    return 'VENDEDOR';
+  }
+  return String(role).toUpperCase();
+}
