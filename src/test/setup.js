@@ -15,3 +15,12 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Mock firebase/auth validatePassword
+vi.mock('firebase/auth', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    validatePassword: vi.fn().mockResolvedValue({ isValid: true }),
+  };
+});

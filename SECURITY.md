@@ -61,18 +61,27 @@ Para mitigar ataques de clickjacking, MIME sniffing y garantizar aislamiento seg
 
 ### Role Enforcement (MongoDB Authoritative)
 - Los roles (`super_admin`, `admin`, `client`, `salesperson`) residen únicamente en la base de datos `anima_mkt_crm` en MongoDB Atlas.
-- La autorización se verifica server-side en **cada** llamada a la API.
+- La autorización se verifica server-side en **cada** endpoint protegido mediante el helper `_shared/permissions.js` (`verifyAuthorizedUser`).
 - El frontend solo utiliza el rol devuelto por `api-auth-me` para adaptar la navegación visual; nunca para tomar decisiones de seguridad.
 
-### Multi-Tenant Data Isolation
-- **Regla crítica:** Toda consulta a colecciones multi-empresa debe incluir el filtro `clientId` derivado del perfil autenticado del usuario.
-- Si un usuario intenta consultar o modificar un `clientId` que no tiene asignado en su array `clientIds`, la función responde `403 Forbidden`.
-- `super_admin` tiene acceso global y puede aplicar filtros de cliente explícitos.
+### Jerarquía Estricta de Roles & Protección de Super Admin
+- **Inviolabilidad de Roles Propios:** Ningún usuario autenticado puede modificar su propio rol (`403 CANNOT_MODIFY_OWN_ROLE`).
+- **Límites de Administrador:** Un usuario con rol `admin` **no** puede crear, modificar ni suspender a un usuario con rol `super_admin` (`403 CANNOT_SUSPEND_SUPER_ADMIN` / `403 CANNOT_MODIFY_SUPER_ADMIN`).
+- **Restricción de Auto-Suspensión:** Ningún usuario puede suspender su propia cuenta (`400 CANNOT_SUSPEND_SELF`).
+
+### Multi-Tenant Data Isolation (Tenant Scoping)
+- **Aislamiento forzado en Backend:** Para usuarios con rol `client` o `salesperson`, el backend fuerza automáticamente el `clientId` almacenado en su documento de MongoDB. Cualquier parámetro `clientId` recibido por query string, body o headers es completamente ignorado.
+- **Verificación de Estado del Tenant:** Si la empresa asociada tiene `status === 'inactive'`, el acceso a cualquier endpoint de API y al endpoint `api-auth-me` es bloqueado inmediatamente con código `403 CLIENT_INACTIVE`.
+- **Aislamiento Horizontal:** Cualquier intento de consultar o modificar recursos de otra empresa mediante alteración de URLs o identificadores responde inmediatamente con `403 FORBIDDEN_CLIENT_ACCESS`.
 
 ```
-❌ VULNERABLE: db.leads.findOne({ _id: req.body.leadId })
-✅ SEGURO:     db.leads.findOne({ _id: req.body.leadId, clientId: { $in: user.clientIds } })
+❌ VULNERABLE: db.clients.findOne({ _id: req.params.id })
+✅ SEGURO:     verifyAuthorizedUser(event) -> forces user.clientId filter if not global admin
 ```
+
+### Seguridad de Identificadores de Meta Ads
+- Los campos `metaBusinessId` y `metaAdAccountIds` solo almacenan identificadores de texto (`act_XXX` o números de cuenta).
+- **Prohibición estricta de tokens:** Los endpoints rechazan cualquier payload que contenga cadenas tipo token de acceso Meta (`EAAB...`). Los tokens de sistema se gestionan exclusivamente mediante variables de entorno en Netlify.
 
 ---
 

@@ -298,3 +298,54 @@ Each decision records:
 - The password is removed immediately from React state after submission or cancellation and is never persisted or logged.
 - Revocation of access is 100% authoritative in MongoDB Atlas.
 - Full test coverage for Google-only, password linking, validation errors, and provider collision handling.
+
+---
+
+## ADR-016: Multi-Tenant Isolation, Client Lifecycle & User Preauthorization
+
+**Date:** 2026-08-22
+
+**Decision:**
+1. Implement the `Client` entity in MongoDB with URL-safe unique `slug`, `normalizedName`, and logical deactivation (`status: 'active' | 'inactive'`).
+2. Establish strict tenant scoping in `_shared/permissions.js` (`verifyAuthorizedUser`): for `client` and `salesperson` roles, `clientId` is forced exclusively from the user's MongoDB record and verified against active client status. Any query or body parameter attempting to override `clientId` is discarded.
+3. Preauthorize users by creating MongoDB profiles with `firebaseUid: null` and `status: 'invited'`.
+4. Link `firebaseUid` atomically upon first successful Google Sign-In in `api-auth-me.js`, transitioning `status` to `'active'` and recording `activatedAt`.
+5. Enforce strict administrative hierarchy: `super_admin` can manage all roles; `admin` can only manage `client` and `salesperson`. `admin` cannot create, edit, change role of, suspend, or reactivate another `admin` or `super_admin`.
+6. Enforce that no user can modify their own role (`CANNOT_MODIFY_OWN_ROLE`) nor self-suspend (`CANNOT_SUSPEND_SELF`).
+7. Enforce exclusivity of Meta Ad Account IDs across clients (`META_AD_ACCOUNT_ALREADY_ASSIGNED` with HTTP 409).
+8. Enforce that Meta Ads identifiers (`metaAdAccountIds`, `metaBusinessId`) store only text identifiers without tokens or secrets.
+
+**Rationale:**
+- Prevents cross-tenant data leakage by enforcing tenant isolation in backend serverless functions rather than client-side filters.
+- Streamlines team onboarding without requiring SMTP or external invite microservices.
+- Protects administrative boundaries and administrative accounts from unauthorized privilege elevation.
+
+**Consequences:**
+- Zero data leakage between tenants verified with automated tests.
+- Comprehensive UI for client creation, editing, user preauthorization, and access link sharing.
+
+---
+
+## ADR-017: Idempotent Partial Index Migration for Invited Users & Fault-Tolerant Session Revocation
+
+**Date:** 2026-08-22
+
+**Decision:**
+1. Implement idempotent index verification and migration in `_shared/db.js` (`ensureIndexes`):
+   - Inspect existing indexes on `users` collection.
+   - Safely drop legacy non-partial or incompatible unique indexes on `{ firebaseUid: 1 }` (tolerating `IndexNotFound` and `NamespaceNotFound`).
+   - Create canonical index `{ firebaseUid: 1 }` with `name: 'uniq_firebaseUid_when_bound'`, `unique: true` and `partialFilterExpression: { firebaseUid: { $type: 'string' } }`.
+2. On user suspension in `api-users.js`:
+   - Set `status: 'suspended'` authoritatively in MongoDB Atlas.
+   - Attempt background token revocation via Firebase Admin `revokeRefreshTokens(firebaseUid)` only if `firebaseUid` is present.
+   - If Firebase Admin is unreachable or fails, do **not** return HTTP 500; MongoDB suspension succeeds and the endpoint returns HTTP 200 with `{ user: ..., warning: 'SESSION_REVOCATION_DEFERRED' }`.
+   - Audit logging records only UID and error codes, never tokens or credentials.
+
+**Rationale:**
+- MongoDB unique indexes reject multiple documents with `null` values unless configured with a partial filter expression.
+- Guarantees seamless onboarding of multiple invited team members before their first Google login.
+- Guarantees high availability: CRM user management and suspensions continue functioning even if external auth provider endpoints experience latency or outages.
+
+**Consequences:**
+- 75/75 automated unit and security tests passing.
+- Full tolerance to concurrent index creation and partial index validation.

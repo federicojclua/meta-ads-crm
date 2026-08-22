@@ -268,3 +268,4 @@ anima-mkt-crm/
 | Distinct Visual Identity        | Operational commercial aesthetic (white/warm-neutral/red/charcoal), no generic AI glow |
 | Firebase Admin 13.10.0 Pinning  | Modular API pinned to 13.10.0 to prevent upstream jwks-rsa 4 / jose 6 ESM conflicts |
 | Hybrid Auth & Password Linking  | In-app password linking for Google-only users without duplicate accounts or UID change |
+| Multi-Tenant Scoping & Preauth  | Server-side forced `clientId` scoping and atomic Google UID linking for invited users |

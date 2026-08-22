@@ -9,11 +9,13 @@ export const Button = forwardRef(function Button(
     size = 'md',
     disabled = false,
     loading = false,
+    isLoading = false,
     type = 'button',
     ...props
   },
   ref
 ) {
+  const isButtonLoading = loading || isLoading;
   const baseStyles =
     'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed select-none rounded-md';
 
@@ -40,11 +42,11 @@ export const Button = forwardRef(function Button(
     <button
       ref={ref}
       type={type}
-      disabled={disabled || loading}
+      disabled={disabled || isButtonLoading}
       className={cn(baseStyles, variants[variant], sizes[size], className)}
       {...props}
     >
-      {loading && (
+      {isButtonLoading && (
         <svg
           className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
           xmlns="http://www.w3.org/2000/svg"

@@ -13,6 +13,30 @@
   force = true
 
 [[redirects]]
+  from = "/api/clients"
+  to = "/.netlify/functions/api-clients"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/clients/*"
+  to = "/.netlify/functions/api-clients"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/users"
+  to = "/.netlify/functions/api-users"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/users/*"
+  to = "/.netlify/functions/api-users"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

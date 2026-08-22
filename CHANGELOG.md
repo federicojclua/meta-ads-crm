@@ -8,6 +8,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 2: Clientes, Aislamiento Multiempresa y Autorización de Usuarios (2026-08-22)
+- **Modelo Client & Gestión Multi-Tenant:**
+  - Esquema `Client` con nombre, `normalizedName`, `slug` único, `status` (`active | inactive`), `legalName`, `country`, `timezone`, `defaultCurrency` (`ARS | USD`), `enabledCurrencies`, `metaBusinessId` y `metaAdAccountIds` (solo identificadores de texto, sin tokens ni secretos).
+  - Exclusividad estricta de cuentas publicitarias Meta: validación en `POST` y `PATCH` que rechaza identificadores ya asignados a otra empresa (`409 META_AD_ACCOUNT_ALREADY_ASSIGNED`).
+  - Índices automáticos en MongoDB: `{ slug: 1 }` (único `uniq_client_slug`), `{ normalizedName: 1 }`, `{ status: 1 }`, `{ metaAdAccountIds: 1 }`.
+  - Desactivación lógica de empresas (`status: 'inactive'` y `deactivatedAt`) en lugar de eliminación física.
+- **Autorización de Usuarios & Migración de Índice Idempotente:**
+  - Migración idempotente en `_shared/db.js` que detecta y elimina de forma segura índices únicos no parciales heredados sobre `firebaseUid`.
+  - Creación del índice canónico `{ firebaseUid: 1 }` con `name: 'uniq_firebaseUid_when_bound'`, `unique: true` y `partialFilterExpression: { firebaseUid: { $type: 'string' } }`, tolerando ejecuciones concurrentes y permitiendo múltiples usuarios en estado `invited` con `firebaseUid: null`.
+  - Preautorización de usuarios mediante `POST /api/users/authorize` con `firebaseUid: null` y `status: 'invited'`.
+  - Vinculación atómica del `firebaseUid` durante el primer login con Google en `api-auth-me.js`, activando la cuenta (`status: 'active'`) y registrando `activatedAt`.
+  - Jerarquía estricta: `super_admin` gestiona todos los roles; `admin` solo puede crear y modificar `client` y `salesperson`. Se bloquea la creación, modificación, cambio de rol, suspensión y reactivación entre administradores (`CANNOT_CREATE_ADMIN`, `CANNOT_MODIFY_ADMIN`, `CANNOT_GRANT_ADMIN`, `CANNOT_SUSPEND_ADMIN`, `CANNOT_REACTIVATE_ADMIN`).
+  - Inviolabilidad de roles: ningún usuario puede modificar su propio rol (`CANNOT_MODIFY_OWN_ROLE`) ni auto-suspenderse (`CANNOT_SUSPEND_SELF`).
+  - Suspensión y revocación con tolerancia a fallos: suspensión autoritativa en MongoDB con revocación en Firebase Admin en segundo plano; si Firebase no responde, devuelve HTTP 200 con advertencia `SESSION_REVOCATION_DEFERRED` y auditoría segura sin tokens.
+- **Aislamiento Estricto en Backend (Tenant Scoping):**
+  - Helper reusable `_shared/permissions.js` (`verifyAuthorizedUser`) que fuerza `clientId` en base de datos para roles `client` y `salesperson`.
+  - Bloqueo automático `403 CLIENT_INACTIVE` ante intentos de acceso con empresas inactivas o deshabilitadas.
+  - Rechazo `403 FORBIDDEN_CLIENT_ACCESS` ante intentos de manipulación de URLs o consultas a otros clientes.
+- **Endpoints de API en Netlify Functions:**
+  - `GET /api/clients`, `POST /api/clients`, `GET /api/clients/:id`, `PATCH /api/clients/:id`, `POST /api/clients/:id/deactivate`, `POST /api/clients/:id/reactivate`.
+  - `GET /api/users`, `POST /api/users/authorize`, `PATCH /api/users/:id`, `POST /api/users/:id/suspend`, `POST /api/users/:id/reactivate`.
+  - Redirects explícitos en `netlify.toml` para `/api/clients`, `/api/clients/*`, `/api/users`, `/api/users/*`.
+- **Interfaz Visual en React:**
+  - `ClientsPage.jsx` renovada con pestañas para "Empresas" y "Usuarios", buscador en tiempo real, filtros y badges de estado.
+  - `Modal.jsx` accesible con cierre por Escape y backdrop.
+  - `ClientModal.jsx` para creación y edición de empresas con identificadores de Meta Ads.
+  - `AuthorizeUserModal.jsx` para preautorizar usuarios y copiar enlaces de acceso.
+  - Modales de confirmación con advertencias claras antes de desactivar empresas o suspender usuarios.
+- **Suite de Pruebas Automatizadas:**
+  - 33 nuevas pruebas unitarias y de integración (75 pruebas totales en Vitest pasando al 100%).
+
 ### Added — Stage 1: Foundation, Auth & Minimal User DB (2026-08-22)
 - **Frontend SPA & Autenticación de Sesión:**
   - React 18, Vite 5, Tailwind CSS 3 y React Router 6.30.6.

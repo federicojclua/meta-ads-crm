@@ -5,18 +5,49 @@
 | Level              | Tool / Method             | Stage  | Estado |
 |--------------------|---------------------------|--------|--------|
 | Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 16 tests pasados |
+| Clients Backend    | Vitest (`clients-backend.test.js`) | 2+ | ✅ 6 tests pasados |
+| Users Backend      | Vitest (`users-backend.test.js`) | 2+ | ✅ 6 tests pasados |
+| Tenant Isolation   | Vitest (`multi-tenant-isolation.test.js`) | 2+ | ✅ 6 tests pasados |
 | Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 12 tests pasados |
+| Clients Frontend UI| Vitest + Testing Library (`clients-frontend.test.jsx`) | 2+ | ✅ 3 tests pasados |
 | Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 12 tests pasados |
 | Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
-| Netlify Dev Smoke  | Netlify CLI (HTTP real)    | 1+     | ✅ Validado (HTTP 401 JSON) |
-| Integration tests  | Multi-tenant manual        | 2+     | Pendiente Stage 2 |
-| Security audits    | `npm audit --omit=dev`     | 1+, 9  | ✅ 0 críticas, 0 altas |
+| Security audits    | `npm audit --omit=dev`     | 1+, 2  | ✅ 0 críticas, 0 altas |
 
 ---
 
-### Matriz de 42 Pruebas Automatizadas Implementadas (Stage 1 Final)
+### Matriz de 63 Pruebas Automatizadas Implementadas (Stage 2)
 
-1. **`auth-backend.test.js` (16 pruebas)**
+1. **`clients-backend.test.js` (6 pruebas)**
+   - `1. GET /api/clients lista todos los clientes para un super_admin`
+   - `2. POST /api/clients crea un cliente exitosamente con slug único`
+   - `3. POST /api/clients rechaza slug duplicado con código 409 (SLUG_ALREADY_EXISTS)`
+   - `4. POST /api/clients rechaza tokens de acceso Meta en metaAdAccountIds`
+   - `5. POST /api/clients/:id/deactivate desactiva el cliente lógicamente (status: inactive)`
+   - `6. POST /api/clients/:id/reactivate reactiva un cliente inactivo`
+
+2. **`users-backend.test.js` (6 pruebas)**
+   - `1. POST /api/users/authorize preautoriza un usuario con firebaseUid null y status invited`
+   - `2. POST /api/users/authorize rechaza correo duplicado con 409 (EMAIL_ALREADY_EXISTS)`
+   - `3. POST /api/users/authorize ejecutado por admin no puede crear super_admin (403)`
+   - `4. POST /api/users/:id/suspend suspende un usuario y rechaza auto-suspensión`
+   - `5. POST /api/users/:id/suspend ejecutado por admin no puede suspender a super_admin (403)`
+   - `6. PATCH /api/users/:id bloquea modificación del propio rol (403 CANNOT_MODIFY_OWN_ROLE)`
+
+3. **`multi-tenant-isolation.test.js` (6 pruebas)**
+   - `1. Usuario preautorizado vincula firebaseUid atómicamente en su primer login con Google en api-auth-me`
+   - `2. api-auth-me rechaza usuario no preautorizado con 403 (USER_NOT_AUTHORIZED)`
+   - `3. api-auth-me rechaza login si la empresa asignada está inactiva con 403 (CLIENT_INACTIVE)`
+   - `4. GET /api/clients/:id rechaza acceso de usuario cliente a otra empresa con 403 (FORBIDDEN_CLIENT_ACCESS)`
+   - `5. GET /api/clients fuerza filtro de tenant estricto para rol client independientemente de parámetros en query`
+   - `6. GET /api/users restringe a rol salesperson a ver exclusivamente usuarios de su misma empresa`
+
+4. **`clients-frontend.test.jsx` (3 pruebas)**
+   - `1. ClientsPage renderiza empresas y badges correctamente`
+   - `2. ClientModal valida que el nombre sea obligatorio antes de enviar`
+   - `3. AuthorizeUserModal valida correo y muestra enlace tras autorizar`
+
+5. **`auth-backend.test.js` (16 pruebas)**
    - `1. Sin token -> responde 401 (AUTH_TOKEN_MISSING)`
    - `2. Token malformado (sin 3 segmentos) -> responde 401 (AUTH_TOKEN_MALFORMED)`
    - `3. Token malformado (longitud muy corta) -> responde 401 (AUTH_TOKEN_MALFORMED)`
@@ -34,7 +65,7 @@
    - `15. Usuario suspendido en MongoDB -> responde 403 (USER_SUSPENDED)`
    - `16. Rol enviado desde frontend o parámetros es ignorado (solo GET /auth/me usa MongoDB)`
 
-2. **`auth-frontend.test.jsx` (12 pruebas)**
+6. **`auth-frontend.test.jsx` (12 pruebas)**
    - `10. Rutas privadas -> redirige a /login cuando no hay usuario autenticado`
    - `10b. Usuario autenticado pero email no verificado -> redirige a /verify-email`
    - `10c. Usuario verificado sin perfil en MongoDB (403) -> redirige a /unauthorized`
@@ -48,7 +79,7 @@
    - `13e. SettingsPage: Cuenta con contraseña configurada muestra estado y opción de restablecimiento`
    - `13f. SettingsPage: Rechazo dinámico cuando validatePassword de Firebase indica que la contraseña no cumple la política activa`
 
-3. **`security.test.js` (12 pruebas)**
+7. **`security.test.js` (12 pruebas)**
    - `11. Ausencia de variables privadas o secretos en el bundle generado en dist/`
    - `11b. Variables públicas autorizadas utilizan exclusivamente prefijo VITE_`
    - `11c. Firebase Client Auth está explícitamente configurado con browserSessionPersistence`
@@ -58,11 +89,11 @@
    - `11e.3 Rechaza open redirects relativos/absolutos (//evil.example, https://evil.com)`
    - `11e.4 Rechaza caracteres de escape con barra invertida (/app\evil.example)`
    - `11e.5 Rechaza valores nulos, undefined, objetos y arrays -> fallback /app`
-   - `11f. firebaseAdmin.js utiliza exclusivamente imports modulares y no usa import default ni admin.apps`
-   - `11g. Control de dependencias: firebase-admin permanece fijado en 13.10.0 evitando jwks-rsa 4 y jose 6 ESM-only`
+   - `11f. Importaciones modulares de Firebase Admin`
+   - `11g. Fijación de versión 13.10.0 en package.json`
    - `11h. Ausencia de contraseñas en código fuente, logs y almacenamiento`
 
-4. **`routes.test.js` (2 pruebas)**
+8. **`routes.test.js` (2 pruebas)**
    - `1. netlify.toml define el redirect exacto de /api/auth/me hacia /.netlify/functions/api-auth-me con force = true`
    - `2. Smoke test: /api/auth/me alcanza directamente el handler real y responde JSON 401 sin token`
 

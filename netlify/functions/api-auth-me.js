@@ -121,14 +121,50 @@ export async function handler(event) {
       );
     }
 
+    // 5b. Tenant active status check for client / salesperson
+    if (['client', 'salesperson'].includes(userProfile.role)) {
+      const rawClientId = userProfile.clientId || userProfile.clientIds?.[0];
+      if (rawClientId) {
+        const { ObjectId } = await import('mongodb');
+        const clientsCollection = db.collection('clients');
+        const clientScope = rawClientId.toString();
+        let clientQuery = { slug: clientScope };
+        if (ObjectId.isValid(clientScope)) {
+          clientQuery = {
+            $or: [
+              { _id: new ObjectId(clientScope) },
+              { _id: clientScope },
+              { slug: clientScope },
+            ],
+          };
+        }
+
+        const clientDoc = await clientsCollection.findOne(clientQuery);
+        if (!clientDoc || clientDoc.status !== 'active') {
+          return errorResponse(
+            403,
+            'La empresa o cliente asignado se encuentra inactivo o deshabilitado.',
+            'CLIENT_INACTIVE'
+          );
+        }
+      }
+    }
+
     // 6. Safe linking of unlinked firebaseUid & lastLoginAt update
     const updateFields = {
       lastLoginAt: now,
       updatedAt: now,
     };
 
+    let effectiveStatus = userProfile.status;
+
     if (!userProfile.firebaseUid) {
       updateFields.firebaseUid = decodedToken.uid;
+      updateFields.activatedAt = userProfile.activatedAt || now;
+      if (userProfile.status === 'invited' || userProfile.status === 'pending_invite') {
+        updateFields.status = 'active';
+        effectiveStatus = 'active';
+      }
     }
 
     if (decodedToken.picture && decodedToken.picture !== userProfile.photoURL) {
@@ -141,15 +177,21 @@ export async function handler(event) {
     );
 
     // 7. Sanitized profile output
+    const primaryClientId = userProfile.clientId
+      ? userProfile.clientId.toString()
+      : (userProfile.clientIds?.[0] ? userProfile.clientIds[0].toString() : null);
+
     const responseProfile = {
+      _id: userProfile._id ? userProfile._id.toString() : undefined,
       firebaseUid: decodedToken.uid,
       email: userProfile.email,
       normalizedEmail: userProfile.normalizedEmail,
       displayName: userProfile.displayName,
       photoURL: userProfile.photoURL,
       role: userProfile.role,
-      status: userProfile.status,
-      clientIds: userProfile.clientIds || [],
+      status: effectiveStatus,
+      clientId: primaryClientId,
+      clientIds: userProfile.clientIds ? userProfile.clientIds.map((id) => id.toString()) : (primaryClientId ? [primaryClientId] : []),
       permissions: userProfile.permissions || {},
       lastLoginAt: now.toISOString(),
     };
