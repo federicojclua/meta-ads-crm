@@ -1,8 +1,8 @@
-# Cotejo CRM — Product Specification
+# Anima MKT CRM — Product Specification
 
 ## 1. Vision
 
-Cotejo CRM is a **multi-tenant revenue intelligence platform** for digital marketing agencies. It connects the entire commercial cycle — from ad spend to closed revenue — providing visibility into CPL, CPA, ROAS, and campaign performance per client, campaign, and salesperson.
+Anima MKT CRM is a **multi-tenant revenue intelligence platform** for digital marketing agencies. It connects the entire commercial cycle — from ad spend to closed revenue — providing visibility into CPL, CPA, ROAS, and campaign performance per client, campaign, and salesperson.
 
 ## 2. Target Users
 
@@ -15,43 +15,48 @@ Cotejo CRM is a **multi-tenant revenue intelligence platform** for digital marke
 
 ## 3. Core Features (by Stage)
 
-### Stage 1 — Foundation
+### Stage 1 — Foundation, Auth & Minimal User DB
 - React + Vite + Tailwind CSS app shell
-- Firebase Authentication (email/password, invite-only)
-- Master access (SUPER_ADMIN_EMAIL bootstrap)
-- Protected routes by role
-- Useful empty states
+- Firebase Authentication (email/password, initial super_admin created in Firebase Console)
+- Minimal MongoDB connection for the `users` collection (`anima_mkt_crm`)
+- Master access bootstrap (`SUPER_ADMIN_EMAIL` server-side variable)
+- Email verification requirement (`email_verified: true`), with frontend resend flow
+- Protected routes by role and verified email status
+- Useful empty states (no crashes on missing data)
 
-### Stage 2 — Multi-tenant Core
-- MongoDB Atlas connection
+### Stage 2 — Multi-tenant Core & Clients
+- Expanded MongoDB Atlas collections (`clients`, `audit_logs`)
 - Client CRUD (super_admin only)
-- User CRUD with invitation flow
+- User CRUD with controlled invitation flow (Firebase Admin SDK)
 - Role assignment and enforcement
-- clientId isolation on all queries
+- `clientId` isolation on all queries
+- "View As" client mode for super_admin
 - User profile and session management
 
 ### Stage 3 — Commercial Pipeline
-- Lead management (manual entry, CSV import)
+- Lead management (manual entry, CSV import) with deduplication
 - Pipeline: Kanban board + table view
-- Sales tracking with revenue amounts
+- Sales tracking with distinction between sale agreement (`saleAmount`) and collected cash (`collectedAmount`)
 - Salesperson assignment
 - Audit log for pipeline changes
 
 ### Stage 4 — Meta Ads Integration
-- Meta App + System User authentication
-- Ad account linking per client
-- Campaign sync with checkpoints
-- Insights ingestion (spend, impressions, clicks, leads)
-- Retry logic, error handling, health checks
-- Sync logs and status dashboard
+- Meta App + System User authentication (`ads_read` permission for read-only sync)
+- Ad account linking per client (`clients.meta` storing IDs, connection status and verification date)
+- Campaign sync with configurable `primaryResultActionType`
+- Daily insights ingestion of additive metrics (`spend`, `impressions`, `clicks`, `actions`, etc.) and snapshot of `metaReported.costPerActionType`
+- Checkpoint-based incremental sync (`sync_checkpoints`)
+- Retry logic, error handling, health checks (`/api/meta/health`)
+- Sync logs and status dashboard (using Background Functions for long tasks up to 15 mins)
 
 ### Stage 5 — Revenue Dashboard
 - Investment by client/campaign/period
-- Leads by source and status
-- Sales and revenue tracking
-- CPL, CPA, ROAS calculations
+- Leads by source, campaign and status
+- Sales and collected revenue tracking
+- On-the-fly calculation of non-additive metrics and ratios (CPL, CPA, ROAS, CTR, CPC, CPM)
+- Multicurrency conversion via `exchange_rates` collection
 - Conversion funnel visualization
-- Filters: date, client, campaign, salesperson
+- Filters: date range, client, campaign, salesperson
 - CSV/PDF export
 
 ### Stage 6 — Prospect Intelligence
@@ -62,14 +67,13 @@ Cotejo CRM is a **multi-tenant revenue intelligence platform** for digital marke
 - Prospect-to-client conversion flow
 
 ### Stage 7 — Competitive Intelligence
-- Google Maps/Places integration
+- Google Maps/Places integration (gated by feature flag)
 - Nearby business discovery
 - Competitor analysis (same city/niche)
 - Website audit (PageSpeed, SEO basics)
 - Google Search Console integration
 - Review aggregation
-- Meta Ad Library browsing
-- Google Ads Transparency Center
+- Meta Ad Library browsing reference
 - Opportunity map
 
 ### Stage 8 — Content & AI
@@ -89,22 +93,22 @@ Cotejo CRM is a **multi-tenant revenue intelligence platform** for digital marke
 - Staging preview
 - Controlled migration to production domain
 
-## 4. Non-Functional Requirements
+## 4. Non-Functional Requirements & Design Targets
 
-| Requirement     | Target                                           |
-|-----------------|--------------------------------------------------|
-| Response time   | < 2s for dashboard loads                         |
-| Availability    | 99.5% uptime (Netlify + MongoDB Atlas)           |
-| Security        | No secrets in frontend, RBAC enforced server-side|
-| Multi-tenancy   | Complete clientId isolation on all data queries   |
-| Scalability     | Support 50+ clients, 500+ leads/client           |
-| Data freshness  | Meta sync every 6h, on-demand refresh available  |
+| Requirement     | Product Target                                   | Notes |
+|-----------------|--------------------------------------------------|-------|
+| Response time   | < 2s for dashboard loads                         | Design target with indexed queries |
+| Availability    | 99.5% uptime target                              | Product target across Netlify + MongoDB Atlas infrastructure |
+| Security        | No secrets in frontend, RBAC enforced server-side| Mandatory |
+| Multi-tenancy   | Complete `clientId` isolation on all data queries| Mandatory |
+| Function limits | Max 60s sync / 30s scheduled / 15m background    | Enforced by Netlify platform |
+| Data freshness  | Meta sync periodic, on-demand refresh available  | Configurable via sync checkpoints |
 
 ## 5. Out of Scope (current version)
 
-- Public self-registration
-- Payment/billing system
-- Mobile native app
-- Real-time collaboration (WebSocket)
-- Custom report builder
-- White-label per client
+- Public self-registration (all users created by super_admin/admin)
+- Payment/billing checkout system
+- Mobile native app (responsive web first)
+- Real-time WebSocket subscriptions (polling & TanStack Query caching used)
+- Custom ad-hoc report builder
+- White-label domains per client

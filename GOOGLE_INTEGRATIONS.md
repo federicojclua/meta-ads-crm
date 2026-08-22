@@ -1,10 +1,10 @@
-# Cotejo CRM — Google Integrations
+# Anima MKT CRM — Google Integrations
 
 > ⚠️ This document is for **Stage 7**. Do not configure Google APIs until Stages 1-5 are complete and tested.
 
 ## 1. Overview
 
-Cotejo CRM integrates with Google services for competitive intelligence and SEO analysis:
+Anima MKT CRM integrates with Google services for competitive intelligence and SEO analysis:
 
 | Service                     | Purpose                                    | Stage |
 |-----------------------------|--------------------------------------------|-------|
@@ -18,7 +18,7 @@ Cotejo CRM integrates with Google services for competitive intelligence and SEO 
 
 ### 2.1 Create Project
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project (e.g., "cotejo-crm")
+2. Create a new project (e.g., "anima-mkt-crm")
 3. Enable billing (some APIs require it even for free tier)
 
 ### 2.2 Enable APIs
@@ -42,16 +42,16 @@ Enable these APIs in the project:
 3. Application type: Web application
 4. Authorized redirect URIs:
    - `http://localhost:8888/api/google/callback` (dev)
-   - `https://your-site.netlify.app/api/google/callback` (prod)
+   - `https://anima-mkt-crm.netlify.app/api/google/callback` (prod)
 5. Set as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
 
 ## 3. Environment Variables
 
 ```
-GOOGLE_CLOUD_PROJECT_ID=your-gcp-project
-GOOGLE_PLACES_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CLOUD_PROJECT_ID=<set-in-netlify>
+GOOGLE_PLACES_API_KEY=<set-in-netlify>
+GOOGLE_CLIENT_ID=<set-in-netlify>
+GOOGLE_CLIENT_SECRET=<set-in-netlify>
 ENABLE_GOOGLE_INTEGRATIONS=false
 ```
 
@@ -63,13 +63,13 @@ All are server-side only. The `ENABLE_GOOGLE_INTEGRATIONS` flag allows disabling
 - **Use case:** Find nearby businesses by category and location
 - **Data:** Business name, address, rating, reviews, photos, website, phone
 - **No OAuth needed:** API key authentication
-- **Rate limits:** Pay-per-use after free tier
+- **Rate limits:** Pay-per-use after free tier (verify current quotas before implementation)
 
 ### 4.2 PageSpeed Insights API
 - **Use case:** Audit website performance for clients and competitors
 - **Data:** Performance score, LCP, FID, CLS, opportunities
 - **No OAuth needed:** API key authentication
-- **Rate limits:** 25,000 queries/day free
+- **Rate limits:** Verify current daily quota before implementation
 
 ### 4.3 Google Search Console API
 - **Use case:** SEO performance data for client websites

@@ -1,15 +1,15 @@
-# Cotejo CRM — Revenue Intelligence Platform
+# Anima MKT CRM — Revenue Intelligence Platform
 
 Multi-tenant CRM platform connecting ad investment, leads, pipeline, sales, and revenue intelligence for digital marketing agencies.
 
 ## Status
 
-🟡 **Stage 0 — Planning & Documentation** (current)
+🟡 **Stage 0 — Planning & Documentation** (creada y subida a GitHub, pendiente de aprobación final)
 
 ## Project Structure
 
 ```
-cotejo-crm/
+anima-mkt-crm/
 ├── docs/                    # All project documentation
 ├── src/                     # React + Vite frontend (Stage 1)
 │   ├── components/
@@ -20,7 +20,7 @@ cotejo-crm/
 │   └── styles/
 ├── netlify/
 │   └── functions/           # Netlify Functions backend (Stage 1-2)
-├── models/                  # MongoDB schemas (Stage 2)
+├── models/                  # MongoDB schemas (Stage 1-2)
 ├── public/
 ├── .env.example
 ├── .gitignore
@@ -40,7 +40,7 @@ cotejo-crm/
 | Auth           | Firebase Authentication             |
 | Database       | MongoDB Atlas                       |
 | Backend        | Netlify Functions                   |
-| Hosting        | Netlify (continuous deploy)         |
+| Hosting        | Netlify (continuous deploy: anima-mkt-crm) |
 | Files          | Cloudinary                          |
 | AI             | Gemini / Groq (abstracted)          |
 | Scheduling     | GitHub Actions, Background Fns      |
@@ -62,6 +62,7 @@ All design documents are in the project root:
 - [DECISIONS.md](./DECISIONS.md) — Architecture decision records
 - [CHANGELOG.md](./CHANGELOG.md) — Change log
 - [AGENTS.md](./AGENTS.md) — Agent rules & constraints
+- [STAGE_1_INPUTS.md](./STAGE_1_INPUTS.md) — Stage 1 input status & prerequisites
 
 ## Getting Started
 

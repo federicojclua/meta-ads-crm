@@ -1,135 +1,110 @@
-# Cotejo CRM — Security Policy
+# Anima MKT CRM — Security Policy
 
-## 1. Authentication
+## 1. Authentication & Identity Management
 
 ### Provider: Firebase Authentication
-- Email + password only (no social login initially)
-- Public self-registration is **DISABLED**
-- Users are created exclusively by super_admin or authorized admin
-- Email verification required before activation
-- Password recovery via Firebase's built-in flow
+- Email + password credentials only (managed exclusively by Firebase Auth).
+- **Sin pantallas públicas de autoregistro:** La interfaz de usuario no ofrece registro abierto.
+- **Creación del primer Super Admin:** Se da de alta manualmente desde la consola de Firebase con el correo correspondiente a `SUPER_ADMIN_EMAIL`.
+- **Verificación de correo obligatoria:** Se requiere `email_verified: true` para acceder a los recursos del CRM. Si un usuario no tiene su email verificado, el frontend ofrece reenvío del correo de verificación pero bloquea el acceso al dashboard.
+- **Invitación de usuarios posteriores (Etapa 2):** Se crean server-side mediante Firebase Admin SDK generando un enlace seguro de asignación de contraseña (`generatePasswordResetLink`).
 
-### Token Management
-- Firebase ID tokens are short-lived (1 hour)
-- Frontend uses `onIdTokenChanged` to auto-refresh
-- Every API call includes `Authorization: Bearer <idToken>`
-- Backend verifies token with Firebase Admin SDK on every request
-- No session cookies — stateless token-based auth
+### Token Management & Lifecycle
+- Tokens de identidad de Firebase (JWT) con tiempo de vida corto (1 hora).
+- El cliente frontend utiliza el listener `onIdTokenChanged` de Firebase SDK para refrescar automáticamente el token en segundo plano.
+- Todas las peticiones al backend incluyen la cabecera `Authorization: Bearer <idToken>`.
+- Las Netlify Functions verifican la validez, firma y estado de verificación del token en cada invocación mediante `admin.auth().verifyIdToken(token)`.
 
-## 2. Authorization
+### Master Access Bootstrap
+- `SUPER_ADMIN_EMAIL` se almacena **exclusivamente como variable de entorno server-side** en Netlify.
+- **NUNCA almacenar contraseñas maestras en variables de entorno ni en código.** La autenticación por contraseña siempre es validada por Firebase.
+- Cuando `api-auth-me` recibe un token válido cuyo correo verificado (`email_verified: true`) coincide exactamente con `SUPER_ADMIN_EMAIL`, crea o recupera el perfil en MongoDB asignándole `role: "super_admin"`, `status: "active"`, `clientIds: []`.
+- Si un usuario se autentica en Firebase pero no existe en MongoDB, su email no está verificado, o no coincide con `SUPER_ADMIN_EMAIL`, la API responde inmediatamente `403 Forbidden`.
 
-### Role Enforcement
-- Roles are stored exclusively in MongoDB, never in Firebase custom claims initially
-- Roles are checked server-side on **every** API request
-- Frontend role checks are for UX only (hiding menus) — never for security
-- The `api-auth-me` endpoint is the single source of truth for the frontend
+---
 
-### Multi-Tenant Isolation
+## 2. Authorization & Multi-Tenant Isolation
 
-**Critical Rule:** Every database query for tenant-scoped data MUST include `clientId` from the verified user profile.
+### Role Enforcement (MongoDB Authoritative)
+- Los roles (`super_admin`, `admin`, `client`, `salesperson`) residen únicamente en la base de datos `anima_mkt_crm` en MongoDB Atlas.
+- La autorización se verifica server-side en **cada** llamada a la API.
+- El frontend solo utiliza el rol devuelto por `api-auth-me` para adaptar la navegación visual; nunca para tomar decisiones de seguridad.
+
+### Multi-Tenant Data Isolation
+- **Regla crítica:** Toda consulta a colecciones multi-empresa debe incluir el filtro `clientId` derivado del perfil autenticado del usuario.
+- Si un usuario intenta consultar o modificar un `clientId` que no tiene asignado en su array `clientIds`, la función responde `403 Forbidden`.
+- `super_admin` tiene acceso global y puede aplicar filtros de cliente explícitos.
 
 ```
-❌ WRONG: db.leads.find({ _id: req.params.id })
-✅ RIGHT: db.leads.find({ _id: req.params.id, clientId: { $in: user.clientIds } })
+❌ VULNERABLE: db.leads.findOne({ _id: req.body.leadId })
+✅ SEGURO:     db.leads.findOne({ _id: req.body.leadId, clientId: { $in: user.clientIds } })
 ```
 
-**Enforcement checklist:**
-- [ ] `clientId` is never accepted from request body/params without validation
-- [ ] `super_admin` can select clientId, but it's validated server-side
-- [ ] `admin` can only query their assigned `clientIds`
-- [ ] `client` can only query their own `clientIds`
-- [ ] `salesperson` can only query their own client + their assigned leads
+---
 
-## 3. Secrets Management
+## 3. Database & Network Security (MongoDB Atlas)
 
-### Environment Variable Classification
+### Configuración de Red Atlas (0.0.0.0/0)
+- Debido a la naturaleza serverless de Netlify Functions (direcciones IP de salida dinámicas y compartidas), MongoDB Atlas requiere habilitar el acceso desde cualquier IP (`0.0.0.0/0`).
+- **Esta configuración de red NO es suficiente por sí sola** y se compensa con controles estrictos en múltiples capas:
+  1. **Usuario de Base de Datos Exclusivo:** Scoped únicamente a la base `anima_mkt_crm` con rol `readWrite` (sin permisos administrativos en el cluster).
+  2. **Contraseña de Alta Entropía:** Clave generada aleatoriamente de más de 32 caracteres.
+  3. **Cifrado en Tránsito:** Conexiones TLS obligatorias con verificación de certificados.
+  4. **Rotación de Credenciales:** Política de rotación periódica de credenciales de conexión.
+  5. **Cifrado en Reposo:** Activado por defecto en MongoDB Atlas.
 
-| Variable              | Location     | Visible in Browser | Notes                    |
-|-----------------------|-------------|-------------------|--------------------------|
-| `SUPER_ADMIN_EMAIL`   | Netlify env | ❌ No             | Bootstrap only           |
-| `MONGODB_URI`         | Netlify env | ❌ No             | Database connection      |
-| `FIREBASE_PRIVATE_KEY`| Netlify env | ❌ No             | Token verification       |
-| `META_APP_SECRET`     | Netlify env | ❌ No             | Meta API access          |
-| `GEMINI_API_KEY`      | Netlify env | ❌ No             | AI provider key          |
-| `CRON_SECRET`         | Netlify env | ❌ No             | Cron auth                |
-| `VITE_FIREBASE_*`     | .env / build| ✅ Yes            | Firebase client config   |
+---
 
-### Rules
-1. **NO** secret may use the `VITE_` prefix
-2. **NO** secret may appear in `console.log`, error messages returned to client, or source maps
-3. **NO** secret may be committed to Git (enforced by `.gitignore`)
-4. `.env`, `.env.local`, `.env.production` are all git-ignored
-5. Only `.env.example` with placeholder values is committed
-6. Firebase service account JSON files are git-ignored
+## 4. Secrets Management & Classification
 
-## 4. API Security
+| Variable | Ubicación | Visible en Navegador | Clasificación |
+|----------|-----------|----------------------|---------------|
+| `SUPER_ADMIN_EMAIL` | Netlify env / .env.local | ❌ No | Server-side config |
+| `MONGODB_URI` | Netlify env / .env.local | ❌ No | **CRITICAL SECRET** |
+| `MONGODB_DB_NAME` | Netlify env / .env.local | ❌ No | Server-side config (`anima_mkt_crm`) |
+| `FIREBASE_PRIVATE_KEY` | Netlify env / .env.local | ❌ No | **CRITICAL SECRET** |
+| `META_SYSTEM_USER_TOKEN`| Netlify env / .env.local | ❌ No | **CRITICAL SECRET** |
+| `META_APP_SECRET` | Netlify env / .env.local | ❌ No | **CRITICAL SECRET** |
+| `CRON_SECRET` | Netlify env / .env.local | ❌ No | **CRITICAL SECRET** |
+| `GEMINI_API_KEY` | Netlify env / .env.local | ❌ No | **CRITICAL SECRET** |
+| `VITE_FIREBASE_*` | Frontend bundle | ✅ Sí | Public Client Config |
 
-### Request Validation
-- All inputs are validated and sanitized before use
-- MongoDB injection prevention: no direct use of `$where`, no `eval`
-- ObjectId format validation before database queries
-- Request body size limits on Netlify Functions (default: 1MB)
+### Reglas Estrictas sobre Secretos:
+1. **NUNCA** usar el prefijo `VITE_` para secretos de backend o claves privadas.
+2. **NUNCA** imprimir secretos en `console.log`, respuestas de error hacia el cliente o logs de auditoría.
+3. **NUNCA** commitear archivos `.env`, `.env.local` o archivos JSON de cuentas de servicio (`serviceAccountKey.json`).
+4. Solo se versiona `.env.example` con placeholders ficticios (`<set-in-netlify>`).
+5. GitHub Push Protection activo para prevenir fugas accidentales.
 
-### Error Handling
-- Never expose stack traces to clients in production
-- Use generic error messages: "Unauthorized", "Forbidden", "Not found"
-- Log detailed errors server-side only
-- Standard error response format:
-  ```json
-  { "error": "human_readable_code", "message": "User-friendly message" }
-  ```
+---
 
-### Rate Limiting
-- Netlify provides basic DDoS protection at the CDN layer
-- Consider adding per-user rate limiting in Stage 9 if needed
-- Cron endpoints require `CRON_SECRET` header validation
+## 5. Audit Trail & Data Sanitization
 
-## 5. CORS & Headers
+- Se registran eventos críticos en la colección `audit_logs` (creación de usuarios, cambios de rol, modificación de estados, reasignaciones de clientes).
+- **Sanitización Obligatoria:**
+  - **PROHIBIDO** almacenar contraseñas, tokens de autenticación, claves de API o payloads sensibles en los audit logs.
+  - **PROHIBIDO** almacenar copias completas de datos de contacto PII no requeridos en los logs.
+  - Almacenar únicamente identificadores, tipo de acción, cambios diferenciales (`before` / `after`) y metadatos operativos.
 
-- Netlify handles CORS for same-origin requests automatically
-- API functions should set appropriate headers:
-  - `Content-Type: application/json`
-  - `X-Content-Type-Options: nosniff`
-  - `X-Frame-Options: DENY`
-- No wildcard CORS (`Access-Control-Allow-Origin: *`) on authenticated endpoints
+---
 
-## 6. Data Protection
+## 6. "View As" Mode (Impersonación Segura)
 
-### In Transit
-- All traffic over HTTPS (Netlify enforces this)
-- MongoDB Atlas connections use TLS
+- Exclusivo para usuarios con rol `super_admin`.
+- **No modifica la identidad ni los privilegios reales** del super_admin en el backend.
+- Aplica un filtro de contexto de cliente en el dashboard frontend con un banner visual permanente y botón visible para salir.
+- Todas las operaciones realizadas en este modo quedan registradas bajo la identidad real del super_admin en los audit logs.
 
-### At Rest
-- MongoDB Atlas provides encryption at rest by default
-- Sensitive fields (Meta tokens) should be stored encrypted if possible
+---
 
-### PII Handling
-- Lead contact data (email, phone, WhatsApp) is PII
-- Access restricted by clientId isolation
-- Export functionality restricted by role permissions
-- Audit logs track who accessed what
+## 7. Security Audit Checklist (Stage 9)
 
-## 7. "View As" Mode (Impersonation)
-
-- Available only to `super_admin`
-- Does NOT change the actual user identity or session
-- Applies a client context filter for dashboard viewing
-- All actions are still logged under the super_admin's identity
-- Visible indicator banner when active
-- Exit button always accessible
-- Audited: entry and exit logged in audit_logs
-
-## 8. Security Audit Checklist (Stage 9)
-
-- [ ] No secrets in frontend bundle (search build output)
-- [ ] No secrets in browser console or network tab
-- [ ] Token verification on every API endpoint
-- [ ] clientId isolation on every tenant query
-- [ ] Role check on every protected endpoint
-- [ ] Suspended users cannot access any endpoint
-- [ ] Cross-client access returns 403
-- [ ] Audit log covers all sensitive operations
-- [ ] Password reset flow works correctly
-- [ ] Rate limiting on login attempts (Firebase handles this)
-- [ ] Source maps disabled in production
-- [ ] No debug logging in production build
+- [ ] Sin secretos en el bundle de producción (`dist/`).
+- [ ] Sin secretos en la consola del navegador ni en respuestas de red.
+- [ ] Verificación de token y de email verificado en cada endpoint de Netlify Functions.
+- [ ] Verificación de `clientId` en cada consulta a la base de datos.
+- [ ] Usuarios sin perfil activo en MongoDB reciben 403 Forbidden.
+- [ ] Usuarios suspendidos no pueden ejecutar ninguna acción.
+- [ ] Peticiones a otros `clientId` mediante alteración de URL devuelven 403.
+- [ ] Headers seguros configurados (`X-Content-Type-Options`, `X-Frame-Options`).
+- [ ] Audit logs libres de PII sensible y secretos.

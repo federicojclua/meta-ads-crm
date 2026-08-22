@@ -1,4 +1,4 @@
-# Cotejo CRM — Architecture Decision Records
+# Anima MKT CRM — Architecture Decision Records
 
 ## Format
 
@@ -18,22 +18,21 @@ Each decision records:
 **Decision:** Use Firebase Authentication as the identity provider instead of Netlify Identity.
 
 **Rationale:**
-- Better SDK documentation and community support
-- More control over user creation (disable public registration)
-- Firebase Admin SDK provides server-side token verification
-- No dependency on Netlify-specific plan features
-- Previous project had unresolvable issues with Netlify Identity invite tokens
+- Stable client SDK with robust token refresh lifecycle (`onIdTokenChanged`)
+- Server-side token verification via Firebase Admin SDK
+- Clean separation between identity credentials (Firebase) and authorization/roles (MongoDB)
+- Eliminates fragile invite token fragment processing issues observed with Netlify Identity
 
 **Alternatives Discarded:**
-- Netlify Identity — Caused invite token processing bugs, limited SDK, poor documentation for v2
-- Auth0 — More complex setup, higher cost for low volume
-- Supabase Auth — Would require additional infrastructure
+- Netlify Identity — (Historical alternative discarded) Invite token issues in SPAs, tightly coupled to Netlify plan limitations
+- Auth0 — High configuration overhead, pricing unpredictable
+- Supabase Auth — Unnecessary PostgreSQL infrastructure overhead
 
 **Consequences:**
-- Need Firebase project setup (free tier sufficient)
-- Firebase Admin SDK required in Netlify Functions for token verification
-- VITE_FIREBASE_* variables are public (safe, by design)
-- Firebase private key must be stored as server-side env var
+- First super_admin created directly in Firebase Console with email verification requirement
+- `SUPER_ADMIN_EMAIL` configured as server-side environment variable
+- `VITE_FIREBASE_*` variables are public browser configuration
+- Private service account key stored securely server-side in Netlify Functions
 
 ---
 
@@ -41,25 +40,21 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Use MongoDB Atlas as the primary and authoritative database for all application data including roles, permissions, clients, leads, and campaigns.
+**Decision:** Use MongoDB Atlas (database `anima_mkt_crm`) as the primary authoritative database for user roles, client entities, leads, campaigns, metrics, exchange rates, and audit logs. Connection begins in Stage 1 for the `users` collection.
 
 **Rationale:**
-- Flexible schema suits evolving data model
-- Powerful aggregation pipeline for dashboard metrics
-- Free tier (M0) sufficient for development and early production
-- Native support for multi-tenant patterns (compound indexes with clientId)
-- Team familiarity from previous project
+- Flexible document model suits marketing campaign schemas and dynamic lead forms
+- Powerful aggregation pipeline for calculated metrics (CPL, CPA, ROAS, conversion rates)
+- Easy compound indexing on `clientId` for multi-tenant isolation
+- Direct driver integration with connection pooling in serverless functions
 
 **Alternatives Discarded:**
-- Firestore — Real-time not needed, pricing unpredictable at scale, limited query flexibility
-- PostgreSQL (Supabase) — Requires additional hosting, schema migrations overhead
-- PlanetScale — MySQL-based, less suitable for document-oriented data
+- Firestore — High write costs at scale, limited aggregation pipelines
+- PostgreSQL / Supabase — Schema migration overhead for rapidly evolving marketing metadata
 
 **Consequences:**
-- Need MongoDB Atlas cluster setup
-- Connection pooling important for serverless functions
-- Must ensure clientId isolation on every query
-- No ORM — use native MongoDB driver
+- Minimal connection pool helper (`_shared/db.js`) required starting from Stage 1
+- Network access configured with 0.0.0.0/0 on Atlas, compensated by dedicated user, strong passwords, minimal privileges (`anima_mkt_crm` only), and TLS
 
 ---
 
@@ -67,26 +62,20 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Use Netlify Functions (serverless) as the backend API layer.
+**Decision:** Use Netlify Functions (Node.js 20) with synchronous functions, scheduled functions, and background functions as the serverless API layer.
 
 **Rationale:**
-- Zero infrastructure management
-- Automatic scaling
-- Co-located with frontend hosting
-- Supports Background Functions for long-running tasks
-- esbuild bundler for fast deploys
-- Previous project already uses this pattern
+- Co-located with frontend hosting, avoiding separate server management
+- Built-in support for Background Functions (up to 15 minutes) for heavy Meta API sync jobs
+- Synchronous functions (up to 60 seconds) provide ample execution time for standard CRUD and auth verification
 
 **Alternatives Discarded:**
-- Express on Render/Railway — Requires managing a server, scaling, SSL
-- Firebase Functions — Would add another Google dependency, different deploy workflow
-- Vercel Functions — Would require migrating hosting
+- Express on dedicated VM / container — Maintenance and server scaling burden
+- Vercel Functions — Background tasks limited without external queues
 
 **Consequences:**
-- Cold start latency (~200-500ms) on first invocation
-- 10-second timeout on regular functions (26s on paid plan)
-- Background Functions for tasks > 10 seconds
-- MongoDB connection pooling needed for performance
+- Function timeouts must be respected (60s sync, 30s scheduled, 15m background)
+- Heavy operations must be designed as idempotent background functions with checkpoint tracking
 
 ---
 
@@ -94,23 +83,20 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Host code in a private GitHub repository with continuous deployment to Netlify.
+**Decision:** Host code in a private GitHub repository with continuous deployment to the new Netlify project (`anima-mkt-crm`).
 
 **Rationale:**
-- Industry standard for version control
-- Netlify integrates natively with GitHub
-- Private repo ensures source code is not publicly accessible
-- Branch previews for staging
+- Industry standard version control
+- Native Git-based CI/CD deployment pipelines on Netlify
+- Staging previews for branch verification
+- The legacy site `crmmet.netlify.app` is preserved untouched
 
 **Alternatives Discarded:**
-- No version control — Unacceptable for any serious project
-- GitLab — Less integration with Netlify
-- Bitbucket — Less popular, no advantage
+- Manual FTP / ZIP deploys — High error rate, no deployment auditability
 
 **Consequences:**
-- Need GitHub account with private repo access
-- Must configure deploy hooks in Netlify
-- Must ensure no secrets in commits
+- Secret scanning active on GitHub (placeholders in `.env.example` must be generic)
+- Never commit credentials or `.env` files
 
 ---
 
@@ -118,22 +104,19 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Develop in 10 sequential stages (0-9), each with defined deliverables and acceptance criteria. Do not proceed to the next stage without explicit approval.
+**Decision:** Develop in 10 sequential stages (0-9). Do not start the next stage without explicit human approval.
 
 **Rationale:**
-- Prevents scope creep
-- Each stage is independently testable
-- Allows course correction between stages
-- Previous project suffered from implementing too many features simultaneously
+- Prevents scope creep and uncontrolled regressions
+- Ensures authentication and tenant isolation are fully tested before adding business logic
+- Independent verification and acceptance criteria per stage
 
 **Alternatives Discarded:**
-- Big-bang development — High risk, hard to debug
-- Feature-branch per feature — Too granular for a single developer
+- Monolithic all-in-one development — High bug density, hard to isolate issues
 
 **Consequences:**
-- Slower initial velocity but more reliable progress
-- Clear documentation at each stage boundary
-- Agent must stop at end of each stage
+- Stage 0 is completed and documented; waiting for explicit approval before writing code in Stage 1
+- Clear acceptance criteria required at each stage boundary
 
 ---
 
@@ -141,21 +124,14 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** No automated system or agent may perform destructive or write operations (delete data, deploy to production, modify environment variables) without explicit human approval.
+**Decision:** No automated script or agent may execute destructive actions, deploy to production, or modify production databases without explicit user consent.
 
 **Rationale:**
-- Previous project had issues with agents making unintended changes
-- Production data is sensitive (client information, leads)
-- Irreversible actions need human oversight
-
-**Alternatives Discarded:**
-- Full automation — Too risky for a small team
-- Approval only for deletes — Insufficient, deploys also need oversight
+- Protects multi-tenant client data and secrets
+- Maintains strict human oversight on infrastructure modifications
 
 **Consequences:**
-- Agents must pause and ask before destructive operations
-- Deploy commands require explicit approval
-- Slower but safer workflow
+- All Git push and production deploy actions require explicit user approval
 
 ---
 
@@ -163,21 +139,14 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Do not build critical features that depend on scraping third-party websites.
+**Decision:** Do not build critical features dependent on scraping third-party websites. Use official APIs (Meta Marketing API, Google Places, PageSpeed Insights) and manual link references where APIs do not exist.
 
 **Rationale:**
-- Scraping is fragile (sites change without notice)
-- Legal concerns with scraping platforms like Google, Meta, Instagram
-- Official APIs exist for most needed data
-- Google Ads Transparency Center has no API; link to it instead of scraping
-
-**Alternatives Discarded:**
-- Scraping + fallback — Still fragile, maintenance burden
-- Third-party scraping services — Cost, reliability, legal
+- Scraping is fragile, prone to IP blocking and legal/terms of service violations
+- Official APIs provide reliable, structured data
 
 **Consequences:**
-- Some competitive intelligence features may be limited to manual input or official APIs
-- Google Ads Transparency data requires manual review by user
+- Features like Google Ads Transparency Center will link directly rather than attempt scraping
 
 ---
 
@@ -185,22 +154,16 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Abstract AI capabilities behind a provider-agnostic interface, supporting Gemini and Groq as initial providers.
+**Decision:** Abstract AI capabilities behind a provider-agnostic interface (`AI_PROVIDER`), supporting Gemini and Groq server-side only.
 
 **Rationale:**
-- AI landscape changes rapidly; avoid vendor lock-in
-- Different providers have different strengths (speed vs. capability)
-- Easy to add new providers without refactoring
-- Feature flag allows disabling AI entirely
-
-**Alternatives Discarded:**
-- Single provider (Gemini only) — Vendor lock-in risk
-- OpenAI — Higher cost, less free tier availability
+- Prevents lock-in to a single LLM vendor
+- Allows choosing models based on latency, cost, and context size
+- Gated behind `ENABLE_AI=false` feature flag
 
 **Consequences:**
-- Small abstraction overhead
-- Must maintain adapters for each provider
-- AI features are optional and feature-flagged
+- Unified wrapper interface implemented in serverless functions
+- Zero AI API keys in frontend client bundle
 
 ---
 
@@ -208,22 +171,16 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** MongoDB is the single source of truth for user roles, permissions, client assignments, and status. Firebase stores only authentication credentials.
+**Decision:** MongoDB (`anima_mkt_crm`) is the sole authoritative source of truth for user roles, tenant assignments, permissions, and active status. Firebase is used exclusively for credential verification.
 
 **Rationale:**
-- Decouples identity (Firebase) from authorization (MongoDB)
-- Allows changing roles without modifying Firebase
-- All authorization logic stays in our codebase
-- Firebase custom claims have size limits (1000 bytes)
-
-**Alternatives Discarded:**
-- Firebase Custom Claims — Size limited, requires Admin SDK to update, cached in tokens
-- Dual source (roles in both) — Synchronization complexity
+- Decouples identity verification from business authorization logic
+- Role modifications and tenant reassignments do not require token re-issuance
+- Prevents token claim size bloat
 
 **Consequences:**
-- Every API request requires a MongoDB lookup after token verification
-- Can cache profile in memory for the duration of a function invocation
-- Frontend never stores role from token — always from api-auth-me
+- `api-auth-me` queries MongoDB after verifying Firebase token and email verification status
+- Users in Firebase without an active MongoDB profile receive 403 Forbidden
 
 ---
 
@@ -231,21 +188,12 @@ Each decision records:
 
 **Date:** 2026-08-22
 
-**Decision:** Every collection containing tenant-specific data must include a `clientId` field, and every query must filter by the user's authorized `clientId`(s).
+**Decision:** Every collection containing tenant data must include a `clientId` field, and all backend queries must enforce this filter based on verified server-side user context.
 
 **Rationale:**
-- Fundamental security requirement for multi-tenant SaaS
-- Prevents cross-client data leakage
-- Simple, auditable pattern
-- Compound indexes provide good performance
-
-**Alternatives Discarded:**
-- Separate databases per client — Operational complexity at scale
-- Row-level security (PostgreSQL) — Not available in MongoDB
-- Application-level filtering only — Error-prone without enforced pattern
+- Fundamental multi-tenant security standard
+- Prevents cross-client data leakage through URL manipulation or request parameter forgery
 
 **Consequences:**
-- Every new collection must include clientId
-- Every new query must include clientId filter
-- Code reviews must check for clientId filtering
-- Automated tests must verify isolation
+- Compound indexes with `clientId` as primary key on all tenant collections
+- Strict verification in Netlify Functions before database query execution

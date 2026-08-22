@@ -1,4 +1,4 @@
-# Cotejo CRM — AI Architecture
+# Anima MKT CRM — AI Architecture
 
 > ⚠️ This document is for **Stage 8**. Do not implement AI features until Stages 1-5 are complete and tested.
 
@@ -32,8 +32,8 @@
 ```
 AI_PROVIDER=gemini          # or "groq"
 AI_MODEL=gemini-2.0-flash   # or "llama-3.1-70b-versatile"
-GEMINI_API_KEY=...
-GROQ_API_KEY=...
+GEMINI_API_KEY=<set-in-netlify>
+GROQ_API_KEY=<set-in-netlify>
 ENABLE_AI=false
 ```
 

@@ -1,4 +1,4 @@
-# Cotejo CRM — Agent Rules
+# Anima MKT CRM — Agent Rules
 
 ## Mandatory Rules
 

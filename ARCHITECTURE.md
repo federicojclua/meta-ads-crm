@@ -1,4 +1,4 @@
-# Cotejo CRM — Architecture
+# Anima MKT CRM — Architecture
 
 ## 1. High-Level Architecture
 
@@ -8,11 +8,11 @@
 │                                                                 │
 │  React + Vite + Tailwind CSS                                    │
 │  ┌──────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
-│  │ Firebase  │  │ React Router │  │ TanStack Query            │  │
-│  │ Auth SDK  │  │ (protected)  │  │ (data fetching + cache)   │  │
+│  │ Firebase │  │ React Router │  │ TanStack Query            │  │
+│  │ Auth SDK │  │ (protected)  │  │ (data fetching + cache)   │  │
 │  └─────┬────┘  └──────┬───────┘  └─────────────┬─────────────┘  │
 │        │              │                         │                │
-│  VITE_ env vars only (public, non-secret)       │                │
+│  VITE_ env vars only (public configuration)     │                │
 └────────┼──────────────┼─────────────────────────┼────────────────┘
          │              │                         │
          │    ┌─────────▼─────────────────────────▼──────────┐
@@ -22,7 +22,7 @@
          │    │  /api/* → rewrite to functions                │
          │    │  /* → SPA fallback to index.html              │
          │    │                                               │
-         │    │  ⚠ /.netlify/identity NOT used (Firebase)     │
+         │    │  ⚠ Netlify Identity NOT used (Firebase Auth)  │
          │    └───────────────────┬───────────────────────────┘
          │                       │
          │    ┌──────────────────▼──────────────────────────┐
@@ -30,38 +30,38 @@
          │    │                                              │
          │    │  ┌─────────────┐  ┌───────────────────────┐  │
          │    │  │ Firebase    │  │ MongoDB Driver         │  │
-         │    │  │ Admin SDK   │  │                        │  │
-         │    │  │ (verify     │  │ Roles, clients, leads, │  │
-         │    │  │  tokens)    │  │ users, campaigns...    │  │
+         │    │  │ Admin SDK   │  │ (Connection Pooling)  │  │
+         │    │  │ (verify     │  │                       │  │
+         │    │  │  tokens)    │  │ users (Stage 1),      │  │
+         │    │  │             │  │ clients, leads, etc.  │  │
          │    │  └──────┬──────┘  └───────────┬────────────┘  │
          │    │         │                     │               │
          │    │  Server-side env vars:        │               │
          │    │  SUPER_ADMIN_EMAIL            │               │
          │    │  FIREBASE_PRIVATE_KEY         │               │
-         │    │  MONGODB_URI                  │               │
-         │    │  META_APP_SECRET              │               │
-         │    │  AI keys, CRON_SECRET...      │               │
+         │    │  MONGODB_URI (anima_mkt_crm)  │               │
+         │    │  META_SYSTEM_USER_TOKEN       │               │
+         │    │  CRON_SECRET, AI keys...      │               │
          │    └─────────┬─────────────────────┼───────────────┘
          │              │                     │
     ┌────▼────┐   ┌─────▼─────┐        ┌─────▼──────┐
     │Firebase │   │ Firebase  │        │ MongoDB    │
     │Auth     │   │ Admin     │        │ Atlas      │
-    │(Google  │   │(token     │        │            │
-    │ Cloud)  │   │ verify)   │        │ Shared DB  │
-    │         │   │           │        │ isolated   │
-    │ email   │   │ NO user   │        │ by         │
-    │ password│   │ creation  │        │ clientId   │
-    │ session │   │ from      │        │            │
-    │ tokens  │   │ frontend  │        │            │
+    │(Google) │   │(token     │        │            │
+    │         │   │ verify)   │        │ anima_     │
+    │ email   │   │           │        │ mkt_crm    │
+    │ password│   │ NO public │        │ isolated   │
+    │ session │   │ signup in │        │ by         │
+    │ tokens  │   │ frontend  │        │ clientId   │
     └─────────┘   └───────────┘        └────────────┘
 ```
 
-## 2. Authentication Flow
+## 2. Authentication & Bootstrap Flow
 
 ```
 ┌──────────┐      ┌────────────┐      ┌──────────────────┐      ┌──────────┐
 │  Browser │      │  Firebase   │      │ Netlify Function  │      │ MongoDB  │
-│          │      │  Auth       │      │ (api-auth-me)     │      │          │
+│          │      │  Auth       │      │ (api-auth-me)     │      │ (users)  │
 └────┬─────┘      └──────┬─────┘      └────────┬──────────┘      └────┬─────┘
      │                   │                      │                      │
      │ 1. Login (email,  │                      │                      │
@@ -71,28 +71,41 @@
      │ 2. ID Token       │                      │                      │
      │◄──────────────────┤                      │                      │
      │                   │                      │                      │
-     │ 3. GET /api/auth-me                      │                      │
+     │ 3. Check emailVerified?                  │                      │
+     │    If false → UI shows verify screen     │                      │
+     │    + button to resend verification       │                      │
+     │    (blocked until verified)              │                      │
+     │                   │                      │                      │
+     │ 4. GET /api/auth-me                      │                      │
      │   Authorization: Bearer <idToken>        │                      │
      ├─────────────────────────────────────────►│                      │
      │                   │                      │                      │
-     │                   │  4. Verify ID token  │                      │
+     │                   │  5. Verify ID token  │                      │
      │                   │◄─────────────────────┤                      │
-     │                   │  UID + email         │                      │
+     │                   │  UID, email, verified│                      │
      │                   │─────────────────────►│                      │
      │                   │                      │                      │
-     │                   │                      │ 5. Find user by      │
-     │                   │                      │    firebaseUid       │
+     │                   │                      │ 6. If email_verified │
+     │                   │                      │    is false → 403    │
+     │                   │                      │                      │
+     │                   │                      │ 7. Find user by      │
+     │                   │                      │    firebaseUid/email │
      │                   │                      ├─────────────────────►│
      │                   │                      │                      │
-     │                   │                      │ 6. If email matches  │
+     │                   │                      │ 8. If verified email │
+     │                   │                      │    strictly matches  │
      │                   │                      │    SUPER_ADMIN_EMAIL │
-     │                   │                      │    → upsert as       │
-     │                   │                      │    super_admin       │
+     │                   │                      │    → upsert with     │
+     │                   │                      │    role: super_admin │
+     │                   │                      │    status: active    │
      │                   │                      │                      │
-     │                   │                      │ 7. Return profile    │
-     │ 8. { role, clientIds, permissions }      │◄─────────────────────┤
+     │                   │                      │ 9. If user not in DB │
+     │                   │                      │    or suspended      │
+     │                   │                      │    → return 403      │
+     │                   │                      │                      │
+     │ 10. { role, clientIds, permissions }     │◄─────────────────────┤
+     │    (or 403 Forbidden)                    │                      │
      │◄─────────────────────────────────────────┤                      │
-     │                   │                      │                      │
 ```
 
 ## 3. Multi-Tenant Data Isolation
@@ -102,26 +115,36 @@ Every data query in Netlify Functions MUST include `clientId` filtering:
 ```
 Request Flow:
 1. Frontend sends request with Bearer token
-2. Function verifies token → gets firebaseUid
-3. Function looks up user in MongoDB → gets role + clientIds
-4. Function adds clientId filter to ALL database queries
-5. If user has no access to requested clientId → 403
+2. Function verifies token with Firebase Admin → gets verified identity
+3. Function verifies that email_verified === true; otherwise returns 403
+4. Function looks up user in MongoDB → gets active role + clientIds
+5. If user not found or suspended → returns 403 Forbidden
+6. Function enforces clientId filter on ALL database operations
+7. If a non-super_admin user requests data for an unassigned clientId → 403 Forbidden
 ```
 
 **Rules:**
-- `clientId` is NEVER trusted from frontend request parameters
-- `clientId` is ALWAYS derived from the authenticated user's MongoDB profile
-- `super_admin` can explicitly select a clientId for "view as" mode
-- All other roles are restricted to their assigned `clientIds[]`
+- `clientId` is NEVER trusted directly from frontend request parameters
+- `clientId` is ALWAYS validated against the authenticated user's MongoDB profile
+- `super_admin` can explicitly select a `clientId` for context filtering ("View As" mode)
+- All other roles (`admin`, `client`, `salesperson`) are restricted strictly to their assigned `clientIds[]`
 
-## 4. Directory Structure (planned)
+## 4. Execution Limits & Serverless Architecture
+
+| Function Type | Netlify Max Timeout | Usage Pattern |
+|---------------|---------------------|---------------|
+| Synchronous Functions | 60 seconds | API endpoints: `api-auth-me`, CRUD, queries |
+| Scheduled Functions | 30 seconds | Cron tasks: trigger daily sync checkpoints |
+| Background Functions (`*-background.js`) | Hasta 15 minutos | Sincronizaciones extensas de Meta Marketing API |
+
+## 5. Directory Structure (Planned)
 
 ```
-cotejo-crm/
+anima-mkt-crm/
 ├── public/
 │   └── favicon.svg
 ├── src/
-│   ├── main.jsx                    # App entry point
+│   ├── main.jsx                    # Entry point
 │   ├── App.jsx                     # Router + providers
 │   ├── components/
 │   │   ├── layout/
@@ -130,7 +153,8 @@ cotejo-crm/
 │   │   │   └── MainLayout.jsx
 │   │   ├── auth/
 │   │   │   ├── LoginForm.jsx
-│   │   │   ├── SetPasswordForm.jsx
+│   │   │   ├── VerifyEmailBanner.jsx
+│   │   │   ├── ForgotPasswordForm.jsx
 │   │   │   └── ProtectedRoute.jsx
 │   │   ├── clients/
 │   │   │   ├── ClientList.jsx
@@ -160,30 +184,33 @@ cotejo-crm/
 │   │   ├── AuthContext.jsx
 │   │   └── ViewAsContext.jsx
 │   ├── lib/
-│   │   ├── firebase.js             # Firebase client init
-│   │   ├── api.js                  # Fetch wrapper with auth
+│   │   ├── firebase.js             # Firebase client SDK initialization
+│   │   ├── api.js                  # Fetch wrapper with Bearer token
 │   │   └── constants.js
 │   └── styles/
-│       └── index.css               # Tailwind directives
+│       └── index.css               # Tailwind CSS directives
 ├── netlify/
 │   └── functions/
-│       ├── api-auth-me.js          # Session / profile
-│       ├── api-clients.js          # Client CRUD
-│       ├── api-users.js            # User CRUD + invite
-│       ├── api-leads.js            # Lead management
-│       ├── api-campaigns.js        # Campaign data
-│       ├── api-dashboard.js        # Aggregated metrics
+│       ├── api-auth-me.js          # Session / user profile bootstrap
+│       ├── api-clients.js          # Client CRUD (Stage 2)
+│       ├── api-users.js            # User CRUD + invites (Stage 2)
+│       ├── api-leads.js            # Lead management (Stage 3)
+│       ├── api-campaigns.js        # Campaign data (Stage 4)
+│       ├── api-meta-sync-background.js # Background sync (Stage 4)
+│       ├── api-dashboard.js        # Aggregated metrics (Stage 5)
 │       └── _shared/
-│           ├── db.js               # MongoDB connection
-│           ├── auth.js             # Token verification
-│           ├── permissions.js      # Role checking
+│           ├── db.js               # MongoDB client + connection pool (anima_mkt_crm)
+│           ├── auth.js             # Token verification with Firebase Admin
+│           ├── permissions.js      # Role & tenant check helpers
 │           └── errors.js           # Standard error responses
 ├── models/
-│   ├── User.js
-│   ├── Client.js
-│   ├── Lead.js
-│   ├── Campaign.js
-│   └── AuditLog.js
+│   ├── User.js                     # User model schema
+│   ├── Client.js                   # Client model schema
+│   ├── Lead.js                     # Lead model schema
+│   ├── Campaign.js                 # Campaign schema
+│   ├── CampaignInsight.js          # Daily insights schema
+│   ├── ExchangeRate.js             # Currency exchange rate schema
+│   └── AuditLog.js                 # Immutable audit trail schema
 ├── index.html
 ├── vite.config.js
 ├── tailwind.config.js
@@ -195,47 +222,13 @@ cotejo-crm/
 └── [documentation files]
 ```
 
-## 5. Key Technical Decisions
+## 6. Key Technical Decisions
 
 | Decision                        | Rationale                                                |
 |---------------------------------|----------------------------------------------------------|
-| Firebase Auth (not Netlify ID)  | Better SDK, more control, no dependency on Netlify plan  |
-| MongoDB (not Firestore)         | Relational-like queries, aggregation pipeline, flexibility|
-| Netlify Functions (not Express) | Zero infra management, scales with Netlify hosting       |
-| TanStack Query                  | Automatic caching, refetching, optimistic updates        |
-| Tailwind CSS                    | Rapid UI development, consistent design tokens           |
-| Server-side role enforcement    | Never trust frontend for authorization decisions         |
-
-## 6. API Design
-
-All API endpoints follow the pattern: `GET/POST/PUT/DELETE /api/{resource}`
-
-| Endpoint              | Method | Auth  | Description                    |
-|-----------------------|--------|-------|--------------------------------|
-| /api/auth-me          | GET    | Token | Get current user profile       |
-| /api/clients          | GET    | SA/A  | List clients                   |
-| /api/clients          | POST   | SA    | Create client                  |
-| /api/clients/:id      | PUT    | SA    | Update client                  |
-| /api/users            | GET    | SA/A  | List users                     |
-| /api/users            | POST   | SA/A  | Create user + send invite      |
-| /api/users/:id        | PUT    | SA/A  | Update user role/status        |
-| /api/users/:id/resend | POST   | SA/A  | Resend invitation email        |
-| /api/leads            | GET    | All   | List leads (filtered)          |
-| /api/leads            | POST   | A/S   | Create lead                    |
-| /api/dashboard        | GET    | All   | Aggregated metrics (filtered)  |
-
-*SA = super_admin, A = admin, S = salesperson*
-
-## 7. External Services
-
-| Service              | Purpose                      | Stage |
-|----------------------|------------------------------|-------|
-| Firebase Auth        | Authentication & tokens      | 1     |
-| MongoDB Atlas        | Primary database             | 2     |
-| Meta Marketing API   | Campaign data & insights     | 4     |
-| Meta Lead Ads        | Webhook lead ingestion       | 4     |
-| Cloudinary           | File/image storage           | 3+    |
-| Google Places API    | Business discovery           | 7     |
-| PageSpeed Insights   | Website performance audit    | 7     |
-| Search Console       | SEO data                     | 7     |
-| Gemini / Groq        | AI capabilities              | 8     |
+| Firebase Auth (not Netlify ID)  | Mature SDK, reliable token lifecycle, decouples from hosting provider |
+| MongoDB Atlas (`anima_mkt_crm`) | Authoritative source for RBAC, multi-tenant schemas and aggregation |
+| Netlify Functions               | Zero infrastructure management, automatic scaling, background functions support |
+| TanStack Query                  | Automatic client caching, background refetching and optimistic state updates |
+| Tailwind CSS                    | Consistent design tokens, rapid layout development       |
+| Server-side role enforcement    | Authorization is strictly verified in functions, never trusted from client |

@@ -1,13 +1,14 @@
-# Cotejo CRM — Meta API Authentication & Setup
+# Anima MKT CRM — Meta API Authentication & Setup
 
 > ⚠️ This document is for **Stage 4**. Do not configure Meta until Stages 1-2 are complete and tested.
 
 ## 1. Overview
 
-Cotejo CRM connects to the **Meta Marketing API** to sync:
+Anima MKT CRM connects to the **Meta Marketing API** to sync:
 - Ad campaigns and their status
-- Daily insights (spend, impressions, clicks, leads, costs)
-- Lead Ads form submissions (via webhooks)
+- Daily insights (spend, impressions, clicks, actions, costs)
+
+Lead Ads webhook ingestion is a separate integration gated behind `ENABLE_META_LEAD_ADS=false` and documented in section 10.
 
 ## 2. Prerequisites
 
@@ -25,19 +26,24 @@ Cotejo CRM connects to the **Meta Marketing API** to sync:
 
 ### 3.2 Add Products
 - **Marketing API** — for campaign and insights data
-- **Webhooks** — for Lead Ads real-time notifications (optional)
 
 ### 3.3 Request Permissions
-The app needs these permissions:
-- `ads_management` — read campaign data
-- `ads_read` — read insights
+
+**MVP (read-only campaign sync):**
+- `ads_read` — read campaigns, insights, and ad account metadata
+
+**Not required for MVP:**
+- `ads_management` — only needed if the CRM will create, edit, or pause campaigns in the future
+- `business_management` — only needed if programmatic asset assignment is required; not justified for the current scope
+
+**Lead Ads integration (gated by `ENABLE_META_LEAD_ADS`):**
 - `leads_retrieval` — read Lead Ads submissions
-- `pages_read_engagement` — read page data (for Lead Ads)
-- `business_management` — manage business assets
+- `pages_read_engagement` — required alongside leads_retrieval for page-level access
 
 ### 3.4 App Review
 - For development: use your own ad accounts (no review needed)
 - For production with client accounts: submit for App Review
+- `ads_read` typically does not require full App Review for your own Business assets
 
 ## 4. System User Setup
 
@@ -50,31 +56,48 @@ The app needs these permissions:
 ### 4.2 Generate Token
 1. Click on the System User → Generate Token
 2. Select the Meta App
-3. Select permissions: `ads_management`, `ads_read`, `leads_retrieval`
+3. Select permissions: `ads_read` (add `leads_retrieval` later if needed)
 4. Copy the token
-5. Store as `META_SYSTEM_USER_TOKEN` in Netlify env vars
+5. Store as `META_SYSTEM_USER_TOKEN` in Netlify environment variables (server-side only)
 
-> ⚠️ System User tokens do NOT expire but can be revoked. Store securely.
+> ⚠️ **Token validity:** System User tokens do not have a built-in expiration date, but they **can become invalid** due to:
+> - Manual revocation in Business Manager
+> - Changes in asset assignments (ad accounts removed from the System User)
+> - Permission changes on the Meta App
+> - Security events (e.g., Business Manager flagged or restricted)
+> - Meta platform policy changes
+>
+> **Requirement:** Implement a health check endpoint (`/api/meta/health`) that validates the token periodically. Set up alerts when the token becomes invalid so it can be rotated promptly.
+
+### 4.3 Token Storage
+
+- The System User token must be stored **exclusively** in Netlify environment variables (server-side)
+- **Never** store the token inside a client document in MongoDB
+- In `clients.meta`, store only: ad account IDs, connection status, last verification date, and a connection reference — not the token itself
 
 ## 5. Environment Variables
 
 ```
-META_APP_ID=000000000000000
-META_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-META_SYSTEM_USER_TOKEN=EAAG...
-META_API_VERSION=v21.0
-META_VERIFY_TOKEN=a-random-string-for-webhook-verification
+META_APP_ID=<set-in-netlify>
+META_APP_SECRET=<set-in-netlify>
+META_SYSTEM_USER_TOKEN=<set-in-netlify>
+META_API_VERSION=v26.0
+META_VERIFY_TOKEN=<set-in-netlify>
 ENABLE_META_LEAD_ADS=false
 ```
 
-All are server-side only. None use `VITE_` prefix.
+All are server-side only. None use `VITE_` prefix. `META_API_VERSION` is configurable to allow future upgrades without code changes.
 
 ## 6. Ad Account Linking
 
-When a client is created in Cotejo CRM:
+When a client is created in Anima MKT CRM:
 1. The super_admin enters the Meta Ad Account ID(s) for that client
-2. The system verifies access using the System User token
-3. The ad account IDs are stored in the client's `meta.adAccountIds` field
+2. The system verifies access using the System User token via a server-side function
+3. In `clients.meta`, store:
+   - `adAccountIds` — the linked account IDs
+   - `connectionStatus` — e.g., "verified", "pending", "error"
+   - `lastVerifiedAt` — timestamp of last successful verification
+   - `connectionRef` — an internal reference identifier (not a token)
 4. Sync functions use these IDs to pull data
 
 ## 7. API Endpoints (Stage 4)
@@ -83,26 +106,32 @@ When a client is created in Cotejo CRM:
 |---------------------------|------------------------------------------|
 | `/api/meta/sync-campaigns`| Pull campaigns for a client              |
 | `/api/meta/sync-insights` | Pull daily insights for a client         |
-| `/api/meta/webhook`       | Receive Lead Ads submissions (POST)      |
-| `/api/meta/health`        | Check API access and token validity      |
+| `/api/meta/health`        | Validate token and check API access      |
+
+The webhook endpoint (`/api/meta/webhook`) is part of the Lead Ads integration and will be added when `ENABLE_META_LEAD_ADS` is activated.
 
 ## 8. Rate Limits
 
-- Meta Marketing API has usage-based rate limits
-- Implement exponential backoff on 429 responses
+- Meta Marketing API has usage-based rate limits (verify current thresholds before implementing)
+- Implement exponential backoff on 429 and 500-level responses
 - Use checkpoints for incremental sync
 - Avoid pulling all data every time
+- Log rate limit headers for monitoring
 
 ## 9. Security Considerations
 
 - System User token is a **critical secret**
-- Never expose in frontend, logs, or error messages
-- Rotate token if suspected compromise
+- Never expose in frontend, logs, error messages, or MongoDB documents
+- Rotate token immediately if suspected compromise
 - Monitor API calls in Meta Business Manager
-- Use the minimum required permissions
+- Use the minimum required permissions (`ads_read` for MVP)
+- Health check must alert on token invalidation
 
-## 10. Lead Ads Webhook Setup (optional)
+## 10. Lead Ads Webhook Setup (future, gated by ENABLE_META_LEAD_ADS)
 
+> This integration is **disabled by default** and requires additional permissions (`leads_retrieval`, `pages_read_engagement`). Do not enable until the base Meta sync (Stage 4) is tested and working.
+
+When enabled:
 1. Configure webhook URL: `https://your-site.netlify.app/api/meta/webhook`
 2. Set `META_VERIFY_TOKEN` as the verify token
 3. Subscribe to `leadgen` events for the client's page

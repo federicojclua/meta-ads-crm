@@ -1,17 +1,20 @@
-# Cotejo CRM — Data Model
+# Anima MKT CRM — Data Model
 
 ## 1. Database: MongoDB Atlas
 
-- **Single shared database** (`cotejo_crm`)
+- **Single shared database** (`anima_mkt_crm`)
 - **Multi-tenant isolation** enforced by `clientId` field on all tenant-scoped collections
 - All timestamps in UTC (ISO 8601)
 - All `_id` fields are MongoDB ObjectId unless noted
+- Non-additive metrics (`reach`) and calculated ratios (CTR, CPC, CPM, CPL, CPA, ROAS) are calculated dynamically at query time
+
+---
 
 ## 2. Collections
 
 ### 2.1 `users`
 
-Stores CRM user profiles. Authentication credentials are managed exclusively by Firebase.
+Stores CRM user profiles. Authentication credentials are managed exclusively by Firebase Auth.
 
 ```json
 {
@@ -20,9 +23,9 @@ Stores CRM user profiles. Authentication credentials are managed exclusively by 
   "email": "string (unique, indexed)",
   "name": "string",
   "role": "enum: super_admin | admin | client | salesperson",
-  "clientIds": ["ObjectId"],          // clients this user can access
+  "clientIds": ["ObjectId"],          // clients this user can access (empty for super_admin = all)
   "status": "enum: pending_invite | active | suspended",
-  "permissions": {                     // optional granular permissions
+  "permissions": {
     "canExport": true,
     "canDeleteLeads": false,
     "canViewFinancials": true
@@ -37,13 +40,13 @@ Stores CRM user profiles. Authentication credentials are managed exclusively by 
 **Indexes:**
 - `{ firebaseUid: 1 }` — unique
 - `{ email: 1 }` — unique
-- `{ clientIds: 1 }` — for multi-tenant queries
-- `{ role: 1, status: 1 }` — for user listing filters
+- `{ clientIds: 1 }` — for multi-tenant access queries
+- `{ role: 1, status: 1 }` — for user listing and filtering
 
 **Rules:**
-- `firebaseUid` is set after the user accepts the invitation and their Firebase account is created
-- `super_admin` has `clientIds: []` (empty = access to all)
-- Passwords are NEVER stored here — Firebase Auth manages them
+- `firebaseUid` is linked during first login or invitation confirmation.
+- `super_admin` role is bootstrapped only if the verified email strictly matches server-side `SUPER_ADMIN_EMAIL` and `email_verified: true`.
+- Passwords and tokens are NEVER stored in MongoDB.
 
 ---
 
@@ -69,9 +72,11 @@ Represents a business/company that is a client of the agency.
     "postalCode": "string | null"
   },
   "meta": {
-    "adAccountIds": ["string"],       // Meta ad account IDs linked
+    "adAccountIds": ["string"],       // Linked Meta Ad Account IDs
     "pageId": "string | null",
-    "accessToken": "string | null"    // encrypted or reference
+    "connectionStatus": "enum: verified | pending | error | not_connected",
+    "lastVerifiedAt": "ISODate | null",
+    "connectionRef": "string | null"  // Internal reference (NEVER access tokens)
   },
   "google": {
     "placeId": "string | null",
@@ -91,11 +96,13 @@ Represents a business/company that is a client of the agency.
 - `{ status: 1 }`
 - `{ "meta.adAccountIds": 1 }`
 
+**Security Rule:** Access tokens are stored exclusively in server-side environment variables, never inside client documents.
+
 ---
 
 ### 2.3 `leads`
 
-Individual lead/prospect captured from ads or manual entry.
+Individual lead or prospect captured from ads, webhooks, CSV import, or manual entry.
 
 ```json
 {
@@ -105,17 +112,27 @@ Individual lead/prospect captured from ads or manual entry.
   "campaignId": "ObjectId | null",
   "adId": "string | null",
   "formId": "string | null",
+  "externalSourceId": "string | null",  // e.g. 'meta', 'typeform', 'csv'
+  "externalLeadId": "string | null",    // ID in the external source
   "name": "string",
   "email": "string | null",
   "phone": "string | null",
   "whatsapp": "string | null",
   "message": "string | null",
-  "customFields": {},                   // dynamic form fields from Meta
+  "customFields": {},                   // Dynamic form fields
   "status": "enum: new | contacted | qualified | proposal | negotiation | won | lost | discarded",
-  "assignedTo": "ObjectId | null",      // salesperson userId
+  "assignedTo": "ObjectId | null",      // Salesperson userId
   "pipelineStage": "string",
-  "saleAmount": "number | null",        // revenue if won
-  "saleCurrency": "string",             // default: ARS
+
+  // Commercial Agreement (Sale closed / commitment)
+  "saleAmount": "number | null",        // Total agreed sale value
+  "saleCurrency": "string",             // e.g. "ARS", "USD"
+
+  // Realized / Collected Revenue (Actual cash collected)
+  "collectedAmount": "number | null",   // Amount actually collected/paid
+  "collectedCurrency": "string | null",
+  "collectedAt": "ISODate | null",      // Date of cash collection
+
   "lostReason": "string | null",
   "notes": "string | null",
   "tags": ["string"],
@@ -123,7 +140,7 @@ Individual lead/prospect captured from ads or manual entry.
   "qualifiedAt": "ISODate | null",
   "wonAt": "ISODate | null",
   "lostAt": "ISODate | null",
-  "metaLeadId": "string | null",        // Meta's lead ID
+  "metaLeadId": "string | null",        // Meta leadgen ID (if applicable)
   "metaReceivedAt": "ISODate | null",
   "createdAt": "ISODate",
   "updatedAt": "ISODate"
@@ -131,19 +148,20 @@ Individual lead/prospect captured from ads or manual entry.
 ```
 
 **Indexes:**
-- `{ clientId: 1, status: 1 }` — primary tenant query
-- `{ clientId: 1, assignedTo: 1 }` — salesperson filtering
-- `{ clientId: 1, createdAt: -1 }` — chronological listing
+- `{ clientId: 1, status: 1 }` — primary tenant filtering
+- `{ clientId: 1, assignedTo: 1 }` — salesperson view
+- `{ clientId: 1, createdAt: -1 }` — chronological ordering
 - `{ clientId: 1, campaignId: 1 }` — campaign attribution
-- `{ metaLeadId: 1 }` — unique, sparse (deduplication)
-
-**Multi-tenant rule:** Every query MUST include `clientId` filter.
+- **Partial Unique Index on `metaLeadId`:**
+  `{ metaLeadId: 1 }` with options `{ unique: true, partialFilterExpression: { metaLeadId: { $type: "string" } } }`
+- **Compound Deduplication Index:**
+  `{ clientId: 1, externalSourceId: 1, externalLeadId: 1 }` with options `{ unique: true, partialFilterExpression: { externalLeadId: { $type: "string" } } }`
 
 ---
 
 ### 2.4 `campaigns`
 
-Synced from Meta Ads. Read-only from CRM perspective.
+Synced from Meta Marketing API.
 
 ```json
 {
@@ -157,6 +175,7 @@ Synced from Meta Ads. Read-only from CRM perspective.
   "dailyBudget": "number | null",
   "lifetimeBudget": "number | null",
   "currency": "string",
+  "primaryResultActionType": "string",  // e.g., 'onsite_conversion.lead_grouped', 'lead', 'purchase', 'link_click'
   "startDate": "ISODate | null",
   "endDate": "ISODate | null",
   "insights": {
@@ -179,26 +198,48 @@ Synced from Meta Ads. Read-only from CRM perspective.
 
 ### 2.5 `campaign_insights`
 
-Daily performance metrics per campaign, synced from Meta.
+Daily raw performance metrics ingested from Meta API.
 
 ```json
 {
   "_id": "ObjectId",
-  "clientId": "ObjectId (required)",
-  "campaignId": "ObjectId",
+  "clientId": "ObjectId (required, indexed)",
+  "campaignId": "ObjectId (required, indexed)",
   "metaCampaignId": "string",
-  "date": "ISODate",
+  "date": "ISODate",                    // Day of the insight (UTC midnight)
+
+  // Additive Metrics (Safe to sum across date ranges and campaigns)
   "spend": "number",
   "impressions": "number",
-  "reach": "number",
   "clicks": "number",
-  "ctr": "number",
-  "cpc": "number",
-  "cpm": "number",
-  "leads": "number",
-  "costPerLead": "number | null",
-  "conversions": "number",
-  "costPerConversion": "number | null",
+  "linkClicks": "number",
+  "landingPageViews": "number",
+
+  // Normalized Action Arrays (Additive counts/amounts per action_type)
+  "actions": [
+    {
+      "action_type": "string",          // e.g., 'lead', 'link_click', 'offsite_conversion.fb_pixel_purchase'
+      "value": "number"
+    }
+  ],
+  "action_values": [
+    {
+      "action_type": "string",
+      "value": "number"
+    }
+  ],
+
+  // Non-Additive Metrics & Meta-Reported Snapshots (DO NOT SUM ACROSS DATES)
+  "reach": "number",                    // Unique users reached on this day only (NON-ADDITIVE)
+  "metaReported": {
+    "costPerActionType": [              // Derived value from Meta for this single day (SNAPSHOT ONLY)
+      {
+        "action_type": "string",
+        "value": "number"
+      }
+    ]
+  },
+
   "currency": "string",
   "createdAt": "ISODate"
 }
@@ -208,26 +249,63 @@ Daily performance metrics per campaign, synced from Meta.
 - `{ clientId: 1, campaignId: 1, date: 1 }` — unique compound
 - `{ clientId: 1, date: -1 }` — dashboard date range queries
 
+**Important Aggregation & Reporting Rules:**
+- **Additive Metrics:** `spend`, `impressions`, `clicks`, `linkClicks`, `landingPageViews`, `actions` y `action_values` pueden sumarse directamente a lo largo de días o entre campañas del mismo cliente.
+- **`cost_per_action_type` NO es aditivo:** Es un valor derivado informado por Meta para el período específico. Nunca debe sumarse entre días. Se almacena bajo `metaReported.costPerActionType` únicamente como snapshot de auditoría/trazabilidad diaria.
+- **Cálculo de CPA en rangos acumulados:** Para cualquier rango de fechas (semanal, mensual o personalizado), el CPA o CPL se calcula dinámicamente como:
+  $$\text{CPA} = \frac{\sum \text{spend}}{\sum \text{actions}(\text{action\_type})}$$
+- **Métricas NO Aditivas:**
+  - `reach`: No se puede sumar entre días (generaría doble conteo de usuarios). Para períodos acumulados se debe tomar el snapshot del período informado por Meta o reportar el alcance diario promedio/máximo.
+  - Ratios y métricas derivadas: CTR, CPC, CPM, CPL, CPA y ROAS **NUNCA** se suman ni se promedian directamente. Se calculan en tiempo de consulta:
+    - $\text{CTR} = \frac{\sum \text{clicks}}{\sum \text{impressions}} \times 100$
+    - $\text{CPC} = \frac{\sum \text{spend}}{\sum \text{clicks}}$
+    - $\text{CPM} = \frac{\sum \text{spend}}{\sum \text{impressions}} \times 1000$
+    - $\text{CPL} = \frac{\sum \text{spend}}{\sum \text{leads}}$
+    - $\text{ROAS} = \frac{\sum \text{collectedAmount}}{\sum \text{spend}}$
+
 ---
 
-### 2.6 `audit_logs`
+### 2.6 `exchange_rates`
 
-Immutable log of significant actions.
+Multi-currency exchange rate tables to normalize revenue and ad spend across different currencies (e.g., USD, ARS).
+
+```json
+{
+  "_id": "ObjectId",
+  "baseCurrency": "string",             // e.g., "USD"
+  "quoteCurrency": "string",            // e.g., "ARS"
+  "quotePerBase": "number",             // e.g., 1250.50 (meaning 1 USD = 1250.50 ARS)
+  "rateType": "enum: official | commercial | custom",
+  "validFrom": "ISODate",
+  "validTo": "ISODate | null",          // null = currently active rate
+  "createdAt": "ISODate",
+  "updatedAt": "ISODate"
+}
+```
+
+**Indexes:**
+- `{ baseCurrency: 1, quoteCurrency: 1, validFrom: -1 }`
+
+---
+
+### 2.7 `audit_logs`
+
+Immutable security and operational log.
 
 ```json
 {
   "_id": "ObjectId",
   "userId": "ObjectId",
   "userEmail": "string",
-  "action": "string",                // e.g., "lead.status_changed", "user.invited"
-  "resource": "string",              // e.g., "leads", "users", "clients"
+  "action": "string",                   // e.g., "lead.status_changed", "user.role_assigned"
+  "resource": "string",                 // e.g., "leads", "users", "clients"
   "resourceId": "ObjectId | string",
   "clientId": "ObjectId | null",
   "changes": {
     "before": {},
     "after": {}
   },
-  "metadata": {},                    // additional context
+  "metadata": {},
   "ip": "string | null",
   "createdAt": "ISODate"
 }
@@ -238,15 +316,14 @@ Immutable log of significant actions.
 - `{ userId: 1, createdAt: -1 }`
 - `{ resource: 1, resourceId: 1 }`
 
-**Rules:**
-- Never update or delete audit logs
-- Always write on: user creation, role change, status change, lead stage change, client modification
+**Sanitization Rules:**
+- Audit logs MUST NOT contain passwords, API tokens, sensitive authentication payloads, or full plain-text PII copies.
 
 ---
 
-### 2.7 `sync_checkpoints`
+### 2.8 `sync_checkpoints`
 
-Tracks Meta sync progress to enable incremental syncing.
+Tracks Meta sync progress to enable idempotent, incremental syncing.
 
 ```json
 {
@@ -282,25 +359,7 @@ leads ────────── belongs to ───────── camp
   │                                    │
   └──────────────────────────────── campaign_insights
 
-audit_logs ← written on every significant action
-sync_checkpoints ← one per client+type+adAccount
+exchange_rates ── applied to ─────── revenue & spend analytics
+audit_logs     ── tracks operations
+sync_checkpoints ── tracks sync state
 ```
-
-## 4. Data Access Patterns
-
-| Query                            | Collection        | Filter               |
-|----------------------------------|-------------------|----------------------|
-| Dashboard metrics                | campaign_insights | clientId + date range|
-| Lead list for salesperson        | leads             | clientId + assignedTo|
-| All leads for client             | leads             | clientId             |
-| Campaign list                    | campaigns         | clientId             |
-| User management                  | users             | (super_admin: all)   |
-| Client list                      | clients           | (super_admin: all)   |
-| Audit trail                      | audit_logs        | clientId or userId   |
-
-## 5. Migration Strategy
-
-- No ORM; use native MongoDB driver
-- Schema validation via MongoDB JSON Schema (optional, Stage 9)
-- Indexes created programmatically on first deploy
-- No automatic migrations — all changes documented in CHANGELOG.md
