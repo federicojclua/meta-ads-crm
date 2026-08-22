@@ -19,9 +19,12 @@ Stores CRM user profiles. Authentication credentials are managed exclusively by 
 ```json
 {
   "_id": "ObjectId",
-  "firebaseUid": "string (unique, indexed)",
-  "email": "string (unique, indexed)",
-  "name": "string",
+  "firebaseUid": "string | null (unique partial index)",
+  "email": "string",
+  "normalizedEmail": "string (unique index, lowercase)",
+  "displayName": "string",
+  "photoURL": "string | null",
+  "authProviders": ["string"],        // e.g. ["password"], ["google.com"]
   "role": "enum: super_admin | admin | client | salesperson",
   "clientIds": ["ObjectId"],          // clients this user can access (empty for super_admin = all)
   "status": "enum: pending_invite | active | suspended",
@@ -38,14 +41,15 @@ Stores CRM user profiles. Authentication credentials are managed exclusively by 
 ```
 
 **Indexes:**
-- `{ firebaseUid: 1 }` — unique
-- `{ email: 1 }` — unique
-- `{ clientIds: 1 }` — for multi-tenant access queries
-- `{ role: 1, status: 1 }` — for user listing and filtering
+- `{ normalizedEmail: 1 }` — `{ unique: true, name: "uniq_normalizedEmail" }`
+- `{ firebaseUid: 1 }` — `{ unique: true, partialFilterExpression: { firebaseUid: { $type: "string" } }, name: "uniq_partial_firebaseUid" }`
+- `{ role: 1, status: 1 }` — `{ name: "idx_role_status" }`
+- `{ clientIds: 1 }` — for multi-tenant access queries (Stage 2)
 
 **Rules:**
-- `firebaseUid` is linked during first login or invitation confirmation.
-- `super_admin` role is bootstrapped only if the verified email strictly matches server-side `SUPER_ADMIN_EMAIL` and `email_verified: true`.
+- `firebaseUid` is linked only during initial atomic bootstrap or initial invite activation.
+- Strict identity mismatch protection: An existing document with a different `firebaseUid` or `normalizedEmail` returns `403 IDENTITY_MISMATCH` and is never overwritten.
+- `super_admin` role is bootstrapped atomically with `findOneAndUpdate` + `upsert` and `E11000` recovery only if `email_verified: true` and `normalizedEmail === SUPER_ADMIN_EMAIL.toLowerCase()`.
 - Passwords and tokens are NEVER stored in MongoDB.
 
 ---

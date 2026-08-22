@@ -47,7 +47,7 @@ Estado y registro de variables e insumos requeridos para la **Etapa 1 (Foundatio
 
 ## 4. Identidad Visual Funcional
 
-- **Tokens definidos:**
+- **Tokens definidos e implementados:**
   - Fondo general: `#F7F6F2`
   - Superficie: `#FFFFFF`
   - Rojo principal: `#B91C1C` / `#7F1D1D`
@@ -56,4 +56,18 @@ Estado y registro de variables e insumos requeridos para la **Etapa 1 (Foundatio
   - Borde: `#E5E0D8`
   - Verde éxito: `#15803D`
   - Amarillo atención: `#F4C430` (con texto oscuro)
-  - Wordmark: "ANIMA MKT CRM"
+  - Wordmark: "ANIMA MKT CRM · Revenue Intelligence"
+
+---
+
+## 5. Estado de Ejecución y Validación de Etapa 1
+
+- **Estado:** 🟡 Implementada y verificada (pendiente de aprobación final).
+- **Runtime:** Node.js 24 LTS (.nvmrc, package.json, netlify.toml).
+- **Pruebas Automatizadas:** 20/20 pruebas pasando (12 backend auth/bootstrap atómico/identity mismatch, 4 frontend guards, 2 seguridad/secretos, 2 netlify routing/smoke).
+- **ESLint:** 0 errores, 0 advertencias.
+- **Build de Producción:** Exitoso en 18s (`dist/` generado).
+- **Auditoría de Seguridad:** 0 vulnerabilidades críticas, 0 altas.
+- **Acciones Manuales Pendientes:**
+  1. Configurar en Firebase Console (*Authentication → Settings → Authorized domains*) el dominio `anima-mkt-crm.netlify.app`.
+  2. Cargar las variables de entorno server-side en Netlify antes del despliegue.

@@ -53,6 +53,7 @@ coverage/
 
 # Netlify
 .netlify/
+deno.lock
 
 # Misc
 *.tgz

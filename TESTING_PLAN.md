@@ -2,14 +2,54 @@
 
 ## 1. Testing Strategy
 
-| Level              | Tool / Method             | Stage  |
-|--------------------|---------------------------|--------|
-| Unit tests         | Vitest                    | 1+     |
-| Component tests    | Vitest + Testing Library  | 2+     |
-| API tests          | Manual + scripts          | 1+     |
-| Integration tests  | End-to-end manual         | 2+     |
-| Security tests     | Manual checklist          | 1+, 2+, 9|
-| E2E automated      | Playwright (optional)     | 9      |
+| Level              | Tool / Method             | Stage  | Estado |
+|--------------------|---------------------------|--------|--------|
+| Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 12 tests pasados |
+| Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 4 tests pasados |
+| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 9 tests pasados |
+| Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
+| Netlify Dev Smoke  | Netlify CLI (HTTP real)    | 1+     | ✅ Validado (HTTP 401 JSON) |
+| Integration tests  | Multi-tenant manual        | 2+     | Pendiente Stage 2 |
+| Security audits    | `npm audit --omit=dev`     | 1+, 9  | ✅ 0 críticas, 0 altas |
+
+---
+
+### Matriz de 27 Pruebas Automatizadas Implementadas (Stage 1)
+
+1. **`auth-backend.test.js`**
+   - `1. Sin token -> responde 401 (AUTH_TOKEN_MISSING)`
+   - `2. Token inválido -> responde 401 (AUTH_TOKEN_INVALID)`
+   - `3. Email no verificado -> responde 403 (AUTH_EMAIL_NOT_VERIFIED)`
+   - `4. Firebase válido sin usuario en MongoDB y no es super_admin -> responde 403 (USER_NOT_AUTHORIZED)`
+   - `5. Correo distinto a SUPER_ADMIN_EMAIL no obtiene super_admin`
+   - `6. Super_admin correcto -> bootstrap atómico con findOneAndUpdate y upsert`
+   - `7. Recuperación explícita de colisión E11000 en bootstrap simultáneo`
+   - `8. Rechazo de Identity Mismatch: mismo correo con UID diferente -> 403 (IDENTITY_MISMATCH)`
+   - `9. Rechazo de Identity Mismatch: mismo UID con correo diferente -> 403 (IDENTITY_MISMATCH)`
+   - `10. Segundo login de super_admin -> idempotente y no sobrescribe datos`
+   - `11. Usuario suspendido en MongoDB -> responde 403 (USER_SUSPENDED)`
+   - `12. Rol enviado desde frontend o parámetros es ignorado (solo GET /auth/me usa MongoDB)`
+
+2. **`auth-frontend.test.jsx`**
+   - `10. Rutas privadas -> redirige a /login cuando no hay usuario autenticado`
+   - `10b. Usuario autenticado pero email no verificado -> redirige a /verify-email`
+   - `10c. Usuario verificado sin perfil en MongoDB (403) -> redirige a /unauthorized`
+   - `12. Componentes UI principales renderizan con diseño accesible`
+
+3. **`security.test.js`**
+   - `11. Ausencia de variables privadas o secretos en el bundle generado en dist/`
+   - `11b. Variables públicas autorizadas utilizan exclusivamente prefijo VITE_`
+   - `11c. Firebase Client Auth está explícitamente configurado con browserSessionPersistence`
+   - `11d. Roles y permisos nunca se persisten en almacenamiento local/sessionStorage`
+   - `11e.1 Acepta rutas internas registradas en la allowlist exacta (/app, /app/clients, etc.)`
+   - `11e.2 Rechaza rutas no registradas (/application, /app-malicious, /app/unknown) -> fallback /app`
+   - `11e.3 Rechaza open redirects relativos/absolutos (//evil.example, https://evil.com)`
+   - `11e.4 Rechaza caracteres de escape con barra invertida (/app\evil.example)`
+   - `11e.5 Rechaza valores nulos, undefined, objetos y arrays -> fallback /app`
+
+4. **`routes.test.js`**
+   - `1. netlify.toml define el redirect exacto de /api/auth/me hacia /.netlify/functions/api-auth-me con force = true`
+   - `2. Smoke test: /api/auth/me alcanza directamente el handler real y responde JSON 401 sin token`
 
 ---
 

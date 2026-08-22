@@ -18,15 +18,15 @@
          │    ┌─────────▼─────────────────────────▼──────────┐
          │    │          Netlify Edge / CDN                   │
          │    │                                               │
-         │    │  /.netlify/functions/* → Netlify Functions    │
-         │    │  /api/* → rewrite to functions                │
+         │    │  /api/auth/me → /.netlify/functions/api-auth-me
+         │    │  /api/* → rewrite to /.netlify/functions/:splat│
          │    │  /* → SPA fallback to index.html              │
-         │    │                                               │
+         │    │  Headers: X-Content-Type-Options, DENY...     │
          │    │  ⚠ Netlify Identity NOT used (Firebase Auth)  │
          │    └───────────────────┬───────────────────────────┘
          │                       │
          │    ┌──────────────────▼──────────────────────────┐
-         │    │         Netlify Functions (Node.js 20)       │
+         │    │         Netlify Functions (Node.js 24 LTS)   │
          │    │                                              │
          │    │  ┌─────────────┐  ┌───────────────────────┐  │
          │    │  │ Firebase    │  │ MongoDB Driver         │  │
@@ -88,12 +88,18 @@
      │                   │                      │ 6. If email_verified │
      │                   │                      │    is false → 403    │
      │                   │                      │                      │
-     │                   │                      │ 7. Find user by      │
-     │                   │                      │    firebaseUid/email │
+     │                   │                      │ 7. Parallel Lookups: │
+     │                   │                      │    findOne(byUid)    │
+     │                   │                      │    findOne(byEmail)  │
      │                   │                      ├─────────────────────►│
      │                   │                      │                      │
-     │                   │                      │ 8. If verified email │
-     │                   │                      │    strictly matches  │
+     │                   │                      │ 8. Identity Check:   │
+     │                   │                      │    If mismatched UID │
+     │                   │                      │    or Email → 403    │
+     │                   │                      │    IDENTITY_MISMATCH │
+     │                   │                      │                      │
+     │                   │                      │ 9. If new user:      │
+     │                   │                      │    If strictly ==    │
      │                   │                      │    SUPER_ADMIN_EMAIL │
      │                   │                      │    → upsert with     │
      │                   │                      │    role: super_admin │

@@ -4,7 +4,7 @@
 
 | Tool          | Version  | Purpose                              |
 |---------------|----------|--------------------------------------|
-| Node.js       | 20 LTS   | Runtime for Vite and Netlify Fns     |
+| Node.js       | 24 LTS   | Runtime for Vite and Netlify Fns (.nvmrc: 24) |
 | npm           | 10+      | Package manager                      |
 | Git           | 2.40+    | Version control                      |
 | Netlify CLI   | latest   | Local development with functions     |

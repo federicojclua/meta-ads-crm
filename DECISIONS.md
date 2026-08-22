@@ -218,3 +218,39 @@ Each decision records:
 **Consequences:**
 - Color tokens centralized in Tailwind config (`tailwind.config.js`).
 - Colors never mixed decoratively; always paired with textual/iconographic status indicators.
+
+---
+
+## ADR-012: Node.js 24 LTS Runtime Standard
+
+**Date:** 2026-08-22
+
+**Decision:** Pin Node.js runtime to version 24 LTS across all environments (`package.json`, `netlify.toml`, `.nvmrc`).
+
+**Rationale:**
+- Node 20 reached End-of-Life (EOL) in March 2026.
+- Node 24 is the active LTS release providing long-term security patches, native performance optimizations, and full compatibility with modern dependencies (`firebase-admin@14`, `mongodb@6`).
+
+**Consequences:**
+- `package.json` specifies `"engines": { "node": ">=24 <25" }`.
+- `netlify.toml` sets `NODE_VERSION = "24"`.
+- `.nvmrc` sets `24`.
+
+---
+
+## ADR-013: Atomic Super Admin Bootstrap, Identity Mismatch Rejection & Exact Netlify Routing
+
+**Date:** 2026-08-22
+
+**Decision:**
+1. Configure explicit Netlify redirect `from = "/api/auth/me"` to `to = "/.netlify/functions/api-auth-me"` with `status = 200` and `force = true` before any wildcard rewrites.
+2. Enforce strict, separate lookups for `firebaseUid` and `normalizedEmail`. Reject any divergent mapping with `403 IDENTITY_MISMATCH` and never overwrite existing UIDs.
+3. Implement atomic `findOneAndUpdate` with `upsert: true` and explicit `E11000` recovery during the initial `super_admin` bootstrap to prevent race conditions.
+
+**Rationale:**
+- Eliminates 404 routing anomalies on Netlify serverless functions.
+- Prevents account takeover and identity confusion across authentication providers.
+- Guarantees zero duplicates and zero 500 error responses during simultaneous initial logins.
+
+**Consequences:**
+- Tested with 20 automated Vitest test cases covering concurrency, identity mismatch, routing, and security.

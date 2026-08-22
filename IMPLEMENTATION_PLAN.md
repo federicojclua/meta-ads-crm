@@ -4,8 +4,8 @@
 
 | Stage | Name                     | Status                                                  | Dependencies |
 |-------|--------------------------|---------------------------------------------------------|--------------|
-| 0     | Planning & Documentation | 🟡 Creada y en GitHub (pendiente de aprobación final)   | None         |
-| 1     | Foundation, Auth & Minimal User DB | ⬜ Pending                                    | Stage 0      |
+| 0     | Planning & Documentation | ✅ Aprobada y cerrada (commit `125490e`)                | None         |
+| 1     | Foundation, Auth & Minimal User DB | 🟡 Implementada y validada (pendiente de aprobación final) | Stage 0 |
 | 2     | Multi-tenant Core & Clients | ⬜ Pending                                           | Stage 1      |
 | 3     | Commercial Pipeline      | ⬜ Pending                                              | Stage 2      |
 | 4     | Meta Ads Integration     | ⬜ Pending                                              | Stage 2      |
@@ -39,14 +39,7 @@
 - [x] STAGE_1_INPUTS.md
 - [x] .env.example
 - [x] .gitignore
-- [x] Git initialized and pushed to private GitHub repository
-
-**Acceptance Criteria:**
-- All documents created, cross-referenced, and reviewed
-- No functional code written
-- Git repository pushed to remote `main`
-- Documentación alineada con decisiones técnicas aprobadas
-- Pendiente de aprobación final expresa del usuario antes de iniciar la Etapa 1
+- [x] Git initialized and pushed to private GitHub repository (commit `125490e`)
 
 ---
 
@@ -55,9 +48,38 @@
 **Goal:** Working React app with Firebase Authentication, minimal MongoDB connection for the `users` collection in `anima_mkt_crm`, master access bootstrap, protected routes, and useful empty states.
 
 **Key Architecture Notes for Stage 1:**
+- **Runtime:** Node.js 24 LTS pinned via `.nvmrc`, `package.json` (`"engines": { "node": ">=24 <25" }`) and `netlify.toml` (`NODE_VERSION = "24"`).
 - **MongoDB en Etapa 1:** MongoDB Atlas se conecta desde la Etapa 1 sobre la base `anima_mkt_crm` con la colección `users` mínima. Es obligatorio porque MongoDB es la fuente autoritativa de roles y `api-auth-me` debe consultar o aprovisionar el perfil del usuario.
 - **Firebase Auth:** No existe pantalla de registro público. El primer `super_admin` se da de alta manualmente en Firebase Console con correo y contraseña.
-- **Flujo de Verificación de Email y Bootstrap:**
+- **Flujo de Verificación de Email y Bootstrap Atómico:**
+  - El usuario inicia sesión y debe verificar su correo (`emailVerified: true`). Si no está verificado, la UI muestra `/verify-email` y el backend bloquea con `403 AUTH_EMAIL_NOT_VERIFIED`.
+  - Con correo verificado, la UI llama a `/api/auth/me` enviando el token en la cabecera `Authorization: Bearer <token>`.
+  - El endpoint `/api/auth/me` ejecuta validaciones separadas contra `firebaseUid` y `normalizedEmail`. Si detecta discrepancias de identidad, responde `403 IDENTITY_MISMATCH`.
+  - Si el usuario no existe y el correo normalizado coincide con `SUPER_ADMIN_EMAIL`, ejecuta un bootstrap atómico con `findOneAndUpdate` + `upsert` y recuperación explícita de `E11000`.
+  - Si el usuario no coincide ni existe en MongoDB, o está suspendido, devuelve `403 Forbidden`.
+
+**Deliverables:**
+- [x] React + Vite project initialized with Tailwind CSS 3 and design system tokens
+- [x] Firebase Authentication integration (Email/Password + Google Sign-In)
+- [x] Route structure (`/login`, `/verify-email`, `/forgot-password`, `/unauthorized`, `/app/*`, `*`)
+- [x] Protected route component (`ProtectedRoute.jsx`) with email verification enforcement
+- [x] Layout with Sidebar, Header, and responsive mobile drawer matching Anima visual identity
+- [x] Netlify Function `api-auth-me.js` with exact redirect `/api/auth/me` and static security headers in `netlify.toml`
+- [x] MongoDB Atlas connection helper with connection pooling and index initializer for `users`
+- [x] Atomic bootstrap logic for first `super_admin` (`SUPER_ADMIN_EMAIL`)
+- [x] Useful empty states for CRM dashboard, clients, leads, campaigns, and settings
+- [x] 20 automated tests passing (backend auth, identity mismatch, atomic bootstrap, frontend routes, security, and Netlify routing)
+- [x] Production build tested and zero ESLint warnings
+
+**Acceptance Criteria:**
+- [x] Can login with email/password
+- [x] Unverified emails redirected to `/verify-email`
+- [x] Session persists across page reloads via `onIdTokenChanged`
+- [x] Verified `SUPER_ADMIN_EMAIL` automatically bootstraps as `super_admin` in MongoDB
+- [x] Unknown or unapproved users receive 403 Forbidden
+- [x] Identity mismatch (differing UID or Email) rejected with 403
+- [x] Production build succeeds with Node 24 and zero critical/high vulnerabilities
+- [x] Stage 1 code completed, awaiting final user approval before commit
   1. El usuario se crea en Firebase Console.
   2. Inicia sesión en la aplicación frontend.
   3. Si `emailVerified` es `false`, la interfaz muestra una pantalla de bloqueo con un botón interactivo para enviar/reenviar el correo de verificación de Firebase.

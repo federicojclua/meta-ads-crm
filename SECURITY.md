@@ -15,11 +15,34 @@
 - Todas las peticiones al backend incluyen la cabecera `Authorization: Bearer <idToken>`.
 - Las Netlify Functions verifican la validez, firma y estado de verificación del token en cada invocación mediante `admin.auth().verifyIdToken(token)`.
 
-### Master Access Bootstrap
+### Master Access Bootstrap, Persistence & Identity Mismatch Prevention
 - `SUPER_ADMIN_EMAIL` se almacena **exclusivamente como variable de entorno server-side** en Netlify.
 - **NUNCA almacenar contraseñas maestras en variables de entorno ni en código.** La autenticación por contraseña siempre es validada por Firebase.
-- Cuando `api-auth-me` recibe un token válido cuyo correo verificado (`email_verified: true`) coincide exactamente con `SUPER_ADMIN_EMAIL`, crea o recupera el perfil en MongoDB asignándole `role: "super_admin"`, `status: "active"`, `clientIds: []`.
+- **Persistencia de sesión en el navegador:** Se configura explícitamente `browserSessionPersistence` en Firebase Auth. La sesión se mantiene activa mientras la pestaña/ventana del navegador permanece abierta, pero se elimina automáticamente al cerrarla, reduciendo el riesgo de sesiones huérfanas en dispositivos compartidos.
+- **Búsquedas separadas de identidad:** `api-auth-me` realiza búsquedas separadas e independientes para `firebaseUid` y `normalizedEmail`. Si detecta un documento existente con un `firebaseUid` distinto o un correo distinto, responde `403 IDENTITY_MISMATCH` y **nunca** sobrescribe el identificador.
+- **Bootstrap atómico:** Cuando un usuario verificado (`email_verified: true`) coincide con `SUPER_ADMIN_EMAIL` y no existe en la base, se crea atómicamente mediante `findOneAndUpdate` con `upsert: true` y `$setOnInsert`, con captura explícita de `E11000` en caso de concurrencia.
+- **Roles en memoria:** El frontend mantiene los roles exclusivamente en el estado en memoria de React (`AuthContext`). **NUNCA se almacenan roles en `localStorage` o `sessionStorage`**.
 - Si un usuario se autentica en Firebase pero no existe en MongoDB, su email no está verificado, o no coincide con `SUPER_ADMIN_EMAIL`, la API responde inmediatamente `403 Forbidden`.
+
+---
+
+### Sanitización de Navegación & Mitigación de Open Redirects
+- **Control estricto de redirecciones:** Cualquier llamada a `navigate()` o componente `<Navigate>` utiliza exclusivamente rutas constantes internas o destinos validados contra un prefijo permitido (`/app`).
+- **Bloqueo de caracteres de escape:** Se rechazan explícitamente caracteres de redirección relativa maliciosa (`\\` y `//`).
+- **Evaluación de dependencias transitivas:** Las vulnerabilidades moderadas reportadas en `react-router` (GHSA-wrjc-x8rr-h8h6 y GHSA-337j-9hxr-rhxg) se clasifican formalmente como **no alcanzables bajo el diseño actual** debido a que:
+  1. Anima MKT CRM es una Single Page Application pura en Vite sin Server-Side Rendering (SSR hydration).
+  2. Ningún parámetro de consulta (`searchParams`), `returnUrl` de URL o entrada de usuario es interpretado directamente como destino de navegación.
+- **Compromiso de revisión:** Esta política de redirección será reauditada obligatoriamente antes de introducir parámetros `returnUrl`, enlaces de invitación por token o redirecciones dinámicas en la Etapa 2.
+
+---
+
+### Static Security Headers (`netlify.toml`)
+Para mitigar ataques de clickjacking, MIME sniffing y garantizar aislamiento seguro de popups para Google Sign-In, se configuran las siguientes cabeceras en `netlify.toml`:
+- `X-Content-Type-Options: "nosniff"`
+- `X-Frame-Options: "DENY"`
+- `Referrer-Policy: "strict-origin-when-cross-origin"`
+- `Permissions-Policy: "camera=(), microphone=(), geolocation=()"`
+- `Cross-Origin-Opener-Policy: "same-origin-allow-popups"` (requerido para compatibilidad con popup de Google Auth)
 
 ---
 
