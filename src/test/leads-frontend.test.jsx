@@ -174,6 +174,101 @@ describe('Frontend Leads & Commercial Pipeline UI', () => {
       expect(payload.name).toBe('Juan Carrizo');
     });
   });
+
+  it('6. Flecha rápida de avance en Kanban ejecuta POST /api/leads/:id/stage con nextStage', async () => {
+    render(
+      <MemoryRouter>
+        <LeadsPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Cliente Potencial Alpha')).toBeInTheDocument();
+    });
+
+    const advanceBtn = screen.getByTitle('Avanzar etapa');
+    fireEvent.click(advanceBtn);
+
+    await waitFor(() => {
+      const stageCalls = global.fetch.mock.calls.filter(
+        ([url, opts]) => url.includes('/api/leads/lead-1/stage') && opts?.method === 'POST'
+      );
+      expect(stageCalls.length).toBeGreaterThan(0);
+      const payload = JSON.parse(stageCalls[0][1].body);
+      expect(payload.stage).toBe('contacted');
+    });
+  });
+
+  it('7. Cambio de etapa desde LeadDetailModal ejecuta POST /api/leads/:id/stage', async () => {
+    render(
+      <MemoryRouter>
+        <LeadsPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Cliente Potencial Alpha')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Ver Detalle'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Historial de Actividades & Notas Comerciales')).toBeInTheDocument();
+    });
+
+    // Click on 'Calificado' stage button
+    const qualifiedBtn = screen.getByRole('button', { name: 'Calificado' });
+    fireEvent.click(qualifiedBtn);
+
+    await waitFor(() => {
+      const stageCalls = global.fetch.mock.calls.filter(
+        ([url, opts]) => url.includes('/api/leads/lead-1/stage') && opts?.method === 'POST'
+      );
+      expect(stageCalls.length).toBeGreaterThan(0);
+      const payload = JSON.parse(stageCalls[0][1].body);
+      expect(payload.stage).toBe('qualified');
+    });
+  });
+
+  it('8. Transición a Perdido en LeadDetailModal solicita motivo y ejecuta POST con lostReason', async () => {
+    render(
+      <MemoryRouter>
+        <LeadsPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Cliente Potencial Alpha')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Ver Detalle'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Historial de Actividades & Notas Comerciales')).toBeInTheDocument();
+    });
+
+    // Click on 'Perdido' stage button to open prompt
+    const lostBtn = screen.getByRole('button', { name: 'Perdido' });
+    fireEvent.click(lostBtn);
+
+    expect(screen.getByText(/Indique el motivo obligatorio/i)).toBeInTheDocument();
+
+    const reasonInput = screen.getByPlaceholderText(/Precio fuera de presupuesto/i);
+    fireEvent.change(reasonInput, { target: { value: 'Fuera de presupuesto' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pérdida' }));
+
+    await waitFor(() => {
+      const stageCalls = global.fetch.mock.calls.filter(
+        ([url, opts]) => url.includes('/api/leads/lead-1/stage') && opts?.method === 'POST'
+      );
+      expect(stageCalls.length).toBeGreaterThan(0);
+      const payload = JSON.parse(stageCalls[0][1].body);
+      expect(payload.stage).toBe('lost');
+      expect(payload.lostReason).toBe('Fuera de presupuesto');
+    });
+  });
 });
+
 
 

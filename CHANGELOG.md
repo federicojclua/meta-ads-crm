@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Hotfix: Unify HTTP POST Contract for Lead Transitions & Actions (2026-08-23)
+- **Unificación de Método HTTP a POST en Acciones y Transiciones de Leads:**
+  - Se corrigió el error HTTP `405 Method Not Allowed` (`"Utilice POST."`) en `/api/leads/:id/stage`: se unificó la invocación a `apiClient.post(`/api/leads/${leadId}/stage`, { stage, ...(stage === 'lost' ? { lostReason } : {}) })`.
+  - Se corrigieron los métodos en `LeadsPage.jsx` para `/api/leads/:id/assign`, `/api/leads/:id/archive`, `/api/leads/:id/reactivate` utilizando `apiClient.post`.
+  - Se agregaron helpers HTTP directos en `apiClient` (`apiClient.get`, `apiClient.post`, `apiClient.patch`, `apiClient.put`, `apiClient.delete`).
+  - Se aseguró la resolución consistente de vendedores utilizando `sp.id || sp._id` en `LeadDetailModal.jsx` y `LeadsPage.jsx`.
+  - Se agregaron pruebas de integración cubriendo transiciones de etapas desde el modal de detalle y desde las flechas rápidas del Kanban.
+
 ### Fixed — Hotfix: Controlled Company Selector & State Synchronization in Leads Creation (2026-08-23)
 - **Selector Controlado de Empresa para Leads (`LeadModal.jsx`, `CsvImportModal.jsx`):**
   - Se corrigió la desincronización de estado en la creación de prospectos para `super_admin`/`admin`: el formulario ahora utiliza un selector completamente controlado con opción inicial explícita `<option value="">Seleccionar empresa</option>`.

@@ -52,7 +52,7 @@ export function LeadDetailModal({
     if (!lead?.id) return;
     setIsLoadingActivities(true);
     try {
-      const data = await apiClient(`/api/leads/${lead.id}/activities`);
+      const data = await apiClient.get(`/api/leads/${lead.id}/activities`);
       setActivities(data?.activities || []);
     } catch (err) {
       console.warn('[LEAD_DETAIL] Error al cargar actividades:', err.message);
@@ -79,9 +79,8 @@ export function LeadDetailModal({
 
     setIsSubmittingNote(true);
     try {
-      await apiClient(`/api/leads/${lead.id}/activities`, {
-        method: 'POST',
-        body: JSON.stringify({ note: newNote.trim() }),
+      await apiClient.post(`/api/leads/${lead.id}/activities`, {
+        note: newNote.trim(),
       });
       setNewNote('');
       await fetchActivities();
@@ -277,11 +276,14 @@ export function LeadDetailModal({
                     className="w-full h-8 px-2 rounded border border-brand-border bg-white text-xs text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
                   >
                     <option value="">-- Sin asignar --</option>
-                    {salespeople.map((sp) => (
-                      <option key={sp.id} value={sp.id}>
-                        {sp.displayName || sp.email}
-                      </option>
-                    ))}
+                    {salespeople.map((sp) => {
+                      const spId = sp.id || sp._id;
+                      return (
+                        <option key={spId} value={spId}>
+                          {sp.displayName || sp.email}
+                        </option>
+                      );
+                    })}
                   </select>
                 ) : (
                   <div className="p-1.5 bg-gray-50 rounded border border-brand-border font-medium">

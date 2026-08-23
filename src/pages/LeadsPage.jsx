@@ -174,12 +174,9 @@ export function LeadsPage() {
   // Quick stage transition (Kanban & Detail)
   const handleStageChange = async (leadId, newStage, lostReason = null) => {
     try {
-      await apiClient(`/api/leads/${leadId}/stage`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          stage: newStage,
-          ...(lostReason ? { lostReason } : {}),
-        }),
+      await apiClient.post(`/api/leads/${leadId}/stage`, {
+        stage: newStage,
+        ...(lostReason ? { lostReason } : {}),
       });
 
       // Optimistic or refresh
@@ -208,15 +205,15 @@ export function LeadsPage() {
         message: err.message || 'Error al cambiar de etapa.',
       });
       await fetchLeads();
+      throw err;
     }
   };
 
   // Reassign salesperson
   const handleAssignChange = async (leadId, assignedToUserId) => {
     try {
-      const data = await apiClient(`/api/leads/${leadId}/assign`, {
-        method: 'PATCH',
-        body: JSON.stringify({ assignedToUserId }),
+      const data = await apiClient.post(`/api/leads/${leadId}/assign`, {
+        assignedToUserId,
       });
 
       const updatedLead = data.lead;
@@ -233,16 +230,14 @@ export function LeadsPage() {
         message: err.message || 'Error al asignar vendedor.',
       });
       await fetchLeads();
+      throw err;
     }
   };
 
   // Archive lead
   const handleArchive = async (leadId) => {
     try {
-      await apiClient(`/api/leads/${leadId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'archived' }),
-      });
+      await apiClient.post(`/api/leads/${leadId}/archive`, {});
 
       setFeedback({
         type: 'success',
@@ -261,10 +256,7 @@ export function LeadsPage() {
   // Reactivate lead
   const handleReactivate = async (leadId) => {
     try {
-      await apiClient(`/api/leads/${leadId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'active' }),
-      });
+      await apiClient.post(`/api/leads/${leadId}/reactivate`, {});
 
       setFeedback({
         type: 'success',
