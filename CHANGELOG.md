@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Hotfix: React #130 Prevention, Centralized API Auth & ErrorBoundary (2026-08-23)
+- **Corrección de Pantalla Blanca (React #130):**
+  - Identificada la causa raíz: `LeadsPage` utilizaba `variant="danger"` en `<Alert>` tras fallos en la consulta; `Alert.jsx` no mapeaba `danger` y producía `undefined` como componente de ícono.
+  - Se agregó mapeo explícito de variante `danger` (hacia `AlertCircle`) y fallback seguro universal `IconComponent = CustomIcon || icons[variant] || AlertCircle` en `Alert.jsx`.
+  - Se aseguró fallback universal `IconComponent = Icon || FolderOpen` en `EmptyState.jsx`.
+  - Se agregaron fallbacks seguros y verificación de que todos los componentes e íconos configurados para etapas existan.
+- **Autenticación Centralizada en Consultas API (`src/lib/api.js`):**
+  - Se corrigió la causa de los errores 401 en `/api/dashboard/stats`, `/api/leads`, `/api/clients`, `/api/users` y `/api/sales`: se eliminó el uso de `fetch` directo con `localStorage.getItem('token')`.
+  - Se migraron todas las llamadas de `DashboardPage`, `LeadsPage`, `LeadDetailModal` y `CsvImportModal` a `apiClient`.
+  - `apiClient` obtiene el token fresco de Firebase con `await auth.currentUser.getIdToken()`.
+  - Ante un primer 401, renueva el token automáticamente con `await auth.currentUser.getIdToken(true)` y reintenta una sola vez.
+  - Ante un 401 persistente, cierra la sesión de forma segura con `signOut(auth)`.
+  - Las páginas no inician consultas hasta que la autenticación esté completamente resuelta (`loading: false && Boolean(firebaseUser)`).
+- **Manejo de Errores Sin Métricas Cero Falsas:**
+  - `DashboardPage` y `LeadsPage` muestran estados claros para 403, 500 y errores de red con botón de reintento, evitando mostrar métricas `0` ante errores HTTP.
+- **Error Boundary:**
+  - Se creó `src/components/ui/ErrorBoundary.jsx` conteniendo fallos de renderizado en módulos hijos, mostrando mensaje claro, `incidentId` seguro, botón de Reintento y botón de regreso al Dashboard, preservando el `MainLayout`.
+- **Suite de Pruebas Automatizadas:**
+  - Se agregaron 12 tests en `src/test/hotfix-react130-auth.test.jsx` cubriendo los 11 escenarios de verificación obligatorios (120 tests totales pasando al 100%).
+
 ### Added — Stage 3: Leads, Pipeline Comercial, Ventas e Ingresos Cobrados (2026-08-23)
 - **Modelos de Datos & Estructuras en Centavos (`minor units`):**
   - Modelo `Lead`: Ciclo de vida estricto (`new`, `contacted`, `qualified`, `won`, `lost`), `source` limitado a `['manual', 'csv']` (sin Meta en esta etapa), `assignedToUserId`, `valueEstimateMinor`, timestamps de etapas (`acquiredAt`, `firstContactedAt`, `qualifiedAt`, `wonAt`, `lostAt`, `lostReason`), `status: 'active' | 'archived'`, normalizadores de email y teléfono, y clave de ingesta `ingestionKey`.

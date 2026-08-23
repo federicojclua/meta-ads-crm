@@ -15,6 +15,7 @@ import {
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { apiClient } from '../../lib/api';
 import {
   LEAD_STAGES,
   LEAD_STAGE_LABELS,
@@ -51,17 +52,10 @@ export function LeadDetailModal({
     if (!lead?.id) return;
     setIsLoadingActivities(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/activities`, {
-        headers: {
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setActivities(data.activities || []);
-      }
+      const data = await apiClient(`/api/leads/${lead.id}/activities`);
+      setActivities(data?.activities || []);
     } catch (err) {
-      console.warn('Error al cargar actividades:', err);
+      console.warn('[LEAD_DETAIL] Error al cargar actividades:', err.message);
     } finally {
       setIsLoadingActivities(false);
     }
@@ -85,20 +79,14 @@ export function LeadDetailModal({
 
     setIsSubmittingNote(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/activities`, {
+      await apiClient(`/api/leads/${lead.id}/activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
         body: JSON.stringify({ note: newNote.trim() }),
       });
-      if (res.ok) {
-        setNewNote('');
-        await fetchActivities();
-      }
+      setNewNote('');
+      await fetchActivities();
     } catch (err) {
-      console.warn('Error al agregar nota:', err);
+      console.warn('[LEAD_DETAIL] Error al agregar nota:', err.message);
     } finally {
       setIsSubmittingNote(false);
     }

@@ -24,12 +24,14 @@ describe('Frontend Dashboard UI & Conversion Rate Denominator Handling', () => {
       if (url.includes('/api/clients')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({ clients: [{ id: 'client-1', name: 'Empresa Demo', slug: 'empresa-demo' }] }),
         });
       }
       if (url.includes('/api/dashboard/stats')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({
             kpis: {
               totalLeadsCount: 0,
@@ -44,7 +46,7 @@ describe('Frontend Dashboard UI & Conversion Rate Denominator Handling', () => {
           }),
         });
       }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
     });
 
     render(
@@ -67,12 +69,14 @@ describe('Frontend Dashboard UI & Conversion Rate Denominator Handling', () => {
       if (url.includes('/api/clients')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({ clients: [{ id: 'client-1', name: 'Empresa Demo', slug: 'empresa-demo' }] }),
         });
       }
       if (url.includes('/api/dashboard/stats')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({
             kpis: {
               totalLeadsCount: 10,
@@ -100,7 +104,7 @@ describe('Frontend Dashboard UI & Conversion Rate Denominator Handling', () => {
           }),
         });
       }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
     });
 
     render(

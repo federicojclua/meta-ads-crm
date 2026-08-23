@@ -22,6 +22,7 @@ describe('Frontend Leads & Commercial Pipeline UI', () => {
       if (url.includes('/api/clients')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({
             clients: [{ id: 'client-1', name: 'Empresa Demo', slug: 'empresa-demo' }],
           }),
@@ -30,6 +31,7 @@ describe('Frontend Leads & Commercial Pipeline UI', () => {
       if (url.includes('/api/users')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({
             users: [{ id: 'user-1', displayName: 'Vendedor 1', email: 'sp1@demo.com', role: 'salesperson', status: 'active' }],
           }),
@@ -38,6 +40,7 @@ describe('Frontend Leads & Commercial Pipeline UI', () => {
       if (url.includes('/api/leads')) {
         return Promise.resolve({
           ok: true,
+          status: 200,
           json: async () => ({
             leads: [
               {
@@ -57,11 +60,11 @@ describe('Frontend Leads & Commercial Pipeline UI', () => {
           }),
         });
       }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
     });
   });
 
-  it('1. LeadsPage renderiza el banner de Etapa 3 Activa y las 5 columnas del Kanban', async () => {
+  it('1. LeadsPage renderiza el título y las 5 columnas del Kanban', async () => {
     render(
       <MemoryRouter>
         <LeadsPage />
@@ -69,7 +72,7 @@ describe('Frontend Leads & Commercial Pipeline UI', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('ETAPA 3 · ACTIVA')).toBeInTheDocument();
+      expect(screen.getByText(/Gestión de Leads & Pipeline Comercial/i)).toBeInTheDocument();
       expect(screen.getAllByText('Nuevo').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Contactado').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Calificado').length).toBeGreaterThan(0);

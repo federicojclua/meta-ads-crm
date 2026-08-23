@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   DollarSign,
@@ -7,50 +7,72 @@ import {
   Sparkles,
   ShieldCheck,
   Building2,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Alert } from '../components/ui/Alert';
+import { apiClient, ApiError } from '../lib/api';
 import { ROLE_LABELS, CURRENT_STAGE } from '../lib/constants';
 
 export function DashboardPage() {
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser, loading: authLoading } = useAuth();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
 
   const [stats, setStats] = useState(null);
   const [clients, setClients] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Fetch clients for global users
-  useEffect(() => {
-    if (isGlobal) {
-      fetch('/api/clients', {
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      })
-        .then((res) => (res.ok ? res.json() : { clients: [] }))
-        .then((data) => {
-          setClients(data.clients || []);
-        })
-        .catch((err) => console.warn('Error fetching clients:', err));
+  const fetchClients = useCallback(async () => {
+    if (!isGlobal || authLoading || !firebaseUser) return;
+    try {
+      const data = await apiClient('/api/clients');
+      setClients(data.clients || []);
+    } catch (err) {
+      console.warn('[DASHBOARD] Error fetching clients:', err.message);
     }
-  }, [isGlobal]);
+  }, [isGlobal, authLoading, firebaseUser]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   // Fetch dashboard stats
-  useEffect(() => {
+  const fetchStats = useCallback(async () => {
+    if (authLoading || !firebaseUser) return;
     setIsLoading(true);
-    const q = selectedClientId ? `?clientId=${selectedClientId}` : '';
-    fetch(`/api/dashboard/stats${q}`, {
-      headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) {
-          setStats(data);
+    setError(null);
+
+    try {
+      const q = selectedClientId ? `?clientId=${selectedClientId}` : '';
+      const data = await apiClient(`/api/dashboard/stats${q}`);
+      setStats(data);
+    } catch (err) {
+      console.error('[DASHBOARD] Error fetching stats:', err);
+      if (err instanceof ApiError) {
+        if (err.status === 403) {
+          setError({ type: 'forbidden', message: 'No tenés permisos para visualizar las estadísticas de esta empresa.' });
+        } else if (err.status >= 500) {
+          setError({ type: 'server_error', message: 'El servicio de analíticas no está disponible temporalmente.' });
+        } else {
+          setError({ type: 'error', message: err.message });
         }
-      })
-      .catch((err) => console.warn('Error fetching dashboard stats:', err))
-      .finally(() => setIsLoading(false));
-  }, [selectedClientId]);
+      } else {
+        setError({ type: 'network_error', message: 'Error de red al consultar el panel. Verifique su conexión.' });
+      }
+      setStats(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedClientId, authLoading, firebaseUser]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const kpis = stats?.kpis;
   const salespeople = stats?.salespeoplePerformance || [];
@@ -93,6 +115,24 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* Error State Banner */}
+      {error && (
+        <Alert variant="error" className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>{error.message}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={fetchStats}
+            className="text-xs gap-1 py-1 ml-4"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reintentar</span>
+          </Button>
+        </Alert>
+      )}
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Leads Activos */}
@@ -105,12 +145,12 @@ export function DashboardPage() {
               <Users className="w-4 h-4 text-brand-primary" />
             </div>
             <div className="text-2xl font-extrabold text-brand-text-primary mt-2 font-mono">
-              {isLoading ? '...' : (kpis?.totalLeadsCount || 0)}
+              {isLoading ? '...' : error ? '-' : (kpis?.totalLeadsCount ?? 0)}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary flex justify-between">
-            <span>Ganados: <strong>{kpis?.wonLeadsCount || 0}</strong></span>
-            <span>Tasa Conv.: <strong>{kpis?.hasConversionData ? `${kpis.conversionRate}%` : 'Sin datos'}</strong></span>
+            <span>Ganados: <strong>{isLoading ? '...' : error ? '-' : (kpis?.wonLeadsCount ?? 0)}</strong></span>
+            <span>Tasa Conv.: <strong>{isLoading ? '...' : error ? '-' : (kpis?.hasConversionData ? `${kpis.conversionRate}%` : 'Sin datos')}</strong></span>
           </div>
         </div>
 
@@ -124,11 +164,15 @@ export function DashboardPage() {
               <DollarSign className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-2xl font-extrabold text-emerald-700 mt-2 font-mono">
-              {isLoading ? '...' : `$${kpis?.totalCollectedFormatted || '0,00'}`}
+              {isLoading ? '...' : error ? '-' : `$${kpis?.totalCollectedFormatted || '0,00'}`}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
-            {kpis?.revenueByCurrency && Object.keys(kpis.revenueByCurrency).length > 0 ? (
+            {isLoading ? (
+              'Cargando monedas...'
+            ) : error ? (
+              'Error al cargar cobros'
+            ) : kpis?.revenueByCurrency && Object.keys(kpis.revenueByCurrency).length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {Object.entries(kpis.revenueByCurrency).map(([curr, val]) => (
                   <span key={curr} className="font-mono">
@@ -188,28 +232,34 @@ export function DashboardPage() {
             <span>Distribución del Pipeline</span>
           </h3>
 
-          <div className="space-y-2.5 text-xs">
-            <div className="flex items-center justify-between p-2 rounded bg-blue-50/70 border border-blue-100">
-              <span className="font-semibold text-blue-900">1. Nuevos</span>
-              <span className="font-mono font-bold text-blue-950">{kpis?.pipelineBreakdown?.new || 0}</span>
+          {isLoading ? (
+            <p className="text-xs text-brand-text-secondary italic py-4">Cargando distribución...</p>
+          ) : error ? (
+            <p className="text-xs text-rose-600 italic py-4">No se pudo cargar el desglose.</p>
+          ) : (
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-2 rounded bg-blue-50/70 border border-blue-100">
+                <span className="font-semibold text-blue-900">1. Nuevos</span>
+                <span className="font-mono font-bold text-blue-950">{kpis?.pipelineBreakdown?.new || 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-amber-50/70 border border-amber-100">
+                <span className="font-semibold text-amber-900">2. Contactados</span>
+                <span className="font-mono font-bold text-amber-950">{kpis?.pipelineBreakdown?.contacted || 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-purple-50/70 border border-purple-100">
+                <span className="font-semibold text-purple-900">3. Calificados</span>
+                <span className="font-mono font-bold text-purple-950">{kpis?.pipelineBreakdown?.qualified || 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-emerald-50/70 border border-emerald-100">
+                <span className="font-semibold text-emerald-900">4. Ganados / Cerrados</span>
+                <span className="font-mono font-bold text-emerald-950">{kpis?.pipelineBreakdown?.won || 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded bg-rose-50/70 border border-rose-100">
+                <span className="font-semibold text-rose-900">5. Perdidos</span>
+                <span className="font-mono font-bold text-rose-950">{kpis?.pipelineBreakdown?.lost || 0}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between p-2 rounded bg-amber-50/70 border border-amber-100">
-              <span className="font-semibold text-amber-900">2. Contactados</span>
-              <span className="font-mono font-bold text-amber-950">{kpis?.pipelineBreakdown?.contacted || 0}</span>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-purple-50/70 border border-purple-100">
-              <span className="font-semibold text-purple-900">3. Calificados</span>
-              <span className="font-mono font-bold text-purple-950">{kpis?.pipelineBreakdown?.qualified || 0}</span>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-emerald-50/70 border border-emerald-100">
-              <span className="font-semibold text-emerald-900">4. Ganados / Cerrados</span>
-              <span className="font-mono font-bold text-emerald-950">{kpis?.pipelineBreakdown?.won || 0}</span>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-rose-50/70 border border-rose-100">
-              <span className="font-semibold text-rose-900">5. Perdidos</span>
-              <span className="font-mono font-bold text-rose-950">{kpis?.pipelineBreakdown?.lost || 0}</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Salespeople Ranking */}
@@ -219,7 +269,11 @@ export function DashboardPage() {
             <span>Rendimiento por Vendedor</span>
           </h3>
 
-          {salespeople.length === 0 ? (
+          {isLoading ? (
+            <p className="text-xs text-brand-text-secondary italic py-4">Cargando vendedores...</p>
+          ) : error ? (
+            <p className="text-xs text-rose-600 italic py-4">No se pudo cargar el rendimiento por vendedor.</p>
+          ) : salespeople.length === 0 ? (
             <p className="text-xs text-brand-text-secondary italic py-4">
               Sin datos de vendedores para mostrar en este filtro.
             </p>

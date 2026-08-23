@@ -3,6 +3,7 @@ import { Upload, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
+import { apiClient } from '../../lib/api';
 import { parseCsvString } from '../../lib/csvParser';
 
 export function CsvImportModal({
@@ -85,12 +86,8 @@ export function CsvImportModal({
         ingestionKey: `csv_${batchTimestamp}_row_${r.rowNumber}`,
       }));
 
-      const res = await fetch('/api/leads/import', {
+      const data = await apiClient('/api/leads/import', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
         body: JSON.stringify({
           leads: payloadLeads,
           batchId: batchTimestamp,
@@ -98,11 +95,6 @@ export function CsvImportModal({
           ...(defaultSalespersonId ? { defaultAssignedToUserId: defaultSalespersonId } : {}),
         }),
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Error en la importación.');
-      }
 
       setImportResult(data.summary || data);
       if (onImportComplete) {

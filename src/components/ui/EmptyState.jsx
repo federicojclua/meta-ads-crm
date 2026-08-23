@@ -8,6 +8,8 @@ export function EmptyState({
   action,
   className,
 }) {
+  const IconComponent = Icon || FolderOpen;
+
   return (
     <div
       className={cn(
@@ -16,7 +18,7 @@ export function EmptyState({
       )}
     >
       <div className="w-12 h-12 mb-4 rounded-full bg-[#F7F6F2] border border-brand-border flex items-center justify-center text-brand-primary">
-        <Icon className="w-6 h-6" aria-hidden="true" />
+        <IconComponent className="w-6 h-6" aria-hidden="true" />
       </div>
       <h3 className="text-base font-bold text-brand-text-primary mb-1 tracking-tight">
         {title}

@@ -12,25 +12,25 @@ import {
   ChevronRight,
   ChevronLeft,
   Eye,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
 import { Alert } from '../components/ui/Alert';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LeadModal } from '../components/leads/LeadModal';
 import { LeadDetailModal } from '../components/leads/LeadDetailModal';
 import { SaleModal } from '../components/leads/SaleModal';
 import { CsvImportModal } from '../components/leads/CsvImportModal';
+import { apiClient, ApiError } from '../lib/api';
 import {
   LEAD_STAGES,
   LEAD_STAGE_LABELS,
   LEAD_STAGE_COLORS,
-  CURRENT_STAGE,
 } from '../lib/constants';
 
 export function LeadsPage() {
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser, loading: authLoading } = useAuth();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
   const isSalesperson = userProfile?.role === 'salesperson';
 
@@ -40,6 +40,7 @@ export function LeadsPage() {
   const [clients, setClients] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
   // View state: 'kanban' | 'table'
@@ -63,46 +64,46 @@ export function LeadsPage() {
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   // Fetch initial clients for global users
-  useEffect(() => {
-    if (isGlobal) {
-      fetch('/api/clients', {
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      })
-        .then((res) => (res.ok ? res.json() : { clients: [] }))
-        .then((data) => {
-          const cls = data.clients || [];
-          setClients(cls);
-          if (cls.length > 0 && !selectedClientId) {
-            setSelectedClientId(cls[0].id);
-          }
-        })
-        .catch((err) => console.warn('Error fetching clients:', err));
+  const fetchClients = useCallback(async () => {
+    if (!isGlobal || authLoading || !firebaseUser) return;
+    try {
+      const data = await apiClient('/api/clients');
+      const cls = data.clients || [];
+      setClients(cls);
+      if (cls.length > 0 && !selectedClientId) {
+        setSelectedClientId(cls[0].id);
+      }
+    } catch (err) {
+      console.warn('[LEADS] Error fetching clients:', err.message);
     }
-  }, [isGlobal, selectedClientId]);
+  }, [isGlobal, authLoading, firebaseUser, selectedClientId]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   // Fetch salespeople for current scope
   const fetchSalespeople = useCallback(async () => {
+    if (authLoading || !firebaseUser) return;
     try {
       const q = selectedClientId ? `?clientId=${selectedClientId}` : '';
-      const res = await fetch(`/api/users${q}`, {
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const usersList = data.users || [];
-        const activeSp = usersList.filter(
-          (u) => u.status === 'active' && ['salesperson', 'client', 'admin'].includes(u.role)
-        );
-        setSalespeople(activeSp);
-      }
+      const data = await apiClient(`/api/users${q}`);
+      const usersList = data.users || [];
+      const activeSp = usersList.filter(
+        (u) => u.status === 'active' && ['salesperson', 'client', 'admin'].includes(u.role)
+      );
+      setSalespeople(activeSp);
     } catch (err) {
-      console.warn('Error fetching salespeople:', err);
+      console.warn('[LEADS] Error fetching salespeople:', err.message);
     }
-  }, [selectedClientId]);
+  }, [selectedClientId, authLoading, firebaseUser]);
 
   // Fetch leads
   const fetchLeads = useCallback(async () => {
+    if (authLoading || !firebaseUser) return;
     setIsLoading(true);
+    setFetchError(null);
+
     try {
       const params = new URLSearchParams();
       if (selectedClientId && isGlobal) params.set('clientId', selectedClientId);
@@ -112,23 +113,26 @@ export function LeadsPage() {
       params.set('status', statusFilter);
       params.set('limit', '100');
 
-      const res = await fetch(`/api/leads?${params.toString()}`, {
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setLeads(data.leads || []);
-      } else {
-        const errData = await res.json();
-        setFeedback({ type: 'error', message: errData.message || 'Error al cargar prospectos.' });
-      }
+      const data = await apiClient(`/api/leads?${params.toString()}`);
+      setLeads(data.leads || []);
     } catch (err) {
-      setFeedback({ type: 'error', message: 'Error de conexión al cargar prospectos.' });
+      console.error('[LEADS] Error fetching leads:', err);
+      if (err instanceof ApiError) {
+        if (err.status === 403) {
+          setFetchError('No tenés permisos para acceder a los prospectos de este cliente.');
+        } else if (err.status >= 500) {
+          setFetchError('El servidor de prospectos no está disponible temporalmente.');
+        } else {
+          setFetchError(err.message || 'Error al cargar prospectos.');
+        }
+      } else {
+        setFetchError('Error de red al consultar prospectos. Verifique su conexión.');
+      }
+      setLeads([]);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedClientId, selectedStage, selectedSalesperson, searchQuery, statusFilter, isGlobal]);
+  }, [selectedClientId, selectedStage, selectedSalesperson, searchQuery, statusFilter, isGlobal, authLoading, firebaseUser]);
 
   useEffect(() => {
     fetchSalespeople();
@@ -143,209 +147,265 @@ export function LeadsPage() {
       const url = leadId ? `/api/leads/${leadId}` : '/api/leads';
       const method = leadId ? 'PATCH' : 'POST';
 
-      const res = await fetch(url, {
+      const data = await apiClient(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Error al guardar prospecto.');
-      }
 
       setFeedback({
         type: 'success',
-        message: data.message || 'Prospecto guardado exitosamente.',
+        message: leadId ? 'Prospecto actualizado con éxito.' : 'Prospecto creado exitosamente.',
       });
-
+      setIsLeadModalOpen(false);
+      setEditingLead(null);
       await fetchLeads();
+      return data.lead;
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al guardar el prospecto.',
+      });
+      throw err;
     } finally {
       setIsActionLoading(false);
     }
   };
 
-  // Change stage
-  const handleStageChange = async (leadId, nextStage, lostReason = null) => {
+  // Quick stage transition (Kanban & Detail)
+  const handleStageChange = async (leadId, newStage, lostReason = null) => {
     try {
-      const payload = { stage: nextStage };
-      if (nextStage === 'lost' && lostReason) {
-        payload.lostReason = lostReason;
-      }
-      const res = await fetch(`/api/leads/${leadId}/stage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-        body: JSON.stringify(payload),
+      await apiClient(`/api/leads/${leadId}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          stage: newStage,
+          ...(lostReason ? { lostReason } : {}),
+        }),
       });
-      if (res.ok) {
-        await fetchLeads();
+
+      // Optimistic or refresh
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                stage: newStage,
+                lostReason: newStage === 'lost' ? lostReason : null,
+              }
+            : l
+        )
+      );
+
+      if (selectedLeadForDetail && selectedLeadForDetail.id === leadId) {
+        setSelectedLeadForDetail((prev) => ({
+          ...prev,
+          stage: newStage,
+          lostReason: newStage === 'lost' ? lostReason : null,
+        }));
       }
     } catch (err) {
-      console.warn('Error changing stage:', err);
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al cambiar de etapa.',
+      });
+      await fetchLeads();
     }
   };
 
-  // Assign salesperson
-  const handleAssignChange = async (leadId, spId) => {
+  // Reassign salesperson
+  const handleAssignChange = async (leadId, assignedToUserId) => {
     try {
-      const res = await fetch(`/api/leads/${leadId}/assign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-        body: JSON.stringify({ assignedToUserId: spId }),
+      const data = await apiClient(`/api/leads/${leadId}/assign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assignedToUserId }),
       });
-      if (res.ok) {
-        await fetchLeads();
+
+      const updatedLead = data.lead;
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...updatedLead } : l))
+      );
+
+      if (selectedLeadForDetail && selectedLeadForDetail.id === leadId) {
+        setSelectedLeadForDetail((prev) => ({ ...prev, ...updatedLead }));
       }
     } catch (err) {
-      console.warn('Error assigning salesperson:', err);
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al asignar vendedor.',
+      });
+      await fetchLeads();
     }
   };
 
-  // Archive / Reactivate
+  // Archive lead
   const handleArchive = async (leadId) => {
     try {
-      const res = await fetch(`/api/leads/${leadId}/archive`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      await apiClient(`/api/leads/${leadId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'archived' }),
       });
-      if (res.ok) {
-        setFeedback({ type: 'success', message: 'Prospecto archivado.' });
-        await fetchLeads();
-        setIsDetailModalOpen(false);
-      }
+
+      setFeedback({
+        type: 'success',
+        message: 'Prospecto archivado correctamente.',
+      });
+      setIsDetailModalOpen(false);
+      await fetchLeads();
     } catch (err) {
-      console.warn('Error archiving lead:', err);
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al archivar prospecto.',
+      });
     }
   };
 
+  // Reactivate lead
   const handleReactivate = async (leadId) => {
     try {
-      const res = await fetch(`/api/leads/${leadId}/reactivate`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      });
-      if (res.ok) {
-        setFeedback({ type: 'success', message: 'Prospecto reactivado.' });
-        await fetchLeads();
-        setIsDetailModalOpen(false);
-      }
-    } catch (err) {
-      console.warn('Error reactivating lead:', err);
-    }
-  };
-
-  // Save Sale & Collect Payments
-  const handleSaveSale = async (payload) => {
-    setIsActionLoading(true);
-    try {
-      const res = await fetch('/api/sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-        body: JSON.stringify(payload),
+      await apiClient(`/api/leads/${leadId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'active' }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Error al guardar la venta.');
-      }
-
-      setFeedback({ type: 'success', message: 'Venta registrada exitosamente.' });
+      setFeedback({
+        type: 'success',
+        message: 'Prospecto reactivado correctamente.',
+      });
+      setIsDetailModalOpen(false);
       await fetchLeads();
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleCollectPayment = async (saleId, payload) => {
-    setIsActionLoading(true);
-    try {
-      const res = await fetch(`/api/sales/${saleId}/collect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Error al registrar el cobro.');
-      }
-
-      setFeedback({ type: 'success', message: 'Cobro confirmado exitosamente.' });
-      await fetchLeads();
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleCancelSale = async (saleId) => {
-    try {
-      const res = await fetch(`/api/sales/${saleId}/cancel`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      });
-      if (res.ok) {
-        setFeedback({ type: 'success', message: 'Venta cancelada.' });
-        await fetchLeads();
-      }
     } catch (err) {
-      console.warn('Error cancelling sale:', err);
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al reactivar prospecto.',
+      });
     }
   };
 
+  // Open detail modal with complete lead info
   const openLeadDetail = async (lead) => {
     try {
-      const res = await fetch(`/api/leads/${lead.id}`, {
-        headers: { authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedLeadForDetail(data.lead);
-        setIsDetailModalOpen(true);
-      }
-    } catch (err) {
-      console.warn('Error fetching lead detail:', err);
+      const data = await apiClient(`/api/leads/${lead.id}`);
+      setSelectedLeadForDetail(data.lead || lead);
+      setIsDetailModalOpen(true);
+    } catch {
+      setSelectedLeadForDetail(lead);
+      setIsDetailModalOpen(true);
     }
   };
 
+  // Open sale modal (new sale or collect payment)
   const openSaleModal = (lead, sale = null) => {
     setSelectedLeadForSale(lead);
     setSelectedSaleForCollect(sale);
     setIsSaleModalOpen(true);
   };
 
+  // Handle register sale
+  const handleSaveSale = async (salePayload) => {
+    setIsActionLoading(true);
+    setFeedback(null);
+    try {
+      await apiClient('/api/sales', {
+        method: 'POST',
+        body: JSON.stringify(salePayload),
+      });
+
+      setFeedback({
+        type: 'success',
+        message: 'Venta registrada con éxito y lead marcado como Ganado.',
+      });
+      setIsSaleModalOpen(false);
+      setSelectedLeadForSale(null);
+      await fetchLeads();
+      if (selectedLeadForDetail) {
+        await openLeadDetail(selectedLeadForDetail);
+      }
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al registrar la venta.',
+      });
+      throw err;
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Handle collect payment on existing sale
+  const handleCollectPayment = async (saleId, paymentPayload) => {
+    setIsActionLoading(true);
+    setFeedback(null);
+    try {
+      await apiClient(`/api/sales/${saleId}/payments`, {
+        method: 'POST',
+        body: JSON.stringify(paymentPayload),
+      });
+
+      setFeedback({
+        type: 'success',
+        message: 'Cobro registrado correctamente.',
+      });
+      setIsSaleModalOpen(false);
+      setSelectedSaleForCollect(null);
+      await fetchLeads();
+      if (selectedLeadForDetail) {
+        await openLeadDetail(selectedLeadForDetail);
+      }
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al registrar cobro.',
+      });
+      throw err;
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Handle cancel sale
+  const handleCancelSale = async (saleId, notes) => {
+    setIsActionLoading(true);
+    setFeedback(null);
+    try {
+      await apiClient(`/api/sales/${saleId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ notes }),
+      });
+
+      setFeedback({
+        type: 'success',
+        message: 'Venta anulada correctamente.',
+      });
+      setIsSaleModalOpen(false);
+      setSelectedSaleForCollect(null);
+      await fetchLeads();
+      if (selectedLeadForDetail) {
+        await openLeadDetail(selectedLeadForDetail);
+      }
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al anular venta.',
+      });
+      throw err;
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-brand-border gap-3">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-brand-border">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-brand-text-primary tracking-tight">
-            Leads & Pipeline Comercial
+            Gestión de Leads & Pipeline Comercial
           </h1>
           <p className="text-xs md:text-sm text-brand-text-secondary mt-0.5">
-            Tablero Kanban accesible, seguimiento de notas, registro de ventas y cobros en tiempo real.
+            Administración del ciclo comercial, captura de prospectos y control de cierres.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="success" className="text-xs py-1 px-2.5">
-            {CURRENT_STAGE.LABEL}
-          </Badge>
-
           {!isSalesperson && (
             <Button
               variant="secondary"
@@ -373,9 +433,29 @@ export function LeadsPage() {
         </div>
       </div>
 
+      {/* Global Feedback Banner */}
       {feedback && (
-        <Alert variant={feedback.type === 'error' ? 'danger' : 'success'} onClose={() => setFeedback(null)}>
+        <Alert
+          variant={feedback.type === 'error' ? 'error' : 'success'}
+          onClose={() => setFeedback(null)}
+        >
           {feedback.message}
+        </Alert>
+      )}
+
+      {/* Query Fetch Error Banner */}
+      {fetchError && (
+        <Alert variant="error" className="flex items-center justify-between">
+          <span>{fetchError}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={fetchLeads}
+            className="text-xs gap-1 py-1 ml-4"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reintentar</span>
+          </Button>
         </Alert>
       )}
 
@@ -413,7 +493,7 @@ export function LeadsPage() {
             <select
               value={selectedStage}
               onChange={(e) => setSelectedStage(e.target.value)}
-              className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+              className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
             >
               <option value="all">Todas las Etapas</option>
               {LEAD_STAGES.map((stg) => (
@@ -427,7 +507,7 @@ export function LeadsPage() {
               <select
                 value={selectedSalesperson}
                 onChange={(e) => setSelectedSalesperson(e.target.value)}
-                className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+                className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
               >
                 <option value="all">Todos los Vendedores</option>
                 {salespeople.map((sp) => (
@@ -441,7 +521,7 @@ export function LeadsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+              className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
             >
               <option value="active">Activos</option>
               <option value="archived">Archivados</option>
@@ -481,16 +561,28 @@ export function LeadsPage() {
         <div className="p-12 text-center text-xs text-brand-text-secondary bg-white border border-brand-border rounded-lg">
           Cargando prospectos y pipeline...
         </div>
+      ) : fetchError ? (
+        <div className="p-8 text-center text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg">
+          {fetchError}
+        </div>
       ) : leads.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No se encontraron prospectos"
           description="Comenzá dando de alta un nuevo lead de forma manual o importando un lote CSV."
-          actionText="Crear Primer Prospecto"
-          onAction={() => {
-            setEditingLead(null);
-            setIsLeadModalOpen(true);
-          }}
+          action={
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setEditingLead(null);
+                setIsLeadModalOpen(true);
+              }}
+              className="text-xs"
+            >
+              Crear Primer Prospecto
+            </Button>
+          }
         />
       ) : viewMode === 'kanban' ? (
         /* KANBAN BOARD */
@@ -498,7 +590,7 @@ export function LeadsPage() {
           {LEAD_STAGES.map((stg, stgIdx) => {
             const columnLeads = leads.filter((l) => l.stage === stg);
             const totalValueMinor = columnLeads.reduce((acc, l) => acc + (l.valueEstimateMinor || 0), 0);
-            const stgColor = LEAD_STAGE_COLORS[stg];
+            const stgColor = LEAD_STAGE_COLORS[stg] || LEAD_STAGE_COLORS.new;
 
             return (
               <div
