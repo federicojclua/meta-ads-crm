@@ -129,7 +129,7 @@ export async function handler(event) {
       } else {
         const rawClientId = body.clientId ? String(body.clientId).trim() : null;
         if (!rawClientId) {
-          return errorResponse(400, 'Debe especificar el clientId para la importación.', 'CLIENT_REQUIRED');
+          return errorResponse(400, 'Debe seleccionar la empresa a la que pertenecen los prospectos.', 'CLIENT_REQUIRED');
         }
         const clientDoc = await clientsCollection.findOne({
           $or: [
@@ -409,7 +409,7 @@ export async function handler(event) {
         } else {
           const rawClientId = body.clientId ? String(body.clientId).trim() : null;
           if (!rawClientId) {
-            return errorResponse(400, 'Debe especificar el clientId para el prospecto.', 'CLIENT_REQUIRED');
+            return errorResponse(400, 'Debe seleccionar la empresa a la que pertenece el prospecto.', 'CLIENT_REQUIRED');
           }
           const clientDoc = await clientsCollection.findOne({
             $or: [

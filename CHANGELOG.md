@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Hotfix: Controlled Company Selector & State Synchronization in Leads Creation (2026-08-23)
+- **Selector Controlado de Empresa para Leads (`LeadModal.jsx`, `CsvImportModal.jsx`):**
+  - Se corrigió la desincronización de estado en la creación de prospectos para `super_admin`/`admin`: el formulario ahora utiliza un selector completamente controlado con opción inicial explícita `<option value="">Seleccionar empresa</option>`.
+  - Para `client` y `salesperson`, el selector de empresa permanece oculto y el backend asigna automáticamente el `clientId` autorizado de su sesión.
+  - Se envía siempre el `_id` interno de MongoDB y se valida en frontend y backend con el mensaje en español: `"Debe seleccionar la empresa a la que pertenece el prospecto."`.
+  - Se agregaron pruebas unitarias y de integración en frontend y backend validando la obligatoriedad y el envío correcto del `clientId`.
+
 ### Fixed — Hotfix: React #130 Prevention, Centralized API Auth & ErrorBoundary (2026-08-23)
 - **Corrección de Pantalla Blanca (React #130):**
   - Identificada la causa raíz: `LeadsPage` utilizaba `variant="danger"` en `<Alert>` tras fallos en la consulta; `Alert.jsx` no mapeaba `danger` y producía `undefined` como componente de ícono.

@@ -65,6 +65,11 @@ export function CsvImportModal({
   const handleExecuteImport = async () => {
     if (!parsedData || parsedData.length === 0) return;
 
+    if (isGlobal && !selectedClientId) {
+      setErrorMessage('Debe seleccionar la empresa a la que pertenecen los prospectos.');
+      return;
+    }
+
     const validRows = parsedData.filter((r) => r.isValid);
     if (validRows.length === 0) {
       setErrorMessage('No hay filas válidas para importar.');
@@ -169,7 +174,7 @@ export function CsvImportModal({
           </div>
         ) : (
           <>
-            {isGlobal && clients.length > 0 && (
+            {isGlobal && (
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-brand-text-secondary mb-1">
                   Empresa Destino *
@@ -178,12 +183,17 @@ export function CsvImportModal({
                   value={selectedClientId}
                   onChange={(e) => setSelectedClientId(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-brand-border bg-white text-sm text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  required
                 >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.slug})
-                    </option>
-                  ))}
+                  <option value="">Seleccionar empresa</option>
+                  {clients.map((c) => {
+                    const cId = c.id || c._id;
+                    return (
+                      <option key={cId} value={cId}>
+                        {c.name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}

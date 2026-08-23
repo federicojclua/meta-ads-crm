@@ -44,17 +44,22 @@ export function LeadModal({
       setPhone('');
       setStage('new');
       setAssignedToUserId('');
-      setClientId(clients.length > 0 ? clients[0].id : '');
+      setClientId('');
       setValueEstimate('');
       setCurrency('ARS');
       setNotes('');
     }
     setErrorMessage('');
-  }, [lead, isOpen, clients]);
+  }, [lead, isOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+
+    if (isGlobal && !lead && !clientId) {
+      setErrorMessage('Debe seleccionar la empresa a la que pertenece el prospecto.');
+      return;
+    }
 
     if (!name.trim()) {
       setErrorMessage('El nombre del prospecto es obligatorio.');
@@ -105,27 +110,33 @@ export function LeadModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {errorMessage && (
-          <Alert variant="danger">
+          <Alert variant="error">
             {errorMessage}
           </Alert>
         )}
 
-        {isGlobal && !lead && clients.length > 0 && (
+        {isGlobal && !lead && (
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-brand-text-secondary mb-1">
-              Empresa Cliente *
+            <label htmlFor="lead-modal-client-select" className="block text-xs font-bold uppercase tracking-wider text-brand-text-secondary mb-1">
+              Empresa / Cliente *
             </label>
             <select
+              id="lead-modal-client-select"
+              aria-label="Empresa / Cliente"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               className="w-full h-10 px-3 rounded-md border border-brand-border bg-white text-sm text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
               required
             >
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.slug})
-                </option>
-              ))}
+              <option value="">Seleccionar empresa</option>
+              {clients.map((c) => {
+                const cId = c.id || c._id;
+                return (
+                  <option key={cId} value={cId}>
+                    {c.name}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
@@ -183,11 +194,14 @@ export function LeadModal({
                 className="w-full h-10 px-3 rounded-md border border-brand-border bg-white text-sm text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
               >
                 <option value="">-- Sin asignar --</option>
-                {salespeople.map((sp) => (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.displayName || sp.email}
-                  </option>
-                ))}
+                {salespeople.map((sp) => {
+                  const spId = sp.id || sp._id;
+                  return (
+                    <option key={spId} value={spId}>
+                      {sp.displayName || sp.email}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}

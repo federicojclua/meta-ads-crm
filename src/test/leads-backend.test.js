@@ -339,4 +339,93 @@ describe('Backend Leads API (api-leads)', () => {
     expect(body.summary.duplicateWarningCount).toBe(1);
     expect(mockLeadsCollection.insertOne).not.toHaveBeenCalled();
   });
+
+  it('8. POST /api/leads por super_admin sin clientId rechaza con mensaje claro (400)', async () => {
+    const mockSuperAdmin = {
+      _id: new ObjectId('65df77777777777777777777'),
+      email: 'admin@animamkt.com',
+      role: 'super_admin',
+      status: 'active',
+    };
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockSuperAdmin,
+      db: mockDb,
+      clientScope: 'all',
+      isGlobal: true,
+    });
+
+    const res = await leadsHandler({
+      httpMethod: 'POST',
+      path: '/api/leads',
+      body: JSON.stringify({
+        name: 'Prospecto Nuevo',
+        email: 'prospecto@ejemplo.com',
+      }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body.error).toBe('Debe seleccionar la empresa a la que pertenece el prospecto.');
+    expect(body.code).toBe('CLIENT_REQUIRED');
+  });
+
+  it('9. POST /api/leads por super_admin con clientId válido crea el prospecto asignado a esa empresa', async () => {
+    const mockSuperAdmin = {
+      _id: new ObjectId('65df77777777777777777777'),
+      email: 'admin@animamkt.com',
+      role: 'super_admin',
+      status: 'active',
+    };
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockSuperAdmin,
+      db: mockDb,
+      clientScope: 'all',
+      isGlobal: true,
+    });
+
+    mockClientsCollection.findOne.mockResolvedValueOnce({
+      _id: clientIdA,
+      name: 'Perfumería Marion',
+      slug: 'perfumeria-marion',
+      status: 'active',
+    });
+
+    mockLeadsCollection.findOne.mockResolvedValueOnce(null); // duplicate check
+    const insertedLeadId = new ObjectId('65dfaaaaaaaaaaaaaaaaaaaa');
+    mockLeadsCollection.insertOne.mockResolvedValueOnce({ insertedId: insertedLeadId });
+    mockLeadsCollection.findOne.mockResolvedValueOnce({
+      _id: insertedLeadId,
+      clientId: clientIdA,
+      name: 'Juan Carrizo',
+      email: 'juan@carrizo.com',
+      stage: 'new',
+      status: 'active',
+      createdAt: new Date(),
+    });
+
+    const res = await leadsHandler({
+      httpMethod: 'POST',
+      path: '/api/leads',
+      body: JSON.stringify({
+        name: 'Juan Carrizo',
+        email: 'juan@carrizo.com',
+        clientId: clientIdA.toString(),
+      }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.lead.name).toBe('Juan Carrizo');
+    expect(mockLeadsCollection.insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: clientIdA,
+        name: 'Juan Carrizo',
+      })
+    );
+  });
 });
+
