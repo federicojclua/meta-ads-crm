@@ -349,3 +349,71 @@ Each decision records:
 **Consequences:**
 - 75/75 automated unit and security tests passing.
 - Full tolerance to concurrent index creation and partial index validation.
+
+---
+
+## ADR-018: Minor Units Financial Architecture, Multi-Currency Segregation & Commercial Pipeline
+
+**Date:** 2026-08-23
+
+**Decision:**
+1. **Financial Integrity with Minor Units (Cents):**
+   - All sales estimates, sale commitments, and collected amounts are stored as integers representing minor units (`amountMinor`, `collectedAmountMinor`, `collectedAmountDefaultMinor` in cents).
+   - Arithmetic on decimals/floats in database queries is prohibited to prevent IEEE 754 precision loss.
+2. **Multi-Currency Segregation without Auto-Summation:**
+   - ARS and USD are strictly tracked as separate currency buckets.
+   - The CRM never computes sums of mixed currencies (e.g. `ARS + USD`) without an explicit `exchangeRateToDefault`.
+   - The Dashboard displays distinct currency totals or converts using the transaction-time exchange rate recorded on each sale.
+3. **Commercial Lead Lifecycle & Salesperson Scoping:**
+   - Standard 5-stage pipeline: `new` $\rightarrow$ `contacted` $\rightarrow$ `qualified` $\rightarrow$ `won` $\rightarrow$ `lost`.
+   - Stage transitions record timestamped lifecycle events (`acquiredAt`, `firstContactedAt`, `qualifiedAt`, `wonAt`, `lostAt`, `lostReason`) and emit audit logs in `lead_activities`.
+   - Users with role `salesperson` are strictly scoped to their assigned leads and sales; they are prevented from reassigning leads, confirming collections, and cancelling sales.
+4. **Duplicate Handling without Unique Index:**
+   - Commercial leads do not enforce unique indexes on email or phone (since a single contact may open multiple commercial opportunities over time).
+   - Ingestion and CSV import detect potential duplicates and return non-blocking warnings while preserving idempotency via `ingestionKey`.
+5. **Clear Separation from Meta Ads (Stage 4):**
+   - Meta Ads performance metrics (Ad Spend, CPL, CPA, ROAS) display clear labels *"Sin datos de Meta (Etapa 4)"* without displaying false zeros.
+
+**Rationale:**
+- Prevents financial calculation errors, round-off anomalies, and cross-currency confusion.
+- Ensures salespeople operate with proper boundaries while management retains full visibility.
+
+**Consequences:**
+- 108/108 automated test suites passing.
+- Robust, audit-ready commercial pipeline and revenue tracking.
+
+---
+
+## ADR-019: Compound Ingestion Key, RFC 4180 CSV Parsing & Atomic Payment Concurrency
+
+**Date:** 2026-08-23
+
+**Decision:**
+1. **Multi-Tenant Compound Ingestion Key:**
+   - The lead ingestion index is migrated to `{ clientId: 1, ingestionKey: 1 }` with `partialFilterExpression: { ingestionKey: { $type: 'string' } }` (`uniq_lead_client_ingestionKey`).
+   - Different companies can safely use identical batch keys without collision.
+2. **Unified RFC 4180 CSV Parser:**
+   - Frontend and backend share `parseCsvString` handling UTF-8 BOM (`\uFEFF`), commas within quotes, multiline values, CRLF, escaped quotes (`""`), and limits (1 MB / 500 rows).
+3. **Atomic Payment Concurrency & History:**
+   - Collections use `findOneAndUpdate` with `$expr` and `$lte` to prevent concurrent race conditions from exceeding the total sale amount (`409 COLLECTED_EXCEEDS_AMOUNT`).
+   - Every collection appends an immutable record to `payments` with its own transaction-time exchange rate.
+4. **Pipeline Lifecycle Invariants:**
+   - Mandatory `lostReason` when transitioning to `lost` (cleaned on departure), immutable `firstContactedAt` on first contact, and exclusion of `meta` source in Stage 3.
+
+---
+
+## ADR-020: Compensating Controls for React Router (GHSA-wrjc-x8rr-h8h6) & Transitive uuid Risk Management
+
+**Date:** 2026-08-23
+
+**Decision:**
+1. **React Router Advisory `GHSA-wrjc-x8rr-h8h6`:**
+   - Temporarily accept the moderate advisory and avoid running `npm audit fix --force` (which would force a breaking migration to React Router 7 in Stage 3).
+   - Implement strict compensating controls: all navigation destinations are static constants or validated against an exact `SAFE_RETURN_PATHS` allowlist (`/app`, `/app/clients`, `/app/leads`, `/app/campaigns`, `/app/settings`).
+   - Any malicious payload (e.g. `//evil.example`, `https://evil.example`, `/\evil.example`, `\\evil.example`, `/app\evil.example`, `/%5Cevil.example`, `/%5c%5cevil.example`) is strictly rejected and routed to `/app`.
+   - No search parameters, user input, CSV headers, client names, or backend responses are passed directly to `navigate()`, `<Link>`, or redirects.
+   - Plan a controlled migration to React Router 7.18+ in a future maintenance stage.
+2. **Transitive `uuid` Advisory `GHSA-w5hq-g745-h8pq`:**
+   - Verify that CRM source code never imports or calls `uuid.v3`, `uuid.v5`, or `uuid.v6`, nor passes caller-supplied buffers/offsets.
+   - `uuid` is pulled transitively via `@google-cloud/firestore` in `firebase-admin@13.10.0`.
+   - Maintain `firebase-admin@13.10.0` pinned to preserve serverless CommonJS stability and reject the `npm audit fix --force` downgrade to `10.3.0`.

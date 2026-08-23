@@ -226,3 +226,56 @@
 2. Consultar directamente la colección `audit_logs` en MongoDB.
 3. **Verificación esperada:**
    - Los registros no contienen campos de contraseñas, tokens de reseteo ni secretos.
+
+---
+
+## 5. Stage 3 — Leads, Commercial Pipeline, Sales & Minor Units Testing Protocols
+
+### Test 16: Alta manual de prospectos y validaciones de contacto
+1. Crear un lead completando solo Nombre. Verificar que el backend y frontend rechacen la solicitud indicando que requiere al menos un Email o un Teléfono válido.
+2. Crear un lead con Nombre y Email válido. Verificar asignación a la etapa `new`, registro en `lead_activities` y guardado de `acquiredAt`.
+
+### Test 17: Importación masiva CSV con detección de duplicados e idempotencia
+1. Cargar un CSV con 10 registros, incluyendo un contacto duplicado y uno con vendedor asignado.
+2. **Verificación esperada:**
+   - Previsualización tabular interactiva sin colgar el hilo del navegador.
+   - Idempotencia: el segundo intento con la misma clave `ingestionKey` es ignorado de forma segura sin duplicar registros.
+   - Creación de actividades de ingesta para todos los prospectos importados.
+
+### Test 18: Tablero Kanban interactivo & transiciones de ciclo de vida
+1. Mover un lead de `new` a `contacted`, `qualified` y `won`.
+2. **Verificación esperada:**
+   - Registro de timestamps `firstContactedAt`, `qualifiedAt`, `wonAt`.
+   - Generación de tarjetas con etiquetas de colores, contadores de columna y montos acumulados por etapa.
+   - Posibilidad de mover etapas con botones accesibles (`<` y `>`) y desde la ficha de detalle.
+
+### Test 19: Registro de ventas en centavos (minor units) y confirmación de cobros
+1. Registrar una venta de $150.000,00 ARS (`amountMinor: 15000000`).
+2. Verificar que el lead pase automáticamente a la etapa `won`.
+3. Confirmar un cobro parcial de $50.000,00 ARS. Verificar que el estado pase a `partial`.
+4. Intentar ingresar un cobro que supere el saldo restante ($110.000,00). Verificar que el sistema rechace con `400 COLLECTED_EXCEEDS_AMOUNT`.
+5. Confirmar el saldo restante ($100.000,00). Verificar que el estado pase a `collected`.
+
+### Test 20: Restricciones de vendedor (scoping estricto)
+1. Iniciar sesión como `salesperson`.
+2. Intentar reasignar un lead a otro vendedor. Verificar rechazo `403 SALESPERSON_CANNOT_REASSIGN`.
+3. Intentar confirmar un cobro o cancelar una venta. Verificar rechazo `403 CANNOT_CONFIRM_COLLECTIONS` / `403 CANNOT_CANCEL_SALES`.
+4. Verificar que solo visualiza leads y ventas asignadas a su propio `userId`.
+
+### Test 21: Dashboard KPIs con segregación de divisas
+1. Registrar ventas cobradas en ARS y ventas cobradas en USD.
+2. Consultar el Dashboard.
+3. **Verificación esperada:**
+   - Los ingresos cobrados se muestran desglosados por moneda sin sumas no convertidas.
+   - Los KPIs de Meta Ads muestran *"Sin datos de Meta (Etapa 4)"* de manera explícita.
+   - El ranking de vendedores muestra leads asignados, ganados, tasa de conversión e ingresos cobrados.
+
+### Test 22: Parser CSV RFC 4180 y soporte de archivos de Excel (BOM)
+1. Cargar archivo CSV con UTF-8 BOM (`\uFEFF`), comas dentro de comillas (`"Gómez, Juan"`), saltos de línea multilínea y separadores punto y coma.
+2. Verificar que `parseCsvString` parsee todas las filas y columnas correctamente sin desalineaciones.
+3. Verificar que archivos que superen 1 MB o 500 filas sean rechazados con mensajes claros.
+
+### Test 23: Concurrencia en cobros y prevención de sobrecobro
+1. Simular dos solicitudes de cobro concurrentes de $60.000 sobre una venta de $100.000.
+2. Verificar que la primera sea procesada atómicamente y la segunda sea rechazada con `409 COLLECTED_EXCEEDS_AMOUNT`.
+3. Verificar que el array `payments` guarde el histórico inmutable con su propio tipo de cambio individual.

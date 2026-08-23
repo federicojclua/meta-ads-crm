@@ -3,11 +3,11 @@
 ## 1. Authentication & Identity Management
 
 ### Provider: Firebase Authentication
-- Email + password credentials only (managed exclusively by Firebase Auth).
+- Email + password credentials & Google Sign-In (managed exclusively by Firebase Auth).
 - **Sin pantallas públicas de autoregistro:** La interfaz de usuario no ofrece registro abierto.
 - **Creación del primer Super Admin:** Se da de alta manualmente desde la consola de Firebase con el correo correspondiente a `SUPER_ADMIN_EMAIL`.
 - **Verificación de correo obligatoria:** Se requiere `email_verified: true` para acceder a los recursos del CRM. Si un usuario no tiene su email verificado, el frontend ofrece reenvío del correo de verificación pero bloquea el acceso al dashboard.
-- **Invitación de usuarios posteriores (Etapa 2):** Se crean server-side mediante Firebase Admin SDK generando un enlace seguro de asignación de contraseña (`generatePasswordResetLink`).
+- **Invitación de usuarios posteriores (Etapa 2):** Preautorización server-side en MongoDB (`status: 'invited'`) y vinculación atómica con Google Auth en su primer login.
 
 ### Token Management & Lifecycle
 - Tokens de identidad de Firebase (JWT) con tiempo de vida corto (1 hora).
@@ -37,13 +37,25 @@
 
 ---
 
-### Sanitización de Navegación & Mitigación de Open Redirects
-- **Control estricto de redirecciones:** Cualquier llamada a `navigate()` o componente `<Navigate>` utiliza exclusivamente rutas constantes internas o destinos validados contra un prefijo permitido (`/app`).
-- **Bloqueo de caracteres de escape:** Se rechazan explícitamente caracteres de redirección relativa maliciosa (`\\` y `//`).
-- **Evaluación de dependencias transitivas:** Las vulnerabilidades moderadas reportadas en `react-router` (GHSA-wrjc-x8rr-h8h6 y GHSA-337j-9hxr-rhxg) se clasifican formalmente como **no alcanzables bajo el diseño actual** debido a que:
-  1. Anima MKT CRM es una Single Page Application pura en Vite sin Server-Side Rendering (SSR hydration).
-  2. Ningún parámetro de consulta (`searchParams`), `returnUrl` de URL o entrada de usuario es interpretado directamente como destino de navegación.
-- **Compromiso de revisión:** Esta política de redirección será reauditada obligatoriamente antes de introducir parámetros `returnUrl`, enlaces de invitación por token o redirecciones dinámicas en la Etapa 2.
+### Sanitización de Navegación & Mitigación de Open Redirects (GHSA-wrjc-x8rr-h8h6)
+- **Advisory:** `GHSA-wrjc-x8rr-h8h6` / `CVE-2025-68470 bypass` (Open redirect via backslash en `<Link>` y `useNavigate` y SSR Hydration).
+- **Riesgo Aceptado Temporalmente:** No se ejecuta `npm audit fix --force` ni se migra a React Router 7 en la Etapa 3 para preservar la estabilidad de la arquitectura y evitar breaking changes descontrolados.
+- **Controles Compensatorios Activos:**
+  1. **Allowlist Exacta:** Todo retorno de redirección post-login se valida estrictamente contra un `Set` cerrado de rutas constantes (`/app`, `/app/clients`, `/app/leads`, `/app/campaigns`, `/app/settings`).
+  2. **Rechazo Universal de Cargas Maliciosas:** Cualquier intento de redirección con esquemas absolutos (`https://evil.example`), dobles barras (`//evil.example`), barras invertidas simples o dobles (`/\evil.example`, `\\evil.example`, `/app\evil.example`), o variantes codificadas en URL (`/%5Cevil.example`, `/%5c%5cevil.example`) es evaluado como inválido y redirigido forzosamente a `/app`.
+  3. **Ausencia de Parámetros Dinámicos en Rutas:** Ninguna llamada a `navigate()`, `<Link>`, o redirección recibe valores derivados de queries, bodies, CSV, nombres de clientes, leads, notas o respuestas arbitrarias del backend.
+  4. **SPA Pura:** La aplicación es un Single Page Application en Vite sin SSR (Server-Side Rendering), por lo que las vulnerabilidades asociadas a hidratación SSR son inaplicables.
+- **Plan de Migración Futura:** Se planificará la migración controlada a React Router 7.18+ en una etapa posterior con su suite dedicada de pruebas de regresión.
+
+---
+
+### Evaluación del Riesgo Transitivo de `uuid` (GHSA-w5hq-g745-h8pq)
+- **Advisory:** `GHSA-w5hq-g745-h8pq` (Missing buffer bounds check en `uuid` v3/v5/v6 cuando se provee un buffer externo).
+- **Alcance en el Código Propio:**
+  - El código de la aplicación **no utiliza la biblioteca `uuid`** directamente en ningún archivo (`src/`, `netlify/`, `models/`).
+  - La dependencia ingresa exclusivamente de forma transitiva a través de `@google-cloud/firestore` y `google-gax` dentro de `firebase-admin@13.10.0`.
+  - No se invocan las APIs `uuid.v3`, `uuid.v5` ni `uuid.v6`, ni se proveen buffers u offsets externos a `uuid`.
+- **Decisión:** Mantener `firebase-admin@13.10.0`. Se rechaza expresamente el downgrade sugerido por `npm audit fix --force` hacia `firebase-admin@10.3.0` por incompatibilidades severas con el entorno serverless Node 20/24.
 
 ---
 

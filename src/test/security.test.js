@@ -98,20 +98,21 @@ describe('Security & Secrets Leak Prevention Tests', () => {
       expect(sanitizeRedirect('/app/settings')).toBe('/app/settings');
     });
 
+    it('Rechaza open redirects y payloads maliciosos con backslashes hacia dominios externos', () => {
+      // 7 required test payloads from audit directives
+      expect(sanitizeRedirect('//evil.example')).toBe('/app');
+      expect(sanitizeRedirect('https://evil.example')).toBe('/app');
+      expect(sanitizeRedirect('/\\evil.example')).toBe('/app');
+      expect(sanitizeRedirect('\\\\evil.example')).toBe('/app');
+      expect(sanitizeRedirect('/app\\evil.example')).toBe('/app');
+      expect(sanitizeRedirect('/%5Cevil.example')).toBe('/app');
+      expect(sanitizeRedirect('/%5c%5cevil.example')).toBe('/app');
+    });
+
     it('Rechaza rutas no registradas aunque comiencen con prefijos similares (/application, /app-malicious)', () => {
       expect(sanitizeRedirect('/application')).toBe('/app');
       expect(sanitizeRedirect('/app-malicious')).toBe('/app');
       expect(sanitizeRedirect('/app/unknown')).toBe('/app');
-    });
-
-    it('Rechaza open redirects con esquemas relativos o absolutos (//evil.example, https://evil.com)', () => {
-      expect(sanitizeRedirect('//evil.example')).toBe('/app');
-      expect(sanitizeRedirect('https://evil.com')).toBe('/app');
-      expect(sanitizeRedirect('/\\evil.example')).toBe('/app');
-    });
-
-    it('Rechaza caracteres de escape con barra invertida simple (/app\\evil.example)', () => {
-      expect(sanitizeRedirect('/app\\evil.example')).toBe('/app');
     });
 
     it('Rechaza valores nulos, undefined, números u objetos con fallback a /app', () => {

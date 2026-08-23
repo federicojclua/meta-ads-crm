@@ -1,6 +1,7 @@
 import { Menu, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/Button';
+import { CURRENT_STAGE } from '../../lib/constants';
 
 export function Header({ onOpenMobileMenu }) {
   const { logout } = useAuth();
@@ -17,7 +18,7 @@ export function Header({ onOpenMobileMenu }) {
         </button>
         <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-brand-text-secondary uppercase tracking-wider">
           <span className="w-2 h-2 rounded-full bg-status-success" aria-hidden="true"></span>
-          <span>Sistema Operativo &middot; Etapa 1 Activa</span>
+          <span>Sistema Operativo &middot; {CURRENT_STAGE.LABEL}</span>
         </div>
       </div>
 

@@ -37,6 +37,36 @@
   force = true
 
 [[redirects]]
+  from = "/api/leads"
+  to = "/.netlify/functions/api-leads"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/leads/*"
+  to = "/.netlify/functions/api-leads"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sales"
+  to = "/.netlify/functions/api-sales"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sales/*"
+  to = "/.netlify/functions/api-sales"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/dashboard/*"
+  to = "/.netlify/functions/api-dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

@@ -101,64 +101,107 @@ Represents a tenant business/company in Anima MKT CRM.
 
 ### 2.3 `leads`
 
-Individual lead or prospect captured from ads, webhooks, CSV import, or manual entry.
+Individual lead or prospect captured from CSV import, manual entry, or Meta Ads.
 
 ```json
 {
   "_id": "ObjectId",
   "clientId": "ObjectId (required, indexed)",
-  "source": "enum: meta_ads | manual | csv_import | website | referral | other",
-  "campaignId": "ObjectId | null",
-  "adId": "string | null",
-  "formId": "string | null",
-  "externalSourceId": "string | null",  // e.g. 'meta', 'typeform', 'csv'
-  "externalLeadId": "string | null",    // ID in the external source
-  "name": "string",
-  "email": "string | null",
+  "name": "string (required, trimmed)",
+  "email": "string | null (valid format)",
+  "normalizedEmail": "string | null (lowercase, trimmed, indexed)",
   "phone": "string | null",
-  "whatsapp": "string | null",
-  "message": "string | null",
-  "customFields": {},                   // Dynamic form fields
-  "status": "enum: new | contacted | qualified | proposal | negotiation | won | lost | discarded",
-  "assignedTo": "ObjectId | null",      // Salesperson userId
-  "pipelineStage": "string",
-
-  // Commercial Agreement (Sale closed / commitment)
-  "saleAmount": "number | null",        // Total agreed sale value
-  "saleCurrency": "string",             // e.g. "ARS", "USD"
-
-  // Realized / Collected Revenue (Actual cash collected)
-  "collectedAmount": "number | null",   // Amount actually collected/paid
-  "collectedCurrency": "string | null",
-  "collectedAt": "ISODate | null",      // Date of cash collection
-
-  "lostReason": "string | null",
+  "normalizedPhone": "string | null (e.g. +5491112345678, indexed)",
+  "stage": "enum: new | contacted | qualified | won | lost (default: new)",
+  "source": "enum: manual | csv | meta (default: manual)",
+  "assignedToUserId": "ObjectId | null (salesperson in same tenant, indexed)",
+  "valueEstimateMinor": "integer >= 0 (in minor units / cents, default: 0)",
+  "currency": "string (default: client.defaultCurrency e.g. ARS)",
+  "customFields": {},
   "notes": "string | null",
   "tags": ["string"],
-  "contactedAt": "ISODate | null",
+  "acquiredAt": "ISODate (capture timestamp)",
+  "firstContactedAt": "ISODate | null",
   "qualifiedAt": "ISODate | null",
   "wonAt": "ISODate | null",
   "lostAt": "ISODate | null",
-  "metaLeadId": "string | null",        // Meta leadgen ID (if applicable)
-  "metaReceivedAt": "ISODate | null",
+  "lostReason": "string | null",
+  "status": "enum: active | archived (default: active)",
+  "ingestionKey": "string | null (idempotency key, indexed partial unique)",
+  "metaLeadId": "string | null",
   "createdAt": "ISODate",
   "updatedAt": "ISODate"
 }
 ```
 
 **Indexes:**
-- `{ clientId: 1, status: 1 }` — primary tenant filtering
-- `{ clientId: 1, assignedTo: 1 }` — salesperson view
-- `{ clientId: 1, createdAt: -1 }` — chronological ordering
-- `{ clientId: 1, campaignId: 1 }` — campaign attribution
-- **Partial Unique Index on `metaLeadId`:**
-  `{ metaLeadId: 1 }` with options `{ unique: true, partialFilterExpression: { metaLeadId: { $type: "string" } } }`
-- **Compound Deduplication Index:**
-  `{ clientId: 1, externalSourceId: 1, externalLeadId: 1 }` with options `{ unique: true, partialFilterExpression: { externalLeadId: { $type: "string" } } }`
+- `{ clientId: 1, stage: 1 }` — `{ name: "idx_lead_client_stage" }`
+- `{ clientId: 1, assignedToUserId: 1 }` — `{ name: "idx_lead_client_assigned" }`
+- `{ clientId: 1, normalizedEmail: 1 }` — `{ name: "idx_lead_client_email" }`
+- `{ clientId: 1, normalizedPhone: 1 }` — `{ name: "idx_lead_client_phone" }`
+- `{ clientId: 1, acquiredAt: -1 }` — `{ name: "idx_lead_client_acquired" }`
+- `{ clientId: 1, status: 1 }` — `{ name: "idx_lead_client_status" }`
+- `{ ingestionKey: 1 }` — `{ unique: true, partialFilterExpression: { ingestionKey: { $type: "string" } }, name: "uniq_lead_ingestionKey" }`
 
 ---
 
-### 2.4 `campaigns`
+### 2.4 `lead_activities`
+
+Commercial activity log and interaction notes attached to a lead.
+
+```json
+{
+  "_id": "ObjectId",
+  "clientId": "ObjectId (required, indexed)",
+  "leadId": "ObjectId (required, indexed)",
+  "type": "enum: stage_change | assignment | note | sale_created | sale_updated | payment_collected | status_change | system",
+  "title": "string",
+  "description": "string | null",
+  "performedByUserId": "ObjectId | null",
+  "performedByName": "string | null",
+  "metadata": {},
+  "createdAt": "ISODate"
+}
+```
+
+**Indexes:**
+- `{ clientId: 1, leadId: 1, createdAt: -1 }` — `{ name: "idx_activity_lead_timeline" }`
+
+---
+
+### 2.5 `sales`
+
+Commercial sales and payment collections in minor units (cents).
+
+```json
+{
+  "_id": "ObjectId",
+  "clientId": "ObjectId (required, indexed)",
+  "leadId": "ObjectId (required, indexed)",
+  "amountMinor": "integer > 0 (sale amount in cents)",
+  "currency": "enum: ARS | USD",
+  "collectedAmountMinor": "integer >= 0 (collected in transaction currency)",
+  "collectedAmountDefaultMinor": "integer >= 0 (converted to client.defaultCurrency in cents)",
+  "exchangeRateToDefault": "number (exchange rate at collection time)",
+  "status": "enum: pending | partial | collected | cancelled (automatically derived)",
+  "soldAt": "ISODate",
+  "collectedAt": "ISODate | null",
+  "cancelledAt": "ISODate | null",
+  "notes": "string | null",
+  "createdByUserId": "ObjectId",
+  "createdAt": "ISODate",
+  "updatedAt": "ISODate"
+}
+```
+
+**Indexes:**
+- `{ clientId: 1, leadId: 1 }` — `{ name: "idx_sale_client_lead" }`
+- `{ clientId: 1, status: 1 }` — `{ name: "idx_sale_client_status" }`
+- `{ clientId: 1, soldAt: -1 }` — `{ name: "idx_sale_client_soldAt" }`
+
+---
+
+### 2.6 `campaigns`
 
 Synced from Meta Marketing API.
 
