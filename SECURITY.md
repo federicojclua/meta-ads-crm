@@ -59,6 +59,23 @@
 
 ---
 
+### Seguridad en la Integración con Meta Marketing API (v26.0)
+
+1. **HMAC-SHA256 `appsecret_proof` Obligatorio:**
+   - Cada consulta al Graph API calcula `appsecret_proof = HMAC-SHA256(META_APP_SECRET, META_SYSTEM_USER_TOKEN)` para prevenir ataques man-in-the-middle y secuestro de tokens.
+2. **Rate Limiting Adaptativo Multi-Header:**
+   - Se procesan los encabezados oficiales `x-business-use-case-usage`, `x-app-usage` y `Retry-After`.
+   - Ante utilización $\ge 75\%$, se inserta throttling preventivo; ante $\ge 90\%$, se pausa la sincronización del ad account.
+   - En caso de errores 1, 2, 17, 32, 613 (rate limits de Meta), se aplica backoff exponencial con jitter aleatorio ($\pm 20\%$) hasta 3 intentos antes de fallar de forma aislada sin afectar otras cuentas.
+3. **Sanitización de Logs y Checkpoints (`sanitizeMetaLog`):**
+   - Se redactan automáticamente tokens `EAAB...`, secrets y firmas en todas las salidas a consola, logs de sincronización y checkpoints de la base de datos.
+4. **Aislamiento Multi-Tenant Estricto:**
+   - La clave única `{ clientId, adAccountId, adsetId, date, attributionSettingKey, actionReportTime }` garantiza que los datos de un cliente nunca se sobrescriban ni se mezclen con los de otro.
+   - Si se detecta una campaña con AdSets asignados a múltiples empresas, el sistema marca `MIXED_TENANT_CAMPAIGN` y restringe la visualización agregada total a los roles `client`.
+   - Las reasignaciones retroactivas son exclusivas de `super_admin` con previsualización obligatoria `dryRun: true`.
+
+---
+
 ### Static Security Headers (`netlify.toml`)
 Para mitigar ataques de clickjacking, MIME sniffing y garantizar aislamiento seguro de popups para Google Sign-In, se configuran las siguientes cabeceras en `netlify.toml`:
 - `X-Content-Type-Options: "nosniff"`

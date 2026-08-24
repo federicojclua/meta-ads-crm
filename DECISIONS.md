@@ -417,3 +417,40 @@ Each decision records:
    - Verify that CRM source code never imports or calls `uuid.v3`, `uuid.v5`, or `uuid.v6`, nor passes caller-supplied buffers/offsets.
    - `uuid` is pulled transitively via `@google-cloud/firestore` in `firebase-admin@13.10.0`.
    - Maintain `firebase-admin@13.10.0` pinned to preserve serverless CommonJS stability and reject the `npm audit fix --force` downgrade to `10.3.0`.
+
+---
+
+## ADR-021: Meta Graph API v26.0, HMAC AppSecret Proof & Decoupled Topology
+
+**Date:** 2026-08-24
+
+**Decision:**
+1. **Deterministic Meta API Version:**
+   - Meta Marketing API is deterministically set to `META_API_VERSION=v26.0` without silent fallback.
+   - Graph API communication is performed via native Node.js 24 `fetch` and `crypto` without heavy SDKs.
+2. **Mandatory HMAC-SHA256 `appsecret_proof`:**
+   - Every request computes and appends `appsecret_proof = HMAC-SHA256(META_APP_SECRET, META_SYSTEM_USER_TOKEN)` to guarantee token integrity and authenticity.
+3. **Multi-Header Rate Limiting & Resilient Backoff:**
+   - Process `x-business-use-case-usage`, `x-app-usage` and `Retry-After`.
+   - Apply proactive throttling at $\ge 75\%$ usage and pause account sync at $\ge 90\%$.
+   - Exponential backoff with random jitter ($\pm 20\%$) handles transient Meta rate limits (error codes 1, 2, 17, 32, 613).
+4. **Decoupled Canonical Topology:**
+   - Ad Accounts and Datasets/Pixels are stored as parallel assets belonging to the Portfolio and mapped to clients via temporal scopes (`client_meta_scopes`).
+   - AdSets link to Pixels/Datasets via `promoted_object.pixel_id`.
+
+---
+
+## ADR-022: Tenant-Scoped Idempotent Daily Insights & Protected Derived Formulas
+
+**Date:** 2026-08-24
+
+**Decision:**
+1. **Tenant-Scoped Unique Key:**
+   - `meta_insights_daily` enforces `{ clientId: 1, adAccountId: 1, adsetId: 1, date: 1, attributionSettingKey: 1, actionReportTime: 1 }` with `unique: true`.
+   - Historical insights retain their assigned `clientId` permanently. Standard reassignments only affect subsequent dates.
+   - Retroactive reclassification is strictly reserved for `super_admin` with dry-run (`dryRun: true`) preview and explicit confirmation.
+2. **Protected Derived Financial Formulas:**
+   - CPL, CPA, CTR, CPC, CPM, and ROAS on collected revenue are calculated dynamically in queries with safe-division (`denominator > 0 ? value : null`).
+   - Ratios and non-additive metrics (`reach`) are never summed across days or accounts.
+3. **Mixed Tenant Campaign Conflict Detection:**
+   - Campaigns containing AdSets from multiple companies are flagged with `hasMultipleTenants: true` and recorded in `meta_asset_conflicts` to prevent unauthorized cross-tenant data exposure.

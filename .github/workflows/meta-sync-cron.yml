@@ -1,0 +1,36 @@
+name: Meta Ads Scheduled Synchronization
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  sync-meta-ads:
+    name: Trigger Meta Ads Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Authenticated Trigger Request to CRM
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ] || [ -z "${{ secrets.APP_URL }}" ]; then
+            echo "::error::CRON_SECRET or APP_URL is not configured in GitHub Secrets."
+            exit 1
+          fi
+
+          JOB_KEY="cron_$(date -u +%Y%m%d_%H)"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.APP_URL }}/api/meta/sync" \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Auth: ${{ secrets.CRON_SECRET }}" \
+            -d "{\"jobKey\":\"$JOB_KEY\",\"lookbackDays\":7}")
+
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "Sync dispatch HTTP status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 202 ]; then
+            echo "::error::Meta sync trigger failed with HTTP $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+          echo "Meta Ads sync job dispatched successfully."

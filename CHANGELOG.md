@@ -8,7 +8,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Fixed — Stage 3 Final Comprehensive Audit & Multi-tenant Fixes (2026-08-23)
+### Added — Stage 4: Official Integration with Meta Marketing API v26.0, Ad Campaigns, Pixels/Datasets & Multi-Tenant Metrics (2026-08-24)
+- **Integración Oficial con Meta Graph API v26.0 (`_shared/metaClient.js`, `_shared/metaConfig.js`):**
+  - Cliente nativo Node.js 24 (`fetch` + `crypto`) sin dependencias pesadas.
+  - Firma obligatoria `appsecret_proof` mediante HMAC-SHA256 para todas las solicitudes al Graph API.
+  - Rate limiting adaptativo con lectura de headers oficiales `x-business-use-case-usage`, `x-app-usage` y `Retry-After`.
+  - Paginación automática segura con límite configurable y backoff exponencial con jitter ante errores 5xx / rate limit (códigos 1, 2, 17, 32, 613).
+  - Sanitización de logs (`sanitizeMetaLog`) para evitar filtración de tokens, secrets o credenciales.
+- **Modelado Canónico y Seguridad Multi-Tenant (`models/`, `_shared/db.js`):**
+  - Desacoplamiento canónico: Cuentas publicitarias (`meta_ad_accounts`) y Datasets/Píxeles (`meta_data_sources`) como activos paralelos vinculados al Portfolio de Meta.
+  - Asignación temporal explícita por empresa (`client_meta_scopes`) con `effectiveFrom`, `effectiveTo`, `assignedByUserId`, `assignmentReason` y auditoría completa.
+  - Almacenamiento diario idempotente a nivel de AdSet (`meta_insights_daily`) con índice único tenant-scoped: `{ clientId: 1, adAccountId: 1, adsetId: 1, date: 1, attributionSettingKey: 1, actionReportTime: 1 }`.
+  - Fórmulas financieras protegidas: Inversión en unidades menores (`spendMinor` en centavos), CPL, CPA, CTR, CPC, CPM y ROAS sobre cobros reales (`ROAS = ingresos cobrados atribuibles / inversión atribuible`).
+  - Detección automática y alerta de campañas mixtas (`MIXED_TENANT_CAMPAIGN` en `meta_asset_conflicts`).
+- **Endpoints de Catálogo, Asignación y Métricas (`api-meta-assets.js`, `api-meta-insights.js`, `api-meta-sync.js`):**
+  - `GET /api/meta/status`: Diagnóstico de conexión, token enmascarado y rate limits.
+  - `GET /api/meta/assets`: Listado de cuentas, datasets y scopes filtrados por empresa.
+  - `POST /api/meta/assets/manual`: Carga manual de IDs de cuentas o datasets por `super_admin`.
+  - `POST /api/meta/assign`: Asignación temporal con motivo y validación de datasets no duplicados.
+  - `POST /api/meta/reclassify-historical`: Previsualización con `dryRun: true` y reclasificación administrativa retroactiva.
+  - `GET /api/meta/insights`: Consulta agregada jerárquica (`summary`, `dataset`, `campaign`, `adset`) con cruce de leads y cobros CRM.
+  - `POST /api/meta/sync`: Disparo de sincronización manual (super_admin) o cron del sistema (`x-cron-auth`).
+  - `meta-sync-background.js`: Background Function de Netlify con checkpoints por cuenta y ventana de tiempo.
+- **Interfaz de Usuario y Dashboard (`CampaignsPage.jsx`, `DashboardPage.jsx`, `components/meta/`):**
+  - Vista completa de Campañas con selector de niveles, filtros por empresa, divisa y fechas, y tabla combinada Meta + CRM.
+  - Componente `ConflictBanner.jsx` para advertir sobre campañas mixtas.
+  - Modal `MetaAssetManagerModal.jsx` para administración, descubrimiento y asignación de activos.
+  - Integración de KPIs reales de Meta Ads en `DashboardPage.jsx` (Inversión, CPL, CPA, ROAS sobre cobros y botón *"Abrir Campañas"*).
+- **Pruebas Automatizadas y Calidad:**
+  - Nuevas suites `meta-backend.test.js` y `meta-frontend.test.jsx` cubriendo el 100% de los flujos.
+  - 150 tests pasando exitosamente en los 20 archivos de test con `npm run lint` en 0 errores.
 - **Dashboard Multiempresa y Aislamiento Estadístico (`api-dashboard.js`, `DashboardPage.jsx`):**
   - Se implementó el filtrado estricto por `clientId` para roles globales (`super_admin`/`admin`), validando la existencia y estado activo del cliente en MongoDB.
   - Para `client` y `salesperson`, se ignora cualquier `clientId` de la URL y se fuerza siempre el `clientScope` de su sesión.

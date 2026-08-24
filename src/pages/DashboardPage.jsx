@@ -7,9 +7,9 @@ import {
   Award,
   Sparkles,
   ShieldCheck,
-  Building2,
   RotateCcw,
   ExternalLink,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Badge } from '../components/ui/Badge';
@@ -125,16 +125,28 @@ export function DashboardPage() {
               </select>
 
               {selectedClientId && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => navigate(`/app/leads?clientId=${encodeURIComponent(selectedClientId)}`)}
-                  className="h-8 text-xs gap-1 py-0 px-2.5 font-medium border-brand-border hover:border-brand-primary"
-                  title="Abrir pipeline de prospectos de esta empresa"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Abrir Pipeline</span>
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => navigate(`/app/leads?clientId=${encodeURIComponent(selectedClientId)}`)}
+                    className="h-8 text-xs gap-1 py-0 px-2.5 font-medium border-brand-border hover:border-brand-primary"
+                    title="Abrir pipeline de prospectos de esta empresa"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Abrir Pipeline</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => navigate(`/app/campaigns?clientId=${encodeURIComponent(selectedClientId)}`)}
+                    className="h-8 text-xs gap-1 py-0 px-2.5 font-medium border-brand-border hover:border-brand-primary"
+                    title="Abrir campañas de Meta Ads de esta empresa"
+                  >
+                    <Megaphone className="w-3.5 h-3.5" />
+                    <span>Abrir Campañas</span>
+                  </Button>
+                </>
               )}
             </div>
           )}
@@ -219,39 +231,40 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* KPI 3: Inversión Meta Ads (Placeholder Etapa 4) */}
-        <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between opacity-85">
+        {/* KPI 3: Inversión Meta Ads */}
+        <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
                 Inversión Meta Ads
               </span>
-              <Building2 className="w-4 h-4 text-gray-400" />
+              <Megaphone className="w-4 h-4 text-blue-600" />
             </div>
-            <div className="text-xl font-bold text-gray-400 mt-2 font-mono italic">
-              Sin datos de Meta
+            <div className={`text-2xl font-extrabold mt-2 font-mono ${kpis?.metaMetrics?.hasMetaIntegration ? 'text-blue-700' : 'text-gray-400 italic text-xl font-bold'}`}>
+              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasMetaIntegration ? `$${kpis.metaMetrics.adSpendFormatted}` : 'Sin datos de Meta'}
             </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
-            Sincronización en Etapa 4
+          <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary flex justify-between">
+            <span>CPL: <strong>{kpis?.metaMetrics?.hasCpl ? `$${kpis.metaMetrics.cpl}` : '-'}</strong></span>
+            <span>CPA: <strong>{kpis?.metaMetrics?.hasCpa ? `$${kpis.metaMetrics.cpa}` : '-'}</strong></span>
           </div>
         </div>
 
-        {/* KPI 4: ROAS Global (Placeholder Etapa 4) */}
-        <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between opacity-85">
+        {/* KPI 4: ROAS sobre Cobros */}
+        <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                ROAS Global
+                ROAS sobre Cobros
               </span>
-              <TrendingUp className="w-4 h-4 text-gray-400" />
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
-            <div className="text-xl font-bold text-gray-400 mt-2 font-mono italic">
-              Sin datos de Meta
+            <div className={`text-2xl font-extrabold mt-2 font-mono ${kpis?.metaMetrics?.hasRoas ? 'text-emerald-700' : 'text-gray-400 italic text-xl font-bold'}`}>
+              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasRoas ? `${kpis.metaMetrics.roas}x` : 'Sin datos de Meta'}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
-            Requiere inversión sincronizada
+            {kpis?.metaMetrics?.hasRoas ? 'Calculado sobre ingresos cobrados' : 'Requiere inversión e ingresos'}
           </div>
         </div>
       </div>

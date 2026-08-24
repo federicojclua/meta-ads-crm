@@ -260,7 +260,77 @@ export async function handler(event) {
       salespeoplePerformance.sort((a, b) => b.collectedMinor - a.collectedMinor);
     }
 
+    // Aggregate Meta Ads Metrics (Stage 4)
+    let metaSummary = [];
+    try {
+      const metaInsightsCollection = db?.collection ? db.collection('meta_insights_daily') : null;
+      const metaMatch = {};
+      if (targetClientId) {
+        metaMatch.clientId = targetClientId;
+      }
+      if (params.startDate || params.endDate) {
+        metaMatch.date = {};
+        if (params.startDate) metaMatch.date.$gte = params.startDate;
+        if (params.endDate) metaMatch.date.$lte = params.endDate;
+      }
+
+      if (metaInsightsCollection && typeof metaInsightsCollection.aggregate === 'function') {
+        metaSummary = await metaInsightsCollection
+          .aggregate([
+            { $match: metaMatch },
+            {
+              $group: {
+                _id: '$currency',
+                spendMinor: { $sum: '$spendMinor' },
+                impressions: { $sum: '$impressions' },
+                clicks: { $sum: '$clicks' },
+              },
+            },
+          ])
+          .toArray();
+      }
+    } catch {
+      metaSummary = [];
+    }
+
+    let totalSpendDefaultMinor = 0;
+    const spendByCurrency = {};
+    const roasByCurrency = {};
+    let hasMetaIntegration = metaSummary.length > 0;
+
+    metaSummary.forEach((row) => {
+      const curr = row._id || 'ARS';
+      const sMinor = row.spendMinor || 0;
+      spendByCurrency[curr] = {
+        spendMinor: sMinor,
+        spendFormatted: (sMinor / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      };
+      totalSpendDefaultMinor += sMinor;
+
+      // Currency-segregated ROAS calculation
+      const revMinor = (revenueByCurrency && revenueByCurrency[curr]?.collectedMinor) || 0;
+      if (sMinor > 0 && revMinor > 0) {
+        roasByCurrency[curr] = Number((revMinor / sMinor).toFixed(2));
+      } else {
+        roasByCurrency[curr] = null;
+      }
+    });
+
+    const totalAdSpend = totalSpendDefaultMinor / 100;
+    const totalCollected = totalCollectedDefaultMinor / 100;
     const defaultCurrency = clientDoc?.defaultCurrency || 'ARS';
+
+    // Derived Financial & Performance KPIs (Blended Tenant Level)
+    const cpl = hasMetaIntegration && totalLeadsCount > 0
+      ? Number((totalAdSpend / totalLeadsCount).toFixed(2))
+      : null;
+    const cpa = hasMetaIntegration && wonLeadsCount > 0
+      ? Number((totalAdSpend / wonLeadsCount).toFixed(2))
+      : null;
+    const primaryCurrency = Object.keys(spendByCurrency)[0] || defaultCurrency;
+    const primaryRoas = roasByCurrency[primaryCurrency] ?? (hasMetaIntegration && totalAdSpend > 0 && totalCollected > 0
+      ? Number((totalCollected / totalAdSpend).toFixed(2))
+      : null);
 
     return jsonResponse(200, {
       kpis: {
@@ -283,14 +353,23 @@ export async function handler(event) {
           maximumFractionDigits: 2,
         }),
         defaultCurrency,
-        // Explicit Meta Ads Placeholders without false zeros (Stage 4)
         metaMetrics: {
-          hasMetaIntegration: false,
-          adSpend: null,
-          cpl: null,
-          cpa: null,
-          roas: null,
-          message: 'Sin datos de Meta Ads (Integración programada para Etapa 4).',
+          hasMetaIntegration,
+          adSpend: hasMetaIntegration ? totalAdSpend : null,
+          adSpendFormatted: hasMetaIntegration
+            ? (totalSpendDefaultMinor / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : '0,00',
+          spendByCurrency,
+          roasByCurrency,
+          cpl,
+          hasCpl: cpl !== null,
+          cpa,
+          hasCpa: cpa !== null,
+          roas: primaryRoas,
+          hasRoas: primaryRoas !== null,
+          isBlended: true,
+          attributionNote: 'Métrica blended a nivel empresa — no atribuida a campañas particulares.',
+          message: hasMetaIntegration ? 'Datos sincronizados de Meta Ads (Métricas blended).' : 'Sin datos de Meta Ads.',
         },
       },
       salespeoplePerformance,

@@ -228,22 +228,31 @@ anima-mkt-crm/
 │       ├── api-clients.js          # Client CRUD (Stage 2)
 │       ├── api-users.js            # User CRUD + invites (Stage 2)
 │       ├── api-leads.js            # Lead management (Stage 3)
-│       ├── api-campaigns.js        # Campaign data (Stage 4)
-│       ├── api-meta-sync-background.js # Background sync (Stage 4)
-│       ├── api-dashboard.js        # Aggregated metrics (Stage 5)
+│       ├── api-sales.js            # Sales & Financial collections (Stage 3)
+│       ├── api-meta-assets.js      # Meta Assets & Portfolio Catalog (Stage 4)
+│       ├── api-meta-insights.js    # Meta Insights & Performance (Stage 4)
+│       ├── api-meta-sync.js        # Sync trigger & cron endpoint (Stage 4)
+│       ├── meta-sync-background.js # 15-min background sync worker (Stage 4)
+│       ├── api-dashboard.js        # Aggregated multi-tenant dashboard (Stage 3 & 4)
 │       └── _shared/
-│           ├── db.js               # MongoDB client + connection pool (anima_mkt_crm)
+│           ├── db.js               # MongoDB client + connection pool + indexes
 │           ├── auth.js             # Token verification with Firebase Admin
 │           ├── permissions.js      # Role & tenant check helpers
-│           └── errors.js           # Standard error responses
+│           ├── metaConfig.js       # Meta environment config & log sanitizer
+│           ├── metaClient.js       # Native Node 24 Graph API v26.0 client (HMAC + Rate Limit)
+│           ├── metaSyncWorker.js   # Idempotent batch sync worker & conflict detector
+│           └── response.js         # Standard JSON error and success responses
 ├── models/
 │   ├── User.js                     # User model schema
 │   ├── Client.js                   # Client model schema
 │   ├── Lead.js                     # Lead model schema
-│   ├── Campaign.js                 # Campaign schema
-│   ├── CampaignInsight.js          # Daily insights schema
-│   ├── ExchangeRate.js             # Currency exchange rate schema
-│   └── AuditLog.js                 # Immutable audit trail schema
+│   ├── Sale.js                     # Sales and collections schema
+│   ├── MetaAdAccount.js            # Ad account catalog schema (Stage 4)
+│   ├── MetaDataSource.js           # Dataset/Pixel catalog schema (Stage 4)
+│   ├── ClientMetaScope.js          # Temporal client scope schema (Stage 4)
+│   ├── MetaCampaign.js             # Meta Campaign schema (Stage 4)
+│   ├── MetaAdSet.js                # Meta AdSet schema (Stage 4)
+│   └── MetaInsightDaily.js         # Tenant-scoped daily insights schema (Stage 4)
 ├── index.html
 ├── vite.config.js
 ├── tailwind.config.js
@@ -262,10 +271,8 @@ anima-mkt-crm/
 | Firebase Auth (not Netlify ID)  | Mature SDK, reliable token lifecycle, decouples from hosting provider |
 | MongoDB Atlas (`anima_mkt_crm`) | Authoritative source for RBAC, multi-tenant schemas and aggregation |
 | Netlify Functions               | Zero infrastructure management, automatic scaling, background functions support |
-| TanStack Query                  | Automatic client caching, background refetching and optimistic state updates |
-| Tailwind CSS                    | Consistent design tokens, rapid layout development       |
-| Server-side role enforcement    | Authorization is strictly verified in functions, never trusted from client |
-| Distinct Visual Identity        | Operational commercial aesthetic (white/warm-neutral/red/charcoal), no generic AI glow |
-| Firebase Admin 13.10.0 Pinning  | Modular API pinned to 13.10.0 to prevent upstream jwks-rsa 4 / jose 6 ESM conflicts |
-| Hybrid Auth & Password Linking  | In-app password linking for Google-only users without duplicate accounts or UID change |
-| Multi-Tenant Scoping & Preauth  | Server-side forced `clientId` scoping and atomic Google UID linking for invited users |
+| Meta Graph API v26.0            | Pinned deterministic Graph API version, native fetch client with HMAC proof |
+| Tenant-Scoped Unique Key        | `{ clientId, adAccountId, adsetId, date, attributionSettingKey, actionReportTime }` guarantees idempotency without leaking across clients |
+| Decoupled Meta Topology         | Ad Accounts and Datasets/Pixels modeled as parallel assets assigned via temporal scopes |
+| Financial Minor Units           | Minor units in cents (`spendMinor`, `collectedAmountMinor`) and separate currency buckets |
+| Tailored UI Experience          | Combined Meta + CRM metrics with safe division formulas and unaggregated reach tooltips |

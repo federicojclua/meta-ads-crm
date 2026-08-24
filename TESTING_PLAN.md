@@ -5,14 +5,17 @@
 | Level              | Tool / Method             | Stage  | Estado |
 |--------------------|---------------------------|--------|--------|
 | Unit & Backend Auth| Vitest (`auth-backend.test.js`) | 1+ | ✅ 16 tests pasados |
-| Clients Backend    | Vitest (`clients-backend.test.js`) | 2+ | ✅ 6 tests pasados |
-| Users Backend      | Vitest (`users-backend.test.js`) | 2+ | ✅ 6 tests pasados |
-| Tenant Isolation   | Vitest (`multi-tenant-isolation.test.js`) | 2+ | ✅ 6 tests pasados |
-| Component & Guards | Vitest + Testing Library (`auth-frontend.test.jsx`) | 1+ | ✅ 12 tests pasados |
-| Clients Frontend UI| Vitest + Testing Library (`clients-frontend.test.jsx`) | 2+ | ✅ 3 tests pasados |
-| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 12 tests pasados |
-| Netlify & Routing  | Vitest (`routes.test.js`)  | 1+     | ✅ 2 tests pasados |
-| Security audits    | `npm audit --omit=dev`     | 1+, 2  | ✅ 0 críticas, 0 altas |
+| Clients Backend    | Vitest (`clients-backend.test.js`) | 2+ | ✅ 8 tests pasados |
+| Users Backend      | Vitest (`users-backend.test.js`) | 2+ | ✅ 10 tests pasados |
+| Tenant Isolation   | Vitest (`multi-tenant-isolation.test.js`) | 2+ | ✅ 8 tests pasados |
+| Leads Backend      | Vitest (`leads-backend.test.js`) | 3+ | ✅ 9 tests pasados |
+| Sales Backend      | Vitest (`sales-backend.test.js`) | 3+ | ✅ 5 tests pasados |
+| Sales Concurrency  | Vitest (`sales-concurrency.test.js`) | 3+ | ✅ 4 tests pasados |
+| Stage 3 Audit      | Vitest (`stage3-audit-final.test.js`) | 3+ | ✅ 11 tests pasados |
+| Meta Backend API   | Vitest (`meta-backend.test.js`) | 4+ | ✅ 21 tests pasados |
+| Meta Frontend UI   | Vitest (`meta-frontend.test.jsx`) | 4+ | ✅ 4 tests pasados |
+| Security & Secrets | Vitest (`security.test.js`)| 1+ | ✅ 11 tests pasados |
+| Total Tests        | Vitest (`npm test`)        | 4  | ✅ **163 tests en 20 suites (100% pasando)** |
 
 ---
 

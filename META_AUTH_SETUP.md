@@ -1,143 +1,77 @@
-# Anima MKT CRM — Meta API Authentication & Setup
-
-> ⚠️ This document is for **Stage 4**. Do not configure Meta until Stages 1-2 are complete and tested.
+# Anima MKT CRM — Meta API Authentication & Setup (v26.0)
 
 ## 1. Overview
 
-Anima MKT CRM connects to the **Meta Marketing API** to sync:
-- Ad campaigns and their status
-- Daily insights (spend, impressions, clicks, actions, costs)
+Anima MKT CRM connects to the **Meta Marketing API v26.0** (Official Meta Graph API) to sync:
+- Ad accounts, campaigns, AdSets, and data sources (Datasets/Pixels).
+- Daily AdSet insights (spend in cents, impressions, reach, clicks, conversions).
+- Cross-correlation with CRM leads and closed/collected revenue for real ROAS.
 
-Lead Ads webhook ingestion is a separate integration gated behind `ENABLE_META_LEAD_ADS=false` and documented in section 10.
+All Graph API calls strictly send `Authorization: Bearer <token>` in HTTP headers (never in query parameters) and compute `appsecret_proof` via HMAC-SHA256(`META_APP_SECRET`, `META_SYSTEM_USER_TOKEN`).
 
-## 2. Prerequisites
+---
 
-- A Meta Business Account
-- A Meta App (type: Business)
-- A System User with appropriate permissions
-- Ad accounts added to the Business Manager
+## 2. Official Endpoints & Verification (Meta Graph API v26.0)
 
-## 3. Meta App Setup
+Official Meta Documentation Reference: [Meta Marketing API Reference](https://developers.facebook.com/docs/marketing-apis)
 
-### 3.1 Create Meta App
-1. Go to [Meta for Developers](https://developers.facebook.com)
-2. Create a new app → Business type
-3. Note the **App ID** and **App Secret**
+### 2.1 Confirmed Official Edges
+| Asset / Edge | Method & Official URL Pattern | Required Permission | App Review Required |
+|---|---|---|---|
+| **Account Identity** | `GET https://graph.facebook.com/v26.0/me?fields=id,name` | `ads_read` | No (System User) |
+| **Owned Ad Accounts** | `GET https://graph.facebook.com/v26.0/{business_id}/owned_ad_accounts?fields=id,name,currency,timezone_name,account_status` | `ads_read` | No for owned assets |
+| **Client Ad Accounts** | `GET https://graph.facebook.com/v26.0/{business_id}/client_ad_accounts?fields=id,name,currency,timezone_name,account_status` | `ads_read` | No for assigned assets |
+| **Owned Pixels** | `GET https://graph.facebook.com/v26.0/{business_id}/owned_pixels?fields=id,name,is_unavailable,creation_time` | `ads_read` | No for owned pixels |
+| **Pixel Validation** | `GET https://graph.facebook.com/v26.0/{pixel_id}?fields=id,name,is_unavailable,creation_time` | `ads_read` | No |
+| **Ad Account Campaigns**| `GET https://graph.facebook.com/v26.0/{ad_account_id}/campaigns?fields=id,name,status,objective,start_time,stop_time` | `ads_read` | No |
+| **Ad Account AdSets** | `GET https://graph.facebook.com/v26.0/{ad_account_id}/adsets?fields=id,name,status,campaign_id,promoted_object,daily_budget,lifetime_budget` | `ads_read` | No |
+| **AdSet Insights** | `GET https://graph.facebook.com/v26.0/{ad_account_id}/insights?level=adset&time_increment=1&fields=adset_id,campaign_id,date_start,date_stop,spend,impressions,reach,clicks,inline_link_clicks,actions,action_values,cost_per_action_type,attribution_setting` | `ads_read` | No |
 
-### 3.2 Add Products
-- **Marketing API** — for campaign and insights data
+### 2.2 Unverified Generic Endpoints Policy
+- The unconfirmed generic edge `GET https://graph.facebook.com/v26.0/{business_id}/datasets` is **NOT utilized**.
+- Any call to an unverified endpoint is blocked by `isVerifiedMetaEndpoint` and returns `META_ENDPOINT_UNAVAILABLE`.
+- Datasets and custom data sources are managed via manual input of `datasetId` or `pixelId` by the `super_admin` and validated individually against `GET /{pixel_id}`.
 
-### 3.3 Request Permissions
+---
 
-**MVP (read-only campaign sync):**
-- `ads_read` — read campaigns, insights, and ad account metadata
+## 3. System User & Token Setup
 
-**Not required for MVP:**
-- `ads_management` — only needed if the CRM will create, edit, or pause campaigns in the future
-- `business_management` — only needed if programmatic asset assignment is required; not justified for the current scope
+1. In Meta Business Manager → **Business Settings** → **Users** → **System Users**.
+2. Create an Admin System User.
+3. Assign assets (Ad Accounts, Pixels/Datasets) with `ads_read` permission.
+4. Generate a permanent System User access token.
+5. Save the token as `META_SYSTEM_USER_TOKEN` in Netlify environment variables (never in source code or database).
 
-**Lead Ads integration (gated by `ENABLE_META_LEAD_ADS`):**
-- `leads_retrieval` — read Lead Ads submissions
-- `pages_read_engagement` — required alongside leads_retrieval for page-level access
+---
 
-### 3.4 App Review
-- For development: use your own ad accounts (no review needed)
-- For production with client accounts: submit for App Review
-- `ads_read` typically does not require full App Review for your own Business assets
+## 4. Environment Variables
 
-## 4. System User Setup
-
-### 4.1 Create System User
-1. Go to Business Manager → Business Settings
-2. Navigate to Users → System Users
-3. Create a System User (Admin level)
-4. Assign the ad accounts this user can access
-
-### 4.2 Generate Token
-1. Click on the System User → Generate Token
-2. Select the Meta App
-3. Select permissions: `ads_read` (add `leads_retrieval` later if needed)
-4. Copy the token
-5. Store as `META_SYSTEM_USER_TOKEN` in Netlify environment variables (server-side only)
-
-> ⚠️ **Token validity:** System User tokens do not have a built-in expiration date, but they **can become invalid** due to:
-> - Manual revocation in Business Manager
-> - Changes in asset assignments (ad accounts removed from the System User)
-> - Permission changes on the Meta App
-> - Security events (e.g., Business Manager flagged or restricted)
-> - Meta platform policy changes
->
-> **Requirement:** Implement a health check endpoint (`/api/meta/health`) that validates the token periodically. Set up alerts when the token becomes invalid so it can be rotated promptly.
-
-### 4.3 Token Storage
-
-- The System User token must be stored **exclusively** in Netlify environment variables (server-side)
-- **Never** store the token inside a client document in MongoDB
-- In `clients.meta`, store only: ad account IDs, connection status, last verification date, and a connection reference — not the token itself
-
-## 5. Environment Variables
-
-```
-META_APP_ID=<set-in-netlify>
-META_APP_SECRET=<set-in-netlify>
-META_SYSTEM_USER_TOKEN=<set-in-netlify>
+```bash
+# Server-side only (never expose in VITE_ prefix)
+META_APP_ID=123456789012345
+META_APP_SECRET=abcdef0123456789abcdef0123456789
+META_SYSTEM_USER_TOKEN=EAAB...
+META_BUSINESS_ID=123456789012345
 META_API_VERSION=v26.0
-META_VERIFY_TOKEN=<set-in-netlify>
-ENABLE_META_LEAD_ADS=false
+CRON_SECRET=super_secret_cron_token_minimum_32_chars
 ```
 
-All are server-side only. None use `VITE_` prefix. `META_API_VERSION` is configurable to allow future upgrades without code changes.
+---
 
-## 6. Ad Account Linking
+## 5. Security & Rate Limiting Guidelines
 
-When a client is created in Anima MKT CRM:
-1. The super_admin enters the Meta Ad Account ID(s) for that client
-2. The system verifies access using the System User token via a server-side function
-3. In `clients.meta`, store:
-   - `adAccountIds` — the linked account IDs
-   - `connectionStatus` — e.g., "verified", "pending", "error"
-   - `lastVerifiedAt` — timestamp of last successful verification
-   - `connectionRef` — an internal reference identifier (not a token)
-4. Sync functions use these IDs to pull data
+1. **Authorization Header:** All HTTP requests send `Authorization: Bearer <token>`.
+2. **AppSecret Proof:** Every outgoing request appends `appsecret_proof = HMAC-SHA256(META_APP_SECRET, META_SYSTEM_USER_TOKEN)`.
+3. **Usage Headers:** Parsed from `x-business-use-case-usage` and `x-app-usage`.
+   - $\ge 75\%$: Proactive throttling and sleep delay.
+   - $\ge 90\%$: Halt pagination for that account.
+4. **Log Sanitization:** All tokens and secrets are redacted to `[REDACTED]` prior to logging.
 
-## 7. API Endpoints (Stage 4)
+---
 
-| Endpoint                  | Purpose                                  |
-|---------------------------|------------------------------------------|
-| `/api/meta/sync-campaigns`| Pull campaigns for a client              |
-| `/api/meta/sync-insights` | Pull daily insights for a client         |
-| `/api/meta/health`        | Validate token and check API access      |
+## 6. Scheduled Automation (Every 6 Hours)
 
-The webhook endpoint (`/api/meta/webhook`) is part of the Lead Ads integration and will be added when `ENABLE_META_LEAD_ADS` is activated.
-
-## 8. Rate Limits
-
-- Meta Marketing API has usage-based rate limits (verify current thresholds before implementing)
-- Implement exponential backoff on 429 and 500-level responses
-- Use checkpoints for incremental sync
-- Avoid pulling all data every time
-- Log rate limit headers for monitoring
-
-## 9. Security Considerations
-
-- System User token is a **critical secret**
-- Never expose in frontend, logs, error messages, or MongoDB documents
-- Rotate token immediately if suspected compromise
-- Monitor API calls in Meta Business Manager
-- Use the minimum required permissions (`ads_read` for MVP)
-- Health check must alert on token invalidation
-
-## 10. Lead Ads Webhook Setup (future, gated by ENABLE_META_LEAD_ADS)
-
-> This integration is **disabled by default** and requires additional permissions (`leads_retrieval`, `pages_read_engagement`). Do not enable until the base Meta sync (Stage 4) is tested and working.
-
-When enabled:
-1. Configure webhook URL: `https://your-site.netlify.app/api/meta/webhook`
-2. Set `META_VERIFY_TOKEN` as the verify token
-3. Subscribe to `leadgen` events for the client's page
-4. The webhook endpoint must:
-   - Verify the hub challenge on GET
-   - Validate the payload signature on POST
-   - Fetch full lead data using the lead ID
-   - Match to the correct client by ad account
-   - Create the lead in MongoDB
+- Managed by GitHub Actions workflow: `.github/workflows/meta-sync-cron.yml`.
+- Runs on schedule `0 */6 * * *` and `workflow_dispatch`.
+- Authenticates via header `X-Cron-Auth: ${{ secrets.CRON_SECRET }}` compared with `crypto.timingSafeEqual`.
+- Concurrency protected: multiple simultaneous syncs for the same account are rejected (`409 SYNC_JOB_ALREADY_RUNNING`).

@@ -201,109 +201,153 @@ Commercial sales and payment collections in minor units (cents).
 
 ---
 
-### 2.6 `campaigns`
+---
 
-Synced from Meta Marketing API.
+### 2.6 `meta_ad_accounts`
+
+Catálogo de cuentas publicitarias vinculadas al Portfolio de Meta.
 
 ```json
 {
   "_id": "ObjectId",
-  "clientId": "ObjectId (required, indexed)",
-  "metaCampaignId": "string (indexed)",
-  "metaAdAccountId": "string",
+  "adAccountId": "string (required, unique, e.g. 'act_1234567890')",
   "name": "string",
-  "status": "enum: ACTIVE | PAUSED | DELETED | ARCHIVED",
-  "objective": "string",
-  "dailyBudget": "number | null",
-  "lifetimeBudget": "number | null",
-  "currency": "string",
-  "primaryResultActionType": "string",  // e.g., 'onsite_conversion.lead_grouped', 'lead', 'purchase', 'link_click'
-  "startDate": "ISODate | null",
-  "endDate": "ISODate | null",
-  "insights": {
-    "lastSyncedAt": "ISODate | null",
-    "dateRange": {
-      "start": "ISODate",
-      "end": "ISODate"
-    }
-  },
+  "currency": "string (e.g. 'ARS', 'USD')",
+  "timezone": "string",
+  "accountStatus": "number (1=ACTIVE, 2=DISABLED, etc.)",
+  "assignedClientId": "ObjectId | null",
+  "isSharedAccount": "boolean",
+  "ownershipType": "enum: owned | client | manual",
   "createdAt": "ISODate",
   "updatedAt": "ISODate"
 }
 ```
 
 **Indexes:**
-- `{ clientId: 1, metaCampaignId: 1 }` — unique compound
-- `{ clientId: 1, status: 1 }`
+- `{ adAccountId: 1 }` — `{ unique: true, name: "uniq_meta_ad_account_id" }`
+- `{ assignedClientId: 1 }`
 
 ---
 
-### 2.5 `campaign_insights`
+### 2.7 `meta_data_sources`
 
-Daily raw performance metrics ingested from Meta API.
+Catálogo de Datasets y Píxeles de Meta vinculados a las empresas cliente.
+
+```json
+{
+  "_id": "ObjectId",
+  "metaDatasetId": "string (required, unique, e.g. '9876543210')",
+  "name": "string",
+  "type": "enum: dataset | pixel",
+  "assignedClientId": "ObjectId | null",
+  "ownershipType": "enum: owned | shared | manual",
+  "isExclusive": "boolean",
+  "createdAt": "ISODate",
+  "updatedAt": "ISODate"
+}
+```
+
+**Indexes:**
+- `{ metaDatasetId: 1 }` — `{ unique: true, name: "uniq_meta_dataset_id" }`
+- `{ assignedClientId: 1 }`
+
+---
+
+### 2.8 `client_meta_scopes`
+
+Asignaciones temporales auditables de cuentas y datasets a empresas cliente.
 
 ```json
 {
   "_id": "ObjectId",
   "clientId": "ObjectId (required, indexed)",
-  "campaignId": "ObjectId (required, indexed)",
-  "metaCampaignId": "string",
-  "date": "ISODate",                    // Day of the insight (UTC midnight)
+  "adAccountId": "string (required)",
+  "allowedDatasetIds": ["string"],
+  "manuallyAssignedCampaignIds": ["string"],
+  "isExclusiveAccount": "boolean",
+  "effectiveFrom": "ISODate (required)",
+  "effectiveTo": "ISODate | null",
+  "assignedByUserId": "ObjectId (required)",
+  "assignmentReason": "string (required)",
+  "status": "enum: active | archived",
+  "createdAt": "ISODate",
+  "updatedAt": "ISODate"
+}
+```
 
-  // Additive Metrics (Safe to sum across date ranges and campaigns)
-  "spend": "number",
-  "impressions": "number",
-  "clicks": "number",
-  "linkClicks": "number",
-  "landingPageViews": "number",
+**Indexes:**
+- `{ clientId: 1, adAccountId: 1, effectiveFrom: 1 }`
+- `{ adAccountId: 1, status: 1 }`
 
-  // Normalized Action Arrays (Additive counts/amounts per action_type)
+---
+
+### 2.9 `meta_insights_daily`
+
+Métricas diarias a nivel de AdSet ingeridas con granularidad e idempotencia estricta.
+
+```json
+{
+  "_id": "ObjectId",
+  "clientId": "ObjectId (required, indexed)",
+  "adAccountId": "string (required)",
+  "campaignId": "string (required)",
+  "adsetId": "string (required)",
+  "datasetId": "string | null",
+  "date": "string (YYYY-MM-DD)",
+  "attributionSettingKey": "string (default: 'default')",
+  "actionReportTime": "string (default: 'conversion')",
+  "currency": "string (ARS / USD)",
+  "spendMinor": "integer (minor units/cents)",
+  "impressions": "integer",
+  "reach": "integer (non-additive across days)",
+  "clicks": "integer",
+  "linkClicks": "integer",
+  "landingPageViews": "integer",
   "actions": [
-    {
-      "action_type": "string",          // e.g., 'lead', 'link_click', 'offsite_conversion.fb_pixel_purchase'
-      "value": "number"
-    }
+    { "actionType": "string", "value": "number" }
   ],
-  "action_values": [
-    {
-      "action_type": "string",
-      "value": "number"
-    }
+  "actionValues": [
+    { "actionType": "string", "valueMinor": "integer" }
   ],
-
-  // Non-Additive Metrics & Meta-Reported Snapshots (DO NOT SUM ACROSS DATES)
-  "reach": "number",                    // Unique users reached on this day only (NON-ADDITIVE)
-  "metaReported": {
-    "costPerActionType": [              // Derived value from Meta for this single day (SNAPSHOT ONLY)
-      {
-        "action_type": "string",
-        "value": "number"
-      }
-    ]
-  },
-
-  "currency": "string",
+  "costPerActionType": [
+    { "actionType": "string", "costMinor": "integer" }
+  ],
+  "primaryResultType": "string",
+  "primaryResultCount": "number",
+  "syncedAt": "ISODate",
   "createdAt": "ISODate"
 }
 ```
 
 **Indexes:**
-- `{ clientId: 1, campaignId: 1, date: 1 }` — unique compound
-- `{ clientId: 1, date: -1 }` — dashboard date range queries
+- `{ clientId: 1, adAccountId: 1, adsetId: 1, date: 1, attributionSettingKey: 1, actionReportTime: 1 }` — `{ unique: true, name: "uniq_insight_tenant_adset_date" }`
+- `{ clientId: 1, date: -1 }`
+- `{ campaignId: 1, date: -1 }`
+- `{ datasetId: 1, date: -1 }`
 
-**Important Aggregation & Reporting Rules:**
-- **Additive Metrics:** `spend`, `impressions`, `clicks`, `linkClicks`, `landingPageViews`, `actions` y `action_values` pueden sumarse directamente a lo largo de días o entre campañas del mismo cliente.
-- **`cost_per_action_type` NO es aditivo:** Es un valor derivado informado por Meta para el período específico. Nunca debe sumarse entre días. Se almacena bajo `metaReported.costPerActionType` únicamente como snapshot de auditoría/trazabilidad diaria.
-- **Cálculo de CPA en rangos acumulados:** Para cualquier rango de fechas (semanal, mensual o personalizado), el CPA o CPL se calcula dinámicamente como:
-  $$\text{CPA} = \frac{\sum \text{spend}}{\sum \text{actions}(\text{action\_type})}$$
-- **Métricas NO Aditivas:**
-  - `reach`: No se puede sumar entre días (generaría doble conteo de usuarios). Para períodos acumulados se debe tomar el snapshot del período informado por Meta o reportar el alcance diario promedio/máximo.
-  - Ratios y métricas derivadas: CTR, CPC, CPM, CPL, CPA y ROAS **NUNCA** se suman ni se promedian directamente. Se calculan en tiempo de consulta:
-    - $\text{CTR} = \frac{\sum \text{clicks}}{\sum \text{impressions}} \times 100$
-    - $\text{CPC} = \frac{\sum \text{spend}}{\sum \text{clicks}}$
-    - $\text{CPM} = \frac{\sum \text{spend}}{\sum \text{impressions}} \times 1000$
-    - $\text{CPL} = \frac{\sum \text{spend}}{\sum \text{leads}}$
-    - $\text{ROAS} = \frac{\sum \text{collectedAmount}}{\sum \text{spend}}$
+---
+
+### 2.10 `meta_asset_conflicts`
+
+Registro de anomalías y campañas mixtas entre tenants.
+
+```json
+{
+  "_id": "ObjectId",
+  "conflictCode": "enum: MIXED_TENANT_CAMPAIGN | SHARED_PIXEL_OVERLAP | UNASSIGNED_ACTIVE_SPEND",
+  "entityType": "enum: campaign | dataset | ad_account",
+  "entityId": "string",
+  "affectedClientIds": ["ObjectId"],
+  "details": "string",
+  "detectedAt": "ISODate",
+  "resolvedAt": "ISODate | null",
+  "resolvedByUserId": "ObjectId | null"
+}
+```
+
+**Indexes:**
+- `{ conflictCode: 1, entityId: 1 }` — `{ name: "idx_conflict_code_entity" }`
+- `{ affectedClientIds: 1 }`
 
 ---
 

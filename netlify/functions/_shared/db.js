@@ -92,6 +92,7 @@ export async function ensureIndexes(db) {
 
   // 3. Helper to safely create indexes tolerating concurrent creation
   const createIndexSafely = async (collection, keys, options) => {
+    if (!collection || typeof collection.createIndex !== 'function') return;
     try {
       await collection.createIndex(keys, options);
     } catch (createErr) {
@@ -219,6 +220,116 @@ export async function ensureIndexes(db) {
       salesCollection,
       { clientId: 1, soldAt: -1 },
       { name: 'idx_sale_client_soldAt' }
+    ),
+
+    // =========================================================================
+    // Stage 4: Meta Ads Collections & Indexes
+    // =========================================================================
+    // 1. Meta Insights Daily (Tenant-Scoped Unique Key & Query Indexes)
+    createIndexSafely(
+      db.collection('meta_insights_daily'),
+      { clientId: 1, adAccountId: 1, adsetId: 1, date: 1, attributionSettingKey: 1, actionReportTime: 1 },
+      {
+        unique: true,
+        name: 'uniq_insight_tenant_adset_date',
+      }
+    ),
+    createIndexSafely(
+      db.collection('meta_insights_daily'),
+      { clientId: 1, date: 1, currency: 1 },
+      { name: 'idx_insight_client_date_currency' }
+    ),
+    createIndexSafely(
+      db.collection('meta_insights_daily'),
+      { clientId: 1, campaignId: 1, date: 1 },
+      { name: 'idx_insight_client_campaign_date' }
+    ),
+    createIndexSafely(
+      db.collection('meta_insights_daily'),
+      { clientId: 1, datasetId: 1, date: 1 },
+      { name: 'idx_insight_client_dataset_date' }
+    ),
+
+    // 2. Meta Ad Accounts
+    createIndexSafely(
+      db.collection('meta_ad_accounts'),
+      { adAccountId: 1 },
+      { unique: true, name: 'uniq_meta_ad_account_id' }
+    ),
+    createIndexSafely(
+      db.collection('meta_ad_accounts'),
+      { assignedClientId: 1 },
+      { name: 'idx_meta_ad_account_client' }
+    ),
+
+    // 3. Meta Data Sources (Datasets & Pixels)
+    createIndexSafely(
+      db.collection('meta_data_sources'),
+      { metaDatasetId: 1 },
+      { unique: true, name: 'uniq_meta_dataset_id' }
+    ),
+    createIndexSafely(
+      db.collection('meta_data_sources'),
+      { assignedClientId: 1 },
+      { name: 'idx_meta_data_source_client' }
+    ),
+
+    // 4. Client Meta Scopes (Temporal Scoping)
+    createIndexSafely(
+      db.collection('client_meta_scopes'),
+      { clientId: 1, adAccountId: 1, status: 1 },
+      { name: 'idx_client_meta_scope_active' }
+    ),
+
+    // 5. Meta Campaigns & AdSets
+    createIndexSafely(
+      db.collection('meta_campaigns'),
+      { campaignId: 1 },
+      { unique: true, name: 'uniq_meta_campaign_id' }
+    ),
+    createIndexSafely(
+      db.collection('meta_campaigns'),
+      { adAccountId: 1, status: 1 },
+      { name: 'idx_meta_campaign_account_status' }
+    ),
+    createIndexSafely(
+      db.collection('meta_campaigns'),
+      { assignedClientId: 1 },
+      { name: 'idx_meta_campaign_client' }
+    ),
+    createIndexSafely(
+      db.collection('meta_adsets'),
+      { adsetId: 1 },
+      { unique: true, name: 'uniq_meta_adset_id' }
+    ),
+    createIndexSafely(
+      db.collection('meta_adsets'),
+      { campaignId: 1 },
+      { name: 'idx_meta_adset_campaign' }
+    ),
+    createIndexSafely(
+      db.collection('meta_adsets'),
+      { assignedClientId: 1 },
+      { name: 'idx_meta_adset_client' }
+    ),
+
+    // 6. Meta Asset Conflicts
+    createIndexSafely(
+      db.collection('meta_asset_conflicts'),
+      { conflictCode: 1, entityId: 1, resolvedAt: 1 },
+      { name: 'idx_meta_conflict_lookup' }
+    ),
+
+    // 7. Meta Sync Checkpoints & Logs
+    createIndexSafely(
+      db.collection('meta_sync_checkpoints'),
+      { adAccountId: 1, dateStart: 1, dateStop: 1 },
+      { name: 'idx_meta_sync_checkpoint' }
+    ),
+    createIndexSafely(
+      db.collection('meta_sync_logs'),
+      { createdAt: -1 },
+      { name: 'idx_meta_sync_logs_created' }
     ),
   ]);
 

@@ -61,8 +61,26 @@
   force = true
 
 [[redirects]]
-  from = "/api/dashboard/*"
-  to = "/.netlify/functions/api-dashboard"
+  from = "/api/meta/insights"
+  to = "/.netlify/functions/api-meta-insights"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/meta/insights/*"
+  to = "/.netlify/functions/api-meta-insights"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/meta/sync"
+  to = "/.netlify/functions/api-meta-sync"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/meta/*"
+  to = "/.netlify/functions/api-meta-assets"
   status = 200
   force = true
 
