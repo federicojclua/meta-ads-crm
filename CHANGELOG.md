@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Dashboard Multiempresa Direct in main (2026-08-24)
+- **Soporte de Vista Global ("Todas las Empresas") en Backend:** Se modificó `api-dashboard.js` para admitir consultas sin `clientId` (o con `clientId=all`), filtrando leads, ventas y vendedores de únicamente empresas con `status: 'active'`.
+- **Aseguramiento Multidivisa:** Se prohibió sumar directamente monedas diferentes (ARS y USD). La agregación y KPIs financieros del dashboard (`totalCollectedFormatted`, `adSpendFormatted`, `roasFormatted`, `cplFormatted`, `cpaFormatted`) ahora se desglosan limpiamente por divisa separados por una barra diagonal (` / `) si hay múltiples divisas, y conservan la presentación normal si hay una sola moneda.
+- **Aislamiento en Ranking de Vendedores:** Se incluyeron únicamente usuarios con `role: 'salesperson'` en el ranking comercial, y se añadió la propiedad `companyName` para identificar la empresa de pertenencia de cada vendedor en la vista global y evitar colisiones de nombres o identificadores de distintos tenants.
+- **Actualización de Etiquetas Visuales:** Se actualizaron las constantes visuales del sistema para mostrar `FASE 5A` en lugar de `ETAPA 3 · ACTIVA`, actualizando dinámicamente el header y badges correspondientes.
+- **Limpieza de Estados de Carga:** Se configuró el vaciado del estado de estadísticas (`stats = null`) en el frontend inmediatamente al cambiar de empresa seleccionada para evitar visualizaciones mezcladas de datos anteriores.
+- **Robustez de Tests:** Se incorporaron 20 casos de prueba exhaustivos en las suites de backend (`dashboard-backend.test.js`) y frontend (`dashboard-frontend.test.jsx`) para validar todas las combinaciones de roles, scopes y visualización de monedas.
+
 ### Added — Phase 5A Gate 1: Endurecimiento Técnico Previo a la Activación (2026-08-24)
 - **Reclasificación de APP_URL:** Modificado el workflow `.github/workflows/meta-sync-cron.yml` para consumir `APP_URL` desde `vars.APP_URL` (variable pública) en lugar de un secret, manteniendo `CRON_SECRET` protegido en secrets.
 - **Endurecimiento de /status:** Refactorizado el endpoint `GET /api/meta/status` para retornar exclusivamente booleanos (`hasAppId`, `hasAppSecret`, `hasSystemUserToken`, etc.) y versionamiento, eliminando cualquier fragmento o enmascaramiento parcial del token para prevenir filtraciones.

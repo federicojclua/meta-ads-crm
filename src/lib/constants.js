@@ -19,9 +19,9 @@ export const ROLE_LABELS = {
 };
 
 export const CURRENT_STAGE = {
-  NUMBER: 3,
-  LABEL: 'ETAPA 3 · ACTIVA',
-  SHORT_LABEL: 'Etapa 3 Activa',
+  NUMBER: 5,
+  LABEL: 'FASE 5A',
+  SHORT_LABEL: 'Fase 5A',
   NAME: 'Leads, Pipeline Comercial, Ventas e Ingresos Cobrados',
   DESCRIPTION: 'Alta manual y CSV de prospectos, tablero Kanban accesible, registro de ventas en centavos, seguimiento de cobros parciales/totales y KPIs en tiempo real.',
   NEXT_STAGE_NAME: 'Integración Meta Ads, Sincronización de Campañas y ROAS Real',

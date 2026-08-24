@@ -53,6 +53,7 @@ export function DashboardPage() {
 
     setIsLoading(true);
     setError(null);
+    setStats(null);
 
     try {
       const q = selectedClientId ? `?clientId=${encodeURIComponent(selectedClientId)}` : '';
@@ -245,8 +246,8 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary flex justify-between">
-            <span>CPL: <strong>{kpis?.metaMetrics?.hasCpl ? `$${kpis.metaMetrics.cpl}` : '-'}</strong></span>
-            <span>CPA: <strong>{kpis?.metaMetrics?.hasCpa ? `$${kpis.metaMetrics.cpa}` : '-'}</strong></span>
+            <span>CPL: <strong>{kpis?.metaMetrics?.cplFormatted ? `$${kpis.metaMetrics.cplFormatted}` : '—'}</strong></span>
+            <span>CPA: <strong>{kpis?.metaMetrics?.cpaFormatted ? `$${kpis.metaMetrics.cpaFormatted}` : '—'}</strong></span>
           </div>
         </div>
 
@@ -260,7 +261,7 @@ export function DashboardPage() {
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
             <div className={`text-2xl font-extrabold mt-2 font-mono ${kpis?.metaMetrics?.hasRoas ? 'text-emerald-700' : 'text-gray-400 italic text-xl font-bold'}`}>
-              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasRoas ? `${kpis.metaMetrics.roas}x` : 'Sin datos de Meta'}
+              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasRoas ? kpis.metaMetrics.roasFormatted : 'Sin datos de Meta'}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
@@ -340,8 +341,13 @@ export function DashboardPage() {
                   {salespeople.map((sp) => (
                     <tr key={sp.id} className="hover:bg-gray-50/60">
                       <td className="p-2 font-semibold text-brand-text-primary">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center flex-wrap gap-1.5">
                           <span>{sp.displayName || sp.email}</span>
+                          {isGlobal && sp.companyName && (
+                            <span className="text-[10px] text-gray-500 font-normal">
+                              ({sp.companyName})
+                            </span>
+                          )}
                           {sp.isPendingActivation && (
                             <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded font-normal">
                               Pendiente activación

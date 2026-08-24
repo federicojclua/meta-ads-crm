@@ -120,4 +120,203 @@ describe('Frontend Dashboard UI & Conversion Rate Denominator Handling', () => {
       expect(screen.getAllByText('Sin datos de Meta').length).toBeGreaterThan(0);
     });
   });
+
+  it('3. Frontend con "Todas las Empresas" no envia clientId y llama a la API correctamente', async () => {
+    const fetchSpy = vi.fn().mockImplementation((url) => {
+      if (url.includes('/api/clients')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ clients: [{ id: 'client-1', name: 'Empresa Demo', slug: 'empresa-demo' }] }),
+        });
+      }
+      if (url.includes('/api/dashboard/stats')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            kpis: {
+              totalLeadsCount: 0,
+              wonLeadsCount: 0,
+              conversionRate: null,
+              hasConversionData: false,
+              totalCollectedFormatted: '0,00',
+              revenueByCurrency: {},
+              pipelineBreakdown: { new: 0, contacted: 0, qualified: 0, won: 0, lost: 0 },
+            },
+            salespeoplePerformance: [],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    });
+    global.fetch = fetchSpy;
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Todas las Empresas/i)).toBeInTheDocument();
+    });
+
+    const callUrls = fetchSpy.mock.calls.map(call => call[0]);
+    const statsCall = callUrls.find(url => url.includes('/api/dashboard/stats'));
+    expect(statsCall).toBeDefined();
+    // Verify no clientId param (or at least not 'all') is appended when "Todas las Empresas" is active
+    expect(statsCall).not.toContain('clientId=all');
+  });
+
+  it('4. Cambio de vista global a empresa concreta realiza nueva peticion con clientId', async () => {
+    let callUrls = [];
+    global.fetch = vi.fn().mockImplementation((url) => {
+      callUrls.push(url);
+      if (url.includes('/api/clients')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ clients: [{ id: 'client-1', name: 'Empresa Demo', slug: 'empresa-demo' }] }),
+        });
+      }
+      if (url.includes('/api/dashboard/stats')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            kpis: {
+              totalLeadsCount: 5,
+              wonLeadsCount: 1,
+              conversionRate: 20.0,
+              hasConversionData: true,
+              totalCollectedFormatted: '100.000,00',
+              revenueByCurrency: {},
+              pipelineBreakdown: { new: 1, contacted: 1, qualified: 1, won: 1, lost: 1 },
+            },
+            salespeoplePerformance: [],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Todas las Empresas/i)).toBeInTheDocument();
+    });
+
+    // Select the specific client option
+    const select = container.querySelector('select');
+    expect(select).toBeInTheDocument();
+
+    // Simulate user selection change
+    const fireEvent = (await import('@testing-library/react')).fireEvent;
+    fireEvent.change(select, { target: { value: 'client-1' } });
+
+    await waitFor(() => {
+      const statsCallsWithClientId = callUrls.filter(url => url.includes('/api/dashboard/stats?clientId=client-1'));
+      expect(statsCallsWithClientId.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('5. Cambio de una empresa a otra limpia los datos anteriores para evitar mezcla', async () => {
+    let callUrls = [];
+    global.fetch = vi.fn().mockImplementation((url) => {
+      callUrls.push(url);
+      if (url.includes('/api/clients')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ clients: [{ id: 'client-1', name: 'Empresa Demo', slug: 'empresa-demo' }] }),
+        });
+      }
+      if (url.includes('/api/dashboard/stats')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            kpis: {
+              totalLeadsCount: 10,
+              wonLeadsCount: 2,
+              conversionRate: 20,
+              hasConversionData: true,
+              totalCollectedFormatted: '200.000,00',
+              revenueByCurrency: {},
+              pipelineBreakdown: { new: 2, contacted: 2, qualified: 2, won: 2, lost: 2 },
+            },
+            salespeoplePerformance: [],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Todas las Empresas/i)).toBeInTheDocument();
+    });
+
+    const select = container.querySelector('select');
+    const fireEvent = (await import('@testing-library/react')).fireEvent;
+
+    // Changing selectedClientId should immediately clear stats
+    fireEvent.change(select, { target: { value: 'client-1' } });
+
+    // Since stats gets set to null immediately on reload, the values like 10 leads are not visible during loading
+    expect(screen.queryByText('10')).not.toBeInTheDocument();
+  });
+
+  it('6. Etiqueta visual actualizada a Fase 5A', async () => {
+    global.fetch = vi.fn().mockImplementation((url) => {
+      if (url.includes('/api/clients')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ clients: [] }),
+        });
+      }
+      if (url.includes('/api/dashboard/stats')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            kpis: {
+              totalLeadsCount: 0,
+              wonLeadsCount: 0,
+              conversionRate: null,
+              hasConversionData: false,
+              totalCollectedFormatted: '0,00',
+              revenueByCurrency: {},
+              pipelineBreakdown: { new: 0, contacted: 0, qualified: 0, won: 0, lost: 0 },
+            },
+            salespeoplePerformance: [],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    });
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      // The badge should display FASE 5A
+      expect(screen.getAllByText('FASE 5A').length).toBeGreaterThan(0);
+      expect(screen.queryByText('ETAPA 3 · ACTIVA')).not.toBeInTheDocument();
+    });
+  });
 });

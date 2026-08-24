@@ -141,4 +141,522 @@ describe('Backend Dashboard API (api-dashboard)', () => {
     expect(body.kpis.hasConversionData).toBe(false);
     expect(body.kpis.conversionRate).toBeNull();
   });
+
+  it('3. super_admin consultando todas las empresas', async () => {
+    const mockAdminUser = {
+      _id: new ObjectId(),
+      email: 'admin@animamkt.com',
+      role: 'super_admin',
+      status: 'active',
+    };
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockAdminUser,
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    const activeClients = [
+      { _id: new ObjectId(), name: 'Empresa A', status: 'active' },
+      { _id: new ObjectId(), name: 'Empresa B', status: 'active' },
+    ];
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce(activeClients),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(5);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: 'all' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.totalLeadsCount).toBe(5);
+    expect(body.kpis.totalCollectedFormatted).toBe('0,00');
+  });
+
+  it('4. super_admin consultando una empresa válida', async () => {
+    const mockAdminUser = {
+      _id: new ObjectId(),
+      email: 'admin@animamkt.com',
+      role: 'super_admin',
+      status: 'active',
+    };
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockAdminUser,
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    const targetId = new ObjectId();
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([{ _id: targetId, name: 'Empresa Valida', status: 'active' }]),
+    });
+
+    mockClientsCollection.findOne.mockResolvedValueOnce({
+      _id: targetId,
+      name: 'Empresa Valida',
+      status: 'active',
+      defaultCurrency: 'ARS',
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(2);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: targetId.toString() },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('5. ObjectId inválido retorna 404', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockClientsCollection.findOne.mockResolvedValueOnce(null);
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: 'invalid-id-not-found' },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('6. Empresa inexistente retorna 404', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockClientsCollection.findOne.mockResolvedValueOnce(null);
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: new ObjectId().toString() },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('7. Empresa inactiva retorna 404', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    const targetId = new ObjectId();
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([{ _id: targetId, status: 'inactive' }]),
+    });
+    mockClientsCollection.findOne.mockResolvedValueOnce({
+      _id: targetId,
+      status: 'inactive',
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: targetId.toString() },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('8. Usuario client intentando forzar otro clientId es forzado a su scope', async () => {
+    const userScope = new ObjectId();
+    const forcedScope = new ObjectId();
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'client', clientId: userScope },
+      db: mockDb,
+      clientScope: userScope.toString(),
+      isGlobal: false,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([{ _id: userScope, status: 'active' }]),
+    });
+    mockClientsCollection.findOne.mockResolvedValueOnce({
+      _id: userScope,
+      status: 'active',
+      defaultCurrency: 'ARS',
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(1);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: forcedScope.toString() },
+    });
+
+    expect(res.statusCode).toBe(200);
+    // Verified that it queried the user's scope
+    expect(mockClientsCollection.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $or: expect.arrayContaining([
+          expect.objectContaining({ _id: new ObjectId(userScope) }),
+        ]),
+      })
+    );
+  });
+
+  it('9. Usuario salesperson intentando forzar otro clientId es forzado a su scope', async () => {
+    const userScope = new ObjectId();
+    const forcedScope = new ObjectId();
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'salesperson', clientId: userScope },
+      db: mockDb,
+      clientScope: userScope.toString(),
+      isGlobal: false,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([{ _id: userScope, status: 'active' }]),
+    });
+    mockClientsCollection.findOne.mockResolvedValueOnce({
+      _id: userScope,
+      status: 'active',
+      defaultCurrency: 'ARS',
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(1);
+    mockLeadsCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: forcedScope.toString() },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('10. Vista global sin leads ni cobros no da error fatal', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(0);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.totalLeadsCount).toBe(0);
+    expect(body.kpis.totalCollectedFormatted).toBe('0,00');
+  });
+
+  it('11. Vista global con dos empresas ARS se suman correctamente', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(10);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([
+        { currency: 'ARS', amountMinor: 100000, collectedAmountMinor: 100000 },
+        { currency: 'ARS', amountMinor: 200000, collectedAmountMinor: 200000 },
+      ]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.totalCollectedFormatted).toBe('3.000,00');
+  });
+
+  it('12. Vista global con empresas ARS y USD no se suman en total y se desglosan', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(10);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([
+        { currency: 'ARS', amountMinor: 100000, collectedAmountMinor: 100000 },
+        { currency: 'USD', amountMinor: 20000, collectedAmountMinor: 20000 },
+      ]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    // Should split ARS and USD with a slash
+    expect(body.kpis.totalCollectedFormatted).toContain('ARS');
+    expect(body.kpis.totalCollectedFormatted).toContain('USD');
+    expect(body.kpis.totalCollectedFormatted).toContain('/');
+  });
+
+  it('13. ROAS, CPL, CPA calculados por moneda y no mezclados globalmente', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(10);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([
+        { currency: 'ARS', amountMinor: 200000, collectedAmountMinor: 200000 },
+      ]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    // Mock meta_insights_daily
+    const mockMetaCollection = {
+      aggregate: vi.fn().mockReturnValueOnce({
+        toArray: vi.fn().mockResolvedValueOnce([
+          { _id: 'ARS', spendMinor: 100000 },
+        ]),
+      }),
+    };
+    mockDb.collection.mockImplementation((name) => {
+      if (name === 'meta_insights_daily') return mockMetaCollection;
+      if (name === 'leads') return mockLeadsCollection;
+      if (name === 'sales') return mockSalesCollection;
+      if (name === 'users') return mockUsersCollection;
+      if (name === 'clients') return mockClientsCollection;
+      return null;
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.metaMetrics.roasFormatted).toBe('2x');
+  });
+
+  it('14. Ranking global compuesto únicamente por vendedores y con identificación de empresa', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    const clientAId = new ObjectId();
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([
+        { _id: clientAId, name: 'Empresa Alpha', status: 'active' },
+      ]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(0);
+    mockLeadsCollection.find.mockReturnValue({
+      project: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+    });
+    mockSalesCollection.find.mockReturnValue({
+      toArray: vi.fn().mockResolvedValue([]),
+    });
+
+    // Mock users return (one salesperson, one client that should be excluded)
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({
+        toArray: vi.fn().mockResolvedValueOnce([
+          { _id: new ObjectId(), displayName: 'Vendedor Real', role: 'salesperson', clientId: clientAId },
+          { _id: new ObjectId(), displayName: 'Cliente Excluido', role: 'client', clientId: clientAId },
+        ]),
+      }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.salespeoplePerformance.length).toBe(1);
+    expect(body.salespeoplePerformance[0].displayName).toBe('Vendedor Real');
+    expect(body.salespeoplePerformance[0].companyName).toBe('Empresa Alpha');
+  });
+
+  it('15. Ausencia de inversión Meta no provoca error fatal', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(2);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    // Mock metaaggregate failure
+    mockDb.collection.mockImplementation((name) => {
+      if (name === 'meta_insights_daily') return null;
+      if (name === 'leads') return mockLeadsCollection;
+      if (name === 'sales') return mockSalesCollection;
+      if (name === 'users') return mockUsersCollection;
+      if (name === 'clients') return mockClientsCollection;
+      return null;
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.metaMetrics.hasMetaIntegration).toBe(false);
+  });
+
+  it('16. Ausencia de cobros no provoca error fatal', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { _id: new ObjectId(), role: 'super_admin' },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(2);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.totalCollectedFormatted).toBe('0,00');
+  });
 });

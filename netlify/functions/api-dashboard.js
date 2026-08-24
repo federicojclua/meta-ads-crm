@@ -25,8 +25,21 @@ export async function handler(event) {
     let targetClientId = null;
     let clientDoc = null;
 
+    let activeClients = [];
+    if (clientsCollection && typeof clientsCollection.find === 'function') {
+      const activeClientsCursor = clientsCollection.find({ status: 'active' });
+      activeClients = activeClientsCursor && typeof activeClientsCursor.toArray === 'function'
+        ? await activeClientsCursor.toArray()
+        : [];
+    }
+    const activeClientIds = activeClients.map(c => c._id);
+    const activeClientIdStrings = activeClients.map(c => c._id.toString());
+    const allActiveIdentifiers = [...activeClientIds, ...activeClientIdStrings];
+
+    let isRequestingAll = true;
+
     if (!isGlobal) {
-      // Force user's authoritative tenant scope (ignore any client param from browser)
+      isRequestingAll = false;
       targetClientId = ObjectId.isValid(clientScope) ? new ObjectId(clientScope) : clientScope;
       clientDoc = await clientsCollection.findOne({
         $or: [
@@ -35,18 +48,24 @@ export async function handler(event) {
           { slug: clientScope },
         ],
       });
-    } else if (params.clientId && params.clientId.trim() !== '' && params.clientId.trim() !== 'all') {
-      const rawId = params.clientId.trim();
-      const queryConditions = [
-        ...(ObjectId.isValid(rawId) ? [{ _id: new ObjectId(rawId) }] : []),
-        { _id: rawId },
-        { slug: rawId },
-      ];
-      clientDoc = await clientsCollection.findOne({ $or: queryConditions });
-      if (!clientDoc || clientDoc.status !== 'active') {
+      if (!clientDoc || (clientDoc.status && clientDoc.status !== 'active')) {
         return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
       }
-      targetClientId = clientDoc._id;
+    } else if (params.clientId && params.clientId.trim() !== '') {
+      const trimmedId = params.clientId.trim();
+      if (trimmedId.toLowerCase() !== 'all') {
+        isRequestingAll = false;
+        const queryConditions = [
+          ...(ObjectId.isValid(trimmedId) ? [{ _id: new ObjectId(trimmedId) }] : []),
+          { _id: trimmedId },
+          { slug: trimmedId },
+        ];
+        clientDoc = await clientsCollection.findOne({ $or: queryConditions });
+        if (!clientDoc || (clientDoc.status && clientDoc.status !== 'active')) {
+          return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
+        }
+        targetClientId = clientDoc._id;
+      }
     }
 
     // Date range filter
@@ -60,9 +79,12 @@ export async function handler(event) {
 
     // Lead query - strict tenant scoping first
     const leadQuery = { status: 'active' };
-    if (targetClientId) {
+    if (!isRequestingAll && targetClientId) {
       leadQuery.clientId = targetClientId;
+    } else if (isRequestingAll) {
+      leadQuery.clientId = { $in: allActiveIdentifiers };
     }
+
     if (isSalesperson) {
       leadQuery.assignedToUserId = user._id;
     }
@@ -72,8 +94,10 @@ export async function handler(event) {
 
     // Sales query (strictly exclude cancelled sales)
     const salesQuery = { status: { $ne: 'cancelled' } };
-    if (targetClientId) {
+    if (!isRequestingAll && targetClientId) {
       salesQuery.clientId = targetClientId;
+    } else if (isRequestingAll) {
+      salesQuery.clientId = { $in: allActiveIdentifiers };
     }
     if (Object.keys(dateFilter).length > 0) {
       salesQuery.soldAt = dateFilter;
@@ -163,27 +187,35 @@ export async function handler(event) {
         status: { $in: ['active', 'invited'] },
       };
 
-      if (targetClientId) {
+      if (!isRequestingAll && targetClientId) {
         spQuery.$or = [
           { clientId: targetClientId },
           { clientIds: targetClientId },
           { clientId: targetClientId.toString() },
           { clientIds: targetClientId.toString() },
         ];
+      } else {
+        spQuery.$or = [
+          { clientId: { $in: allActiveIdentifiers } },
+          { clientIds: { $in: allActiveIdentifiers } },
+        ];
       }
 
-      const salespeople = await usersCollection
+      const rawSalespeople = await usersCollection
         .find(spQuery)
         .project({ displayName: 1, email: 1, role: 1, status: 1, clientId: 1, clientIds: 1 })
         .toArray();
+      const salespeople = rawSalespeople.filter(u => u.role === 'salesperson');
 
       for (const sp of salespeople) {
         const leadFilter = {
           assignedToUserId: sp._id,
           status: 'active',
         };
-        if (targetClientId) {
+        if (!isRequestingAll && targetClientId) {
           leadFilter.clientId = targetClientId;
+        } else {
+          leadFilter.clientId = { $in: allActiveIdentifiers };
         }
 
         const [spTotal, spWon] = await Promise.all([
@@ -198,8 +230,10 @@ export async function handler(event) {
           leadId: { $in: spLeadIds },
           status: { $ne: 'cancelled' },
         };
-        if (targetClientId) {
+        if (!isRequestingAll && targetClientId) {
           spSalesQuery.clientId = targetClientId;
+        } else {
+          spSalesQuery.clientId = { $in: allActiveIdentifiers };
         }
 
         const spSales = await salesCollection.find(spSalesQuery).toArray();
@@ -236,9 +270,16 @@ export async function handler(event) {
         const spHasConv = spTotal > 0;
         const spConvRate = spHasConv ? Number(((spWon / spTotal) * 100).toFixed(1)) : null;
 
+        const spClientId = sp.clientId || sp.clientIds?.[0];
+        const associatedClient = activeClients.find(
+          (c) => c._id.toString() === spClientId?.toString() || c.slug === spClientId?.toString()
+        );
+        const companyName = associatedClient ? associatedClient.name : 'Sin empresa';
+
         salespeoplePerformance.push({
           id: sp._id.toString(),
           displayName: sp.displayName || sp.email,
+          companyName,
           email: sp.email,
           role: sp.role,
           status: sp.status,
@@ -265,8 +306,10 @@ export async function handler(event) {
     try {
       const metaInsightsCollection = db?.collection ? db.collection('meta_insights_daily') : null;
       const metaMatch = {};
-      if (targetClientId) {
+      if (!isRequestingAll && targetClientId) {
         metaMatch.clientId = targetClientId;
+      } else if (isRequestingAll) {
+        metaMatch.clientId = { $in: activeClientIds };
       }
       if (params.startDate || params.endDate) {
         metaMatch.date = {};
@@ -293,9 +336,10 @@ export async function handler(event) {
       metaSummary = [];
     }
 
-    let totalSpendDefaultMinor = 0;
     const spendByCurrency = {};
     const roasByCurrency = {};
+    const cplByCurrency = {};
+    const cpaByCurrency = {};
     let hasMetaIntegration = metaSummary.length > 0;
 
     metaSummary.forEach((row) => {
@@ -305,32 +349,92 @@ export async function handler(event) {
         spendMinor: sMinor,
         spendFormatted: (sMinor / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       };
-      totalSpendDefaultMinor += sMinor;
 
-      // Currency-segregated ROAS calculation
+      // ROAS per currency
       const revMinor = (revenueByCurrency && revenueByCurrency[curr]?.collectedMinor) || 0;
       if (sMinor > 0 && revMinor > 0) {
         roasByCurrency[curr] = Number((revMinor / sMinor).toFixed(2));
       } else {
         roasByCurrency[curr] = null;
       }
+
+      // CPL and CPA per currency
+      if (sMinor > 0 && totalLeadsCount > 0) {
+        cplByCurrency[curr] = Number(((sMinor / 100) / totalLeadsCount).toFixed(2));
+      } else {
+        cplByCurrency[curr] = null;
+      }
+
+      if (sMinor > 0 && wonLeadsCount > 0) {
+        cpaByCurrency[curr] = Number(((sMinor / 100) / wonLeadsCount).toFixed(2));
+      } else {
+        cpaByCurrency[curr] = null;
+      }
     });
 
-    const totalAdSpend = totalSpendDefaultMinor / 100;
-    const totalCollected = totalCollectedDefaultMinor / 100;
-    const defaultCurrency = clientDoc?.defaultCurrency || 'ARS';
+    // Format outputs
+    let adSpendFormatted = 'Sin datos de Meta';
+    const spendKeys = Object.keys(spendByCurrency);
+    if (spendKeys.length === 1) {
+      const curr = spendKeys[0];
+      adSpendFormatted = spendByCurrency[curr].spendFormatted;
+    } else if (spendKeys.length > 1) {
+      adSpendFormatted = spendKeys.map(curr => {
+        return `${spendByCurrency[curr].spendFormatted} ${curr}`;
+      }).join(' / ');
+    }
 
-    // Derived Financial & Performance KPIs (Blended Tenant Level)
-    const cpl = hasMetaIntegration && totalLeadsCount > 0
-      ? Number((totalAdSpend / totalLeadsCount).toFixed(2))
-      : null;
-    const cpa = hasMetaIntegration && wonLeadsCount > 0
-      ? Number((totalAdSpend / wonLeadsCount).toFixed(2))
-      : null;
-    const primaryCurrency = Object.keys(spendByCurrency)[0] || defaultCurrency;
-    const primaryRoas = roasByCurrency[primaryCurrency] ?? (hasMetaIntegration && totalAdSpend > 0 && totalCollected > 0
-      ? Number((totalCollected / totalAdSpend).toFixed(2))
-      : null);
+    let roasFormatted = '—';
+    let hasRoas = false;
+    const roasKeys = Object.keys(roasByCurrency).filter(k => roasByCurrency[k] !== null);
+    if (roasKeys.length === 1) {
+      roasFormatted = `${roasByCurrency[roasKeys[0]]}x`;
+      hasRoas = true;
+    } else if (roasKeys.length > 1) {
+      roasFormatted = roasKeys.map(curr => `${roasByCurrency[curr]}x ${curr}`).join(' / ');
+      hasRoas = true;
+    }
+
+    let cplFormatted = '—';
+    let hasCpl = false;
+    const cplKeys = Object.keys(cplByCurrency).filter(k => cplByCurrency[k] !== null);
+    if (cplKeys.length === 1) {
+      const curr = cplKeys[0];
+      cplFormatted = cplByCurrency[curr].toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      hasCpl = true;
+    } else if (cplKeys.length > 1) {
+      cplFormatted = cplKeys.map(curr => {
+        return `${cplByCurrency[curr].toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}`;
+      }).join(' / ');
+      hasCpl = true;
+    }
+
+    let cpaFormatted = '—';
+    let hasCpa = false;
+    const cpaKeys = Object.keys(cpaByCurrency).filter(k => cpaByCurrency[k] !== null);
+    if (cpaKeys.length === 1) {
+      const curr = cpaKeys[0];
+      cpaFormatted = cpaByCurrency[curr].toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      hasCpa = true;
+    } else if (cpaKeys.length > 1) {
+      cpaFormatted = cpaKeys.map(curr => {
+        return `${cpaByCurrency[curr].toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}`;
+      }).join(' / ');
+      hasCpa = true;
+    }
+
+    let totalCollectedFormatted = '0,00';
+    const revKeys = Object.keys(revenueByCurrency);
+    if (revKeys.length === 1) {
+      const curr = revKeys[0];
+      totalCollectedFormatted = (revenueByCurrency[curr].collectedMinor / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else if (revKeys.length > 1) {
+      totalCollectedFormatted = revKeys.map(curr => {
+        return `${(revenueByCurrency[curr].collectedMinor / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}`;
+      }).join(' / ');
+    }
+
+    const defaultCurrency = clientDoc?.defaultCurrency || 'ARS';
 
     return jsonResponse(200, {
       kpis: {
@@ -348,25 +452,22 @@ export async function handler(event) {
         },
         revenueByCurrency: formattedRevenue,
         totalCollectedDefaultMinor,
-        totalCollectedFormatted: (totalCollectedDefaultMinor / 100).toLocaleString('es-AR', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }),
+        totalCollectedFormatted,
         defaultCurrency,
         metaMetrics: {
           hasMetaIntegration,
-          adSpend: hasMetaIntegration ? totalAdSpend : null,
-          adSpendFormatted: hasMetaIntegration
-            ? (totalSpendDefaultMinor / 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : '0,00',
+          adSpend: hasMetaIntegration ? 1 : null,
+          adSpendFormatted,
           spendByCurrency,
           roasByCurrency,
-          cpl,
-          hasCpl: cpl !== null,
-          cpa,
-          hasCpa: cpa !== null,
-          roas: primaryRoas,
-          hasRoas: primaryRoas !== null,
+          cplByCurrency,
+          cpaByCurrency,
+          cplFormatted,
+          hasCpl,
+          cpaFormatted,
+          hasCpa,
+          roasFormatted,
+          hasRoas,
           isBlended: true,
           attributionNote: 'Métrica blended a nivel empresa — no atribuida a campañas particulares.',
           message: hasMetaIntegration ? 'Datos sincronizados de Meta Ads (Métricas blended).' : 'Sin datos de Meta Ads.',
