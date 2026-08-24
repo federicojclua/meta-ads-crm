@@ -53,7 +53,7 @@ export function validateClientMetaScope(data) {
  * @param {Object} doc
  * @returns {Object}
  */
-export function sanitizeClientMetaScopeResponse(doc) {
+export function sanitizeClientMetaScope(doc) {
   if (!doc) return null;
   return {
     id: doc._id?.toString() || doc.id,

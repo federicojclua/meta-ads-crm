@@ -33,12 +33,13 @@ export const handler = async (event) => {
     // 1. Determine authorized target clientId
     let targetClientId = null;
     if (isGlobal) {
-      if (params.clientId && ObjectId.isValid(params.clientId)) {
-        targetClientId = new ObjectId(params.clientId);
-        const clientExists = await clientsCollection.findOne({ _id: targetClientId, status: 'active' });
-        if (!clientExists) {
-          return errorResponse(404, 'Empresa no encontrada o inactiva.', 'CLIENT_NOT_FOUND');
-        }
+      if (!params.clientId || !ObjectId.isValid(params.clientId)) {
+        return errorResponse(400, 'El parámetro clientId es obligatorio para consultar las métricas.', 'CLIENT_ID_REQUIRED');
+      }
+      targetClientId = new ObjectId(params.clientId);
+      const clientExists = await clientsCollection.findOne({ _id: targetClientId, status: 'active' });
+      if (!clientExists) {
+        return errorResponse(404, 'Empresa no encontrada o inactiva.', 'CLIENT_NOT_FOUND');
       }
     } else {
       if (!clientScope || !ObjectId.isValid(clientScope)) {

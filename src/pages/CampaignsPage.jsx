@@ -59,13 +59,19 @@ export function CampaignsPage() {
     if (isGlobal) {
       apiClient.get('/api/clients')
         .then((res) => {
-          setClients(res.clients || []);
+          const clientList = res.clients || [];
+          setClients(clientList);
+          if (!urlClientId && clientList.length > 0) {
+            const defaultId = clientList[0].id || clientList[0]._id;
+            setSelectedClientId(defaultId);
+            setSearchParams({ clientId: defaultId });
+          }
         })
         .catch((err) => {
           console.warn('[CAMPAIGNS] Error fetching clients:', err.message);
         });
     }
-  }, [isGlobal]);
+  }, [isGlobal, urlClientId, setSearchParams]);
 
   // Check Meta connection status
   useEffect(() => {
@@ -242,7 +248,7 @@ export function CampaignsPage() {
                 onChange={handleClientChange}
                 className="text-xs bg-gray-50 border border-brand-border rounded-lg px-2.5 py-1.5 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
               >
-                <option value="">Todas las empresas</option>
+                <option value="" disabled>Seleccione una empresa...</option>
                 {clients.map((c) => (
                   <option key={c.id || c._id} value={c.id || c._id}>
                     {c.name}

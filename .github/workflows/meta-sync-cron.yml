@@ -1,23 +1,50 @@
 name: Meta Ads Scheduled Synchronization
 
+# NOTA IMPORTANTE:
+# Los cron jobs programados en GitHub Actions solo se ejecutan en la rama predeterminada (default branch, ej: main).
+# Por lo tanto, cualquier modificación en este workflow de la rama 'stage4-fixes' no tendrá efecto activo en producción
+# hasta que sea fusionada en la rama principal.
+
 on:
   schedule:
-    - cron: '0 */6 * * *' # Every 6 hours
-  workflow_dispatch:
+    - cron: '17 */6 * * *' # Cada 6 horas, a los 17 minutos de la hora
+  workflow_dispatch: # Mantiene ejecución manual permitida
+
+# Grupo de concurrencia específico para evitar ejecuciones concurrentes de la sincronización
+concurrency:
+  group: meta-sync
+  cancel-in-progress: false
 
 jobs:
   sync-meta-ads:
     name: Trigger Meta Ads Sync
     runs-on: ubuntu-latest
+    env:
+      META_SYNC_ENABLED: ${{ vars.META_SYNC_ENABLED || 'false' }} # Deshabilitado por defecto, configurable mediante GitHub Variables
     steps:
-      - name: Send Authenticated Trigger Request to CRM
+      - name: Evaluate Sync Activation and Dispatch
         run: |
+          # 1. Determinar si la sincronización está habilitada (soporta sobrescritura por secret)
+          ENABLED="${{ env.META_SYNC_ENABLED }}"
+          if [ -n "${{ secrets.META_SYNC_ENABLED }}" ]; then
+            ENABLED="${{ secrets.META_SYNC_ENABLED }}"
+          fi
+
+          if [ "$ENABLED" != "true" ]; then
+            echo "Aviso: Sincronización de Meta Ads desactivada (META_SYNC_ENABLED no es true). Finalizando ejecución de forma exitosa."
+            exit 0
+          fi
+
+          # 2. Validar que la configuración obligatoria esté presente en secrets
           if [ -z "${{ secrets.CRON_SECRET }}" ] || [ -z "${{ secrets.APP_URL }}" ]; then
-            echo "::error::CRON_SECRET or APP_URL is not configured in GitHub Secrets."
+            echo "::error::Error de configuración: Faltan las credenciales requeridas (CRON_SECRET o APP_URL) en GitHub Secrets."
             exit 1
           fi
 
+          # 3. Disparar sincronización mediante petición al endpoint
           JOB_KEY="cron_$(date -u +%Y%m%d_%H)"
+          echo "Disparando job de sincronización $JOB_KEY..."
+
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.APP_URL }}/api/meta/sync" \
             -H "Content-Type: application/json" \
             -H "X-Cron-Auth: ${{ secrets.CRON_SECRET }}" \
@@ -26,11 +53,15 @@ jobs:
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
 
-          echo "Sync dispatch HTTP status: $HTTP_STATUS"
-          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 202 ]; then
-            echo "::error::Meta sync trigger failed with HTTP $HTTP_STATUS"
-            echo "Response: $BODY"
+          echo "Respuesta del endpoint - Status HTTP: $HTTP_STATUS"
+
+          # 4. Validar respuestas correctas (200 o 202)
+          if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 202 ]; then
+            echo "Sincronización disparada exitosamente en el servidor."
+          else
+            # Sanitizar tokens para evitar fugas accidentales en la salida de error
+            SANITIZED_BODY=$(echo "$BODY" | sed -E 's/EAAB[a-zA-Z0-9_]+/ [REDACTED_TOKEN]/g' | sed -E 's/Bearer [a-zA-Z0-9_\.]+/Bearer [REDACTED]/g')
+            echo "::error::Error al disparar sincronización: HTTP $HTTP_STATUS"
+            echo "Respuesta del servidor (sanitizada): $SANITIZED_BODY"
             exit 1
           fi
-
-          echo "Meta Ads sync job dispatched successfully."

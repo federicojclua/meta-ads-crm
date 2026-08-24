@@ -42,7 +42,7 @@ export function validateMetaDataSource(data) {
  * @param {Object} doc
  * @returns {Object}
  */
-export function sanitizeMetaDataSourceResponse(doc) {
+export function sanitizeMetaDataSource(doc) {
   if (!doc) return null;
   return {
     id: doc._id?.toString() || doc.id,

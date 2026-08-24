@@ -458,3 +458,12 @@ export async function connectToDatabase() {
 
   return { client: cachedClient, db: cachedDb };
 }
+
+/**
+ * Returns the active MongoDB database instance.
+ * @returns {Promise<import('mongodb').Db>}
+ */
+export async function getDb() {
+  const { db } = await connectToDatabase();
+  return db;
+}

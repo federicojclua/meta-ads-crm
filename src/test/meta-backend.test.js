@@ -22,7 +22,11 @@ import { calculateDerivedMetrics } from '../../models/MetaInsightDaily.js';
 import { handler as assetsHandler } from '../../netlify/functions/api-meta-assets.js';
 import { handler as insightsHandler } from '../../netlify/functions/api-meta-insights.js';
 import { handler as syncHandler } from '../../netlify/functions/api-meta-sync.js';
+import { handler as backgroundHandler } from '../../netlify/functions/meta-sync-background.js';
 import * as PermissionsModule from '../../netlify/functions/_shared/permissions.js';
+import * as DbModule from '../../netlify/functions/_shared/db.js';
+
+let activeMockDb = null;
 
 describe('Stage 4 — Meta Marketing API v26.0 Backend Test Suite (32 Casos)', () => {
   const originalEnv = process.env;
@@ -38,6 +42,22 @@ describe('Stage 4 — Meta Marketing API v26.0 Backend Test Suite (32 Casos)', (
       META_API_VERSION: 'v26.0',
       CRON_SECRET: 'super_secret_cron_token_32_chars_long',
     };
+    activeMockDb = {
+      collection: () => ({
+        find: () => ({
+          sort: () => ({
+            toArray: () => Promise.resolve([]),
+          }),
+          toArray: () => Promise.resolve([]),
+        }),
+        findOne: () => Promise.resolve(null),
+        insertOne: () => Promise.resolve({}),
+        updateOne: () => Promise.resolve({}),
+        updateMany: () => Promise.resolve({}),
+      }),
+    };
+    vi.spyOn(DbModule, 'connectToDatabase').mockImplementation(async () => ({ db: activeMockDb }));
+    vi.spyOn(DbModule, 'getDb').mockImplementation(async () => activeMockDb);
   });
 
   afterEach(() => {
@@ -623,6 +643,403 @@ describe('Stage 4 — Meta Marketing API v26.0 Backend Test Suite (32 Casos)', (
       expect(campaign.crmAttributedSales).toBe(1);
       expect(campaign.cpaCrm).toBe(10000.00); // 10,000 / 1
       expect(campaign.roasCollected).toBe(2.00); // 20,000 / 10,000
+    });
+  });
+
+  // =========================================================================
+  // 8. Pruebas Adicionales Correctivas (Etapa 4 - Nuevos Casos Requeridos)
+  // =========================================================================
+  describe('8. Pruebas Adicionales Correctivas (Etapa 4 - Nuevos Casos)', () => {
+    it('8.1 Sanitizadores: assetsHandler importa y carga sin errores', async () => {
+      const mockCursor = {
+        sort: () => mockCursor,
+        toArray: () => Promise.resolve([]),
+      };
+      const mockDb = {
+        collection: () => {
+          return {
+            find: () => mockCursor,
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/assets',
+      });
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.ok).toBe(true);
+      expect(Array.isArray(data.adAccounts)).toBe(true);
+      expect(Array.isArray(data.dataSources)).toBe(true);
+    });
+
+    it('8.2 appsecret_proof: fórmula determinista exacta', () => {
+      const dummyToken = 'token_123';
+      const dummySecret = 'secret_abc_32_chars_long_12345678';
+      const expectedHmac = crypto.createHmac('sha256', dummySecret).update(dummyToken).digest('hex');
+      const calculated = generateAppSecretProof(dummyToken, dummySecret);
+      expect(calculated).toBe(expectedHmac);
+    });
+
+    it('8.3 Aislamiento: usuario de Empresa A no puede listar activos de Empresa B', async () => {
+      const clientA = new ObjectId();
+
+      const mockCursor = {
+        sort: () => mockCursor,
+        toArray: () => Promise.resolve([]),
+      };
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'client_meta_scopes') {
+            return {
+              find: (query) => {
+                expect(query.clientId).toEqual(clientA);
+                return { toArray: () => Promise.resolve([]) };
+              }
+            };
+          }
+          return {
+            find: () => mockCursor,
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'client', clientId: clientA },
+        isGlobal: false,
+        clientScope: clientA,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/assets',
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('8.4 Aislamiento: usuario de Empresa A no puede consultar insights de Empresa B', async () => {
+      const clientA = new ObjectId();
+      const clientB = new ObjectId();
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_insights_daily') {
+            return {
+              aggregate: (pipeline) => {
+                const matchStage = pipeline[0].$match;
+                expect(matchStage.clientId).toEqual(clientA);
+                return { toArray: () => Promise.resolve([]) };
+              }
+            };
+          }
+          return {
+            find: () => ({
+              toArray: () => Promise.resolve([]),
+            }),
+            findOne: () => Promise.resolve({ _id: clientA, status: 'active' }),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'client', clientId: clientA },
+        isGlobal: false,
+        clientScope: clientA,
+        db: mockDb,
+      });
+
+      const res = await insightsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/insights',
+        queryStringParameters: { clientId: clientB.toString() },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('8.5 Background Sync: dispatcher retorna 202 inmediatamente y no espera al worker', async () => {
+      const superAdminUser = { _id: new ObjectId(), role: 'super_admin' };
+      const jobId = new ObjectId();
+
+      const mockDb = {
+        collection: () => {
+          return {
+            findOne: () => Promise.resolve(null),
+            insertOne: () => Promise.resolve({ insertedId: jobId }),
+            updateOne: () => Promise.resolve({}),
+            updateMany: () => Promise.resolve({ modifiedCount: 0 }),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      process.env.URL = 'https://example.netlify.app';
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: superAdminUser,
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const globalFetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        status: 202,
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        rawUrl: 'https://example.netlify.app/.netlify/functions/api-meta-sync',
+        body: JSON.stringify({ adAccountId: 'act_123' }),
+      });
+
+      expect(res.statusCode).toBe(202);
+      const data = JSON.parse(res.body);
+      expect(data.ok).toBe(true);
+      expect(data.message).toContain('iniciada en segundo plano');
+      expect(globalFetchSpy).toHaveBeenCalled();
+    });
+
+    it('8.6 Reclasificación: solo super_admin puede reasignar datos', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'admin' },
+        isGlobal: true,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/reclassify-historical',
+        body: JSON.stringify({ action: 'preview' }),
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('8.7 datasets: endpoint blocked en allowlist', () => {
+      expect(isVerifiedMetaEndpoint('123456/datasets')).toBe(false);
+    });
+
+    it('8.8 Insights: requiere obligatoriamente clientId para global admin', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+      });
+
+      const res = await insightsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/insights',
+        queryStringParameters: {},
+      });
+
+      expect(res.statusCode).toBe(400);
+      const data = JSON.parse(res.body);
+      expect(data.code).toBe('CLIENT_ID_REQUIRED');
+    });
+
+    it('8.9 URL Injection: event.rawUrl es ignorado y fetch utiliza process.env.URL', async () => {
+      const superAdminUser = { _id: new ObjectId(), role: 'super_admin' };
+      const jobId = new ObjectId();
+
+      const mockDb = {
+        collection: () => ({
+          findOne: () => Promise.resolve(null),
+          insertOne: () => Promise.resolve({ insertedId: jobId }),
+          updateOne: () => Promise.resolve({}),
+          updateMany: () => Promise.resolve({ modifiedCount: 0 }),
+        }),
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: superAdminUser,
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      process.env.URL = 'https://trusted-server.netlify.app';
+
+      const globalFetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        status: 202,
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        rawUrl: 'https://user-injected-malicious-domain.com/some-path',
+        body: JSON.stringify({ adAccountId: 'act_123' }),
+      });
+
+      expect(res.statusCode).toBe(202);
+      expect(globalFetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('https://trusted-server.netlify.app/.netlify/functions/meta-sync-background'),
+        expect.anything()
+      );
+    });
+
+    it('8.10 Concurrencia: doble adquisición atómica del mismo jobId ejecuta el worker una sola vez', async () => {
+      const jobId = new ObjectId();
+      let currentStatus = 'queued';
+      let updateCallsCount = 0;
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_sync_logs') {
+            return {
+              findOne: () => Promise.resolve({ _id: jobId, status: currentStatus, adAccountId: 'act_123', lookbackDays: 7 }),
+              findOneAndUpdate: vi.fn().mockImplementation((query) => {
+                if (query._id.equals(jobId) && query.status === 'queued' && currentStatus === 'queued') {
+                  currentStatus = 'in_progress';
+                  updateCallsCount++;
+                  return Promise.resolve({
+                    value: { _id: jobId, status: 'in_progress', adAccountId: 'act_123', lookbackDays: 7 },
+                  });
+                }
+                return Promise.resolve(null);
+              }),
+              updateOne: () => Promise.resolve({}),
+            };
+          }
+          return {
+            find: () => ({ toArray: () => Promise.resolve([]) }),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      await backgroundHandler({
+        headers: { 'X-Cron-Auth': 'super_secret_cron_token_32_chars_long' },
+        body: JSON.stringify({ jobId: jobId.toString() }),
+      });
+
+      await backgroundHandler({
+        headers: { 'X-Cron-Auth': 'super_secret_cron_token_32_chars_long' },
+        body: JSON.stringify({ jobId: jobId.toString() }),
+      });
+
+      expect(updateCallsCount).toBe(1);
+    });
+
+    it('8.11 Preservación Histórica: asignación posterior a Empresa B no modifica el clientId histórico de Empresa A', async () => {
+      const clientA = new ObjectId();
+      const clientB = new ObjectId();
+
+      const scopes = [
+        {
+          clientId: clientA,
+          adAccountId: 'act_shared_1',
+          allowedDatasetIds: ['pixel_1'],
+          effectiveFrom: new Date('2026-08-01T00:00:00Z'),
+          effectiveTo: new Date('2026-08-10T23:59:59Z'),
+        },
+        {
+          clientId: clientB,
+          adAccountId: 'act_shared_1',
+          allowedDatasetIds: ['pixel_1'],
+          effectiveFrom: new Date('2026-08-11T00:00:00Z'),
+          effectiveTo: null,
+        },
+      ];
+
+      const mockAdAccounts = [
+        { adAccountId: 'act_shared_1', currency: 'ARS', assignedClientId: null, isSharedAccount: true },
+      ];
+
+      const mockDataSources = [
+        { metaDatasetId: 'pixel_1', assignedClientId: null },
+      ];
+
+      const upsertedInsights = [];
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_ad_accounts') return { find: () => ({ toArray: () => Promise.resolve(mockAdAccounts) }), updateOne: vi.fn() };
+          if (name === 'client_meta_scopes') return { find: () => ({ toArray: () => Promise.resolve(scopes) }) };
+          if (name === 'meta_data_sources') return { find: () => ({ toArray: () => Promise.resolve(mockDataSources) }) };
+          if (name === 'meta_insights_daily') {
+            return {
+              updateOne: vi.fn().mockImplementation((query, update) => {
+                const doc = {
+                  clientId: query.clientId,
+                  date: query.date,
+                  adsetId: query.adsetId,
+                  spendMinor: update.$set?.spendMinor || 0,
+                };
+                upsertedInsights.push(doc);
+                return Promise.resolve({ upsertedId: new ObjectId() });
+              }),
+            };
+          }
+          return {
+            find: () => ({ toArray: () => Promise.resolve([]) }),
+            updateOne: vi.fn(),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(MetaApiClient.prototype, 'fetchAllPages').mockImplementation(async (endpoint) => {
+        if (endpoint.includes('/campaigns')) {
+          return [{ id: 'camp_1', name: 'Campaña Compartida', status: 'ACTIVE' }];
+        }
+        if (endpoint.includes('/adsets')) {
+          return [{ id: 'adset_1', name: 'AdSet Compartido', campaign_id: 'camp_1', promoted_object: { pixel_id: 'pixel_1' } }];
+        }
+        if (endpoint.includes('/insights')) {
+          return [
+            {
+              adset_id: 'adset_1',
+              campaign_id: 'camp_1',
+              date_start: '2026-08-05',
+              spend: '300.00',
+              impressions: '1000',
+              clicks: '50',
+            },
+            {
+              adset_id: 'adset_1',
+              campaign_id: 'camp_1',
+              date_start: '2026-08-15',
+              spend: '700.00',
+              impressions: '2000',
+              clicks: '100',
+            },
+          ];
+        }
+        return [];
+      });
+
+      await executeSyncJob(mockDb, {
+        jobId: new ObjectId(),
+        adAccountId: 'act_shared_1',
+        lookbackDays: 30,
+      });
+
+      const insightAug5 = upsertedInsights.find(x => x.date === '2026-08-05');
+      expect(insightAug5).toBeDefined();
+      expect(insightAug5.clientId).toEqual(clientA);
+
+      const insightAug15 = upsertedInsights.find(x => x.date === '2026-08-15');
+      expect(insightAug15).toBeDefined();
+      expect(insightAug15.clientId).toEqual(clientB);
     });
   });
 });

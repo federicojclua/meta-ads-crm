@@ -48,7 +48,7 @@ export function validateMetaAdAccount(data) {
  * @param {Object} doc
  * @returns {Object}
  */
-export function sanitizeMetaAdAccountResponse(doc) {
+export function sanitizeMetaAdAccount(doc) {
   if (!doc) return null;
   return {
     id: doc._id?.toString() || doc.id,
