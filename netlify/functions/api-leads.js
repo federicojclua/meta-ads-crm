@@ -50,6 +50,12 @@ export async function handler(event) {
         } else {
           query.clientId = clientScope;
         }
+      } else {
+        const params = event.queryStringParameters || {};
+        if (params.clientId && params.clientId.trim() !== '' && params.clientId.trim() !== 'all') {
+          const rawId = params.clientId.trim();
+          query.clientId = ObjectId.isValid(rawId) ? new ObjectId(rawId) : rawId;
+        }
       }
       if (isSalesperson) {
         query.assignedToUserId = user._id;
@@ -144,11 +150,17 @@ export async function handler(event) {
         targetClientId = clientDoc._id;
       }
 
-      // Pre-fetch active salespersons for this client
+      // Pre-fetch active or invited salespersons for this client
       const activeSalespeople = await usersCollection
         .find({
-          status: 'active',
-          $or: [{ clientId: targetClientId }, { clientIds: targetClientId }],
+          role: 'salesperson',
+          status: { $in: ['active', 'invited'] },
+          $or: [
+            { clientId: targetClientId },
+            { clientIds: targetClientId },
+            { clientId: targetClientId.toString() },
+            { clientIds: targetClientId.toString() },
+          ],
         })
         .toArray();
 
@@ -433,13 +445,21 @@ export async function handler(event) {
           if (ObjectId.isValid(rawSpId)) {
             const spUser = await usersCollection.findOne({
               _id: new ObjectId(rawSpId),
-              status: 'active',
-              $or: [{ clientId: targetClientId }, { clientIds: targetClientId }],
+              role: 'salesperson',
+              status: { $in: ['active', 'invited'] },
+              $or: [
+                { clientId: targetClientId },
+                { clientIds: targetClientId },
+                { clientId: targetClientId.toString() },
+                { clientIds: targetClientId.toString() },
+              ],
             });
             if (!spUser) {
-              return errorResponse(400, 'El vendedor especificado no pertenece a esta empresa o no está activo.', 'INVALID_SALESPERSON');
+              return errorResponse(400, 'El usuario asignado debe ser un vendedor activo o invitado de esta empresa.', 'INVALID_SALESPERSON');
             }
             assignedToUserId = spUser._id;
+          } else {
+            return errorResponse(400, 'Identificador de vendedor inválido.', 'INVALID_SALESPERSON_ID');
           }
         }
 
@@ -633,14 +653,22 @@ export async function handler(event) {
           if (ObjectId.isValid(spId)) {
             const spUser = await usersCollection.findOne({
               _id: new ObjectId(spId),
-              status: 'active',
-              $or: [{ clientId: targetLead.clientId }, { clientIds: targetLead.clientId }],
+              role: 'salesperson',
+              status: { $in: ['active', 'invited'] },
+              $or: [
+                { clientId: targetLead.clientId },
+                { clientIds: targetLead.clientId },
+                { clientId: targetLead.clientId.toString() },
+                { clientIds: targetLead.clientId.toString() },
+              ],
             });
             if (!spUser) {
-              return errorResponse(400, 'El vendedor no pertenece a esta empresa o no está activo.', 'INVALID_SALESPERSON');
+              return errorResponse(400, 'El usuario asignado debe ser un vendedor activo o invitado de esta empresa.', 'INVALID_SALESPERSON');
             }
             newAssignedUserId = spUser._id;
             assignedUserName = spUser.displayName || spUser.email;
+          } else {
+            return errorResponse(400, 'Identificador de vendedor inválido.', 'INVALID_SALESPERSON_ID');
           }
         }
 

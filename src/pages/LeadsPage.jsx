@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users,
   Plus,
@@ -30,6 +31,9 @@ import {
 } from '../lib/constants';
 
 export function LeadsPage() {
+  const [searchParams] = useSearchParams();
+  const initialClientId = searchParams.get('clientId') || '';
+
   const { userProfile, firebaseUser, loading: authLoading } = useAuth();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
   const isSalesperson = userProfile?.role === 'salesperson';
@@ -38,7 +42,7 @@ export function LeadsPage() {
   const [leads, setLeads] = useState([]);
   const [salespeople, setSalespeople] = useState([]);
   const [clients, setClients] = useState([]);
-  const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState(initialClientId);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -63,20 +67,25 @@ export function LeadsPage() {
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  // Fetch initial clients for global users
+  // Fetch clients for global users
   const fetchClients = useCallback(async () => {
     if (!isGlobal || authLoading || !firebaseUser) return;
     try {
-      const data = await apiClient('/api/clients');
-      const cls = data.clients || [];
-      setClients(cls);
-      if (cls.length > 0 && !selectedClientId) {
-        setSelectedClientId(cls[0].id);
+      const data = await apiClient.get('/api/clients');
+      const clientsList = data.clients || [];
+      setClients(clientsList);
+      if (clientsList.length > 0 && !selectedClientId) {
+        // Keep initial clientId from URL if valid, otherwise select first client
+        if (initialClientId && clientsList.some((c) => (c.id || c._id) === initialClientId)) {
+          setSelectedClientId(initialClientId);
+        } else {
+          setSelectedClientId(clientsList[0].id || clientsList[0]._id);
+        }
       }
     } catch (err) {
       console.warn('[LEADS] Error fetching clients:', err.message);
     }
-  }, [isGlobal, authLoading, firebaseUser, selectedClientId]);
+  }, [isGlobal, authLoading, firebaseUser, initialClientId, selectedClientId]);
 
   useEffect(() => {
     fetchClients();
@@ -86,13 +95,13 @@ export function LeadsPage() {
   const fetchSalespeople = useCallback(async () => {
     if (authLoading || !firebaseUser) return;
     try {
-      const q = selectedClientId ? `?clientId=${selectedClientId}` : '';
-      const data = await apiClient(`/api/users${q}`);
+      const q = selectedClientId ? `?clientId=${encodeURIComponent(selectedClientId)}` : '';
+      const data = await apiClient.get(`/api/users${q}`);
       const usersList = data.users || [];
-      const activeSp = usersList.filter(
-        (u) => u.status === 'active' && ['salesperson', 'client', 'admin'].includes(u.role)
+      const eligibleSp = usersList.filter(
+        (u) => u.role === 'salesperson' && ['active', 'invited'].includes(u.status)
       );
-      setSalespeople(activeSp);
+      setSalespeople(eligibleSp);
     } catch (err) {
       console.warn('[LEADS] Error fetching salespeople:', err.message);
     }
@@ -474,11 +483,14 @@ export function LeadsPage() {
                 onChange={(e) => setSelectedClientId(e.target.value)}
                 className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
               >
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    Empresa: {c.name}
-                  </option>
-                ))}
+                {clients.map((c) => {
+                  const cId = c.id || c._id;
+                  return (
+                    <option key={cId} value={cId}>
+                      Empresa: {c.name}
+                    </option>
+                  );
+                })}
               </select>
             )}
 
@@ -502,11 +514,14 @@ export function LeadsPage() {
                 className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
               >
                 <option value="all">Todos los Vendedores</option>
-                {salespeople.map((sp) => (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.displayName || sp.email}
-                  </option>
-                ))}
+                {salespeople.map((sp) => {
+                  const spId = sp.id || sp._id;
+                  return (
+                    <option key={spId} value={spId}>
+                      {sp.displayName || sp.email}{sp.status === 'invited' ? ' (Pendiente de activación)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             )}
 

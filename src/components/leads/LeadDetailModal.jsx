@@ -280,7 +280,7 @@ export function LeadDetailModal({
                       const spId = sp.id || sp._id;
                       return (
                         <option key={spId} value={spId}>
-                          {sp.displayName || sp.email}
+                          {sp.displayName || sp.email}{sp.status === 'invited' ? ' (Pendiente de activación)' : ''}
                         </option>
                       );
                     })}

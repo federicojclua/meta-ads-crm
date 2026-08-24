@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Stage 3 Final Comprehensive Audit & Multi-tenant Fixes (2026-08-23)
+- **Dashboard Multiempresa y Aislamiento Estadístico (`api-dashboard.js`, `DashboardPage.jsx`):**
+  - Se implementó el filtrado estricto por `clientId` para roles globales (`super_admin`/`admin`), validando la existencia y estado activo del cliente en MongoDB.
+  - Para `client` y `salesperson`, se ignora cualquier `clientId` de la URL y se fuerza siempre el `clientScope` de su sesión.
+  - Se agregaron controles para evitar respuestas desfasadas (`activeRequestSeq`) en el cambio rápido de empresa en el selector.
+  - Se agregó el botón *"Abrir Pipeline"* para navegar directamente al Kanban de la empresa seleccionada.
+- **Rendimiento por Vendedor y Soporte Multimoneda:**
+  - El ranking filtra exclusivamente usuarios con `role: 'salesperson'` y estado `active` o `invited` vinculados a la empresa.
+  - Se desglosan ventas registradas y cobros separados por divisa (`ARS` y `USD`), sin sumarlos directamente.
+- **Formalización de Reglas de Asignación Comercial y Preasignación:**
+  - Los prospectos sólo pueden asignarse a usuarios con `role: 'salesperson'` y estado `active` o `invited` de la misma empresa.
+  - Los vendedores invitados aparecen identificados en los selectores como `"(Pendiente de activación)"` y conservan su cartera preasignada tras vincularse con Google.
+  - Se rechaza en backend cualquier asignación a roles `client`, vendedores de otra empresa o usuarios suspendidos.
+- **Reparación Automática Idempotente de Asignaciones Históricas (`_shared/db.js`):**
+  - Rutina `repairInvalidAssignments` que desasigna prospectos vinculados a roles no autorizados (como asignaciones previas a `client`) y registra actividades de auditoría en `lead_activities`.
+- **Auditoría Financiera y Control de Cobros:**
+  - Validación del caso de prueba: Venta de $100.000 ARS con cobro inicial de $70.000 ARS $\rightarrow$ saldo $30.000 ARS (`partial`), cobro posterior de $30.000 $\rightarrow$ `collected`, e intento de sobrecobro rechazado (409).
+- **Pruebas Automatizadas:**
+  - Se agregó la suite `stage3-audit-final.test.js` (11 pruebas nuevas, 18 suites y 138 tests pasando al 100%).
+
 ### Fixed — Hotfix: Unify HTTP POST Contract for Lead Transitions & Actions (2026-08-23)
 - **Unificación de Método HTTP a POST en Acciones y Transiciones de Leads:**
   - Se corrigió el error HTTP `405 Method Not Allowed` (`"Utilice POST."`) en `/api/leads/:id/stage`: se unificó la invocación a `apiClient.post(`/api/leads/${leadId}/stage`, { stage, ...(stage === 'lost' ? { lostReason } : {}) })`.

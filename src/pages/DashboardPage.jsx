@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   DollarSign,
@@ -8,6 +9,7 @@ import {
   ShieldCheck,
   Building2,
   RotateCcw,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Badge } from '../components/ui/Badge';
@@ -17,6 +19,7 @@ import { apiClient, ApiError } from '../lib/api';
 import { ROLE_LABELS, CURRENT_STAGE } from '../lib/constants';
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { userProfile, firebaseUser, loading: authLoading } = useAuth();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
 
@@ -26,11 +29,13 @@ export function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const activeRequestSeq = useRef(0);
+
   // Fetch clients for global users
   const fetchClients = useCallback(async () => {
     if (!isGlobal || authLoading || !firebaseUser) return;
     try {
-      const data = await apiClient('/api/clients');
+      const data = await apiClient.get('/api/clients');
       setClients(data.clients || []);
     } catch (err) {
       console.warn('[DASHBOARD] Error fetching clients:', err.message);
@@ -41,21 +46,32 @@ export function DashboardPage() {
     fetchClients();
   }, [fetchClients]);
 
-  // Fetch dashboard stats
+  // Fetch dashboard stats with race-condition prevention
   const fetchStats = useCallback(async () => {
     if (authLoading || !firebaseUser) return;
+    const requestSeq = ++activeRequestSeq.current;
+
     setIsLoading(true);
     setError(null);
 
     try {
-      const q = selectedClientId ? `?clientId=${selectedClientId}` : '';
-      const data = await apiClient(`/api/dashboard/stats${q}`);
+      const q = selectedClientId ? `?clientId=${encodeURIComponent(selectedClientId)}` : '';
+      const data = await apiClient.get(`/api/dashboard/stats${q}`);
+
+      // If user changed dropdown before response finished, ignore stale response
+      if (requestSeq !== activeRequestSeq.current) return;
+
       setStats(data);
+      setError(null); // Clean previous errors on successful request
     } catch (err) {
+      if (requestSeq !== activeRequestSeq.current) return;
+
       console.error('[DASHBOARD] Error fetching stats:', err);
       if (err instanceof ApiError) {
         if (err.status === 403) {
           setError({ type: 'forbidden', message: 'No tenés permisos para visualizar las estadísticas de esta empresa.' });
+        } else if (err.status === 404) {
+          setError({ type: 'not_found', message: 'La empresa seleccionada no existe o está inactiva.' });
         } else if (err.status >= 500) {
           setError({ type: 'server_error', message: 'El servicio de analíticas no está disponible temporalmente.' });
         } else {
@@ -66,7 +82,9 @@ export function DashboardPage() {
       }
       setStats(null);
     } finally {
-      setIsLoading(false);
+      if (requestSeq === activeRequestSeq.current) {
+        setIsLoading(false);
+      }
     }
   }, [selectedClientId, authLoading, firebaseUser]);
 
@@ -92,18 +110,33 @@ export function DashboardPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           {isGlobal && clients.length > 0 && (
-            <select
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              className="h-8 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
-            >
-              <option value="">Todas las Empresas</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="h-8 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
+              >
+                <option value="">Todas las Empresas</option>
+                {clients.map((c) => (
+                  <option key={c.id || c._id} value={c.id || c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              {selectedClientId && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => navigate(`/app/leads?clientId=${encodeURIComponent(selectedClientId)}`)}
+                  className="h-8 text-xs gap-1 py-0 px-2.5 font-medium border-brand-border hover:border-brand-primary"
+                  title="Abrir pipeline de prospectos de esta empresa"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Abrir Pipeline</span>
+                </Button>
+              )}
+            </div>
           )}
 
           <Badge variant="primary" className="text-xs py-1 px-2.5">
@@ -173,9 +206,9 @@ export function DashboardPage() {
             ) : error ? (
               'Error al cargar cobros'
             ) : kpis?.revenueByCurrency && Object.keys(kpis.revenueByCurrency).length > 0 ? (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-2">
                 {Object.entries(kpis.revenueByCurrency).map(([curr, val]) => (
-                  <span key={curr} className="font-mono">
+                  <span key={curr} className="font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-brand-border/40 text-[11px]">
                     {curr}: ${val.collectedFormatted}
                   </span>
                 ))}
@@ -285,6 +318,7 @@ export function DashboardPage() {
                     <th className="p-2">Vendedor</th>
                     <th className="p-2 text-center">Leads Asignados</th>
                     <th className="p-2 text-center">Ganados</th>
+                    <th className="p-2 text-center">Ventas</th>
                     <th className="p-2 text-center">Tasa Conv.</th>
                     <th className="p-2 text-right">Cobrado</th>
                   </tr>
@@ -293,15 +327,33 @@ export function DashboardPage() {
                   {salespeople.map((sp) => (
                     <tr key={sp.id} className="hover:bg-gray-50/60">
                       <td className="p-2 font-semibold text-brand-text-primary">
-                        {sp.displayName || sp.email}
+                        <div className="flex items-center gap-1.5">
+                          <span>{sp.displayName || sp.email}</span>
+                          {sp.isPendingActivation && (
+                            <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded font-normal">
+                              Pendiente activación
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-2 text-center font-mono">{sp.leadsCount}</td>
                       <td className="p-2 text-center font-mono font-bold text-emerald-700">{sp.wonLeadsCount}</td>
+                      <td className="p-2 text-center font-mono">{sp.salesCount ?? 0}</td>
                       <td className="p-2 text-center font-mono">
                         {sp.hasConversionData ? `${sp.conversionRate}%` : 'Sin datos'}
                       </td>
                       <td className="p-2 text-right font-mono font-bold text-brand-text-primary">
-                        ${sp.collectedFormatted}
+                        {sp.revenueByCurrency && Object.keys(sp.revenueByCurrency).length > 1 ? (
+                          <div className="text-[11px] space-y-0.5">
+                            {Object.entries(sp.revenueByCurrency).map(([curr, v]) => (
+                              <div key={curr}>
+                                {curr}: ${v.collectedFormatted}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          `$${sp.collectedFormatted}`
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -221,6 +221,90 @@ export async function ensureIndexes(db) {
       { name: 'idx_sale_client_soldAt' }
     ),
   ]);
+
+  // 4. Idempotent Data Repair: Fix historical leads with invalid assignments (e.g. non-salesperson roles)
+  await repairInvalidAssignments(db);
+}
+
+/**
+ * Idempotently inspects and repairs leads with invalid salesperson assignments.
+ * Detects leads assigned to users who are missing, suspended, non-salesperson (e.g. client role),
+ * or belonging to another company. Clears assignment safely and writes an audit activity.
+ *
+ * @param {import('mongodb').Db} db
+ */
+export async function repairInvalidAssignments(db) {
+  try {
+    const leadsCollection = db.collection('leads');
+    const usersCollection = db.collection('users');
+    const activitiesCollection = db.collection('lead_activities');
+
+    const assignedLeads = await leadsCollection
+      .find({ assignedToUserId: { $ne: null } })
+      .project({ _id: 1, clientId: 1, assignedToUserId: 1, name: 1 })
+      .toArray();
+
+    if (assignedLeads.length === 0) return;
+
+    for (const lead of assignedLeads) {
+      const assignedUser = await usersCollection.findOne({ _id: lead.assignedToUserId });
+
+      let isInvalid = false;
+      let reason = '';
+
+      if (!assignedUser) {
+        isInvalid = true;
+        reason = 'Usuario asignado no existe en base de datos.';
+      } else if (assignedUser.role !== 'salesperson') {
+        isInvalid = true;
+        reason = `Usuario asignado tiene rol '${assignedUser.role}' en lugar de 'salesperson'.`;
+      } else if (!['active', 'invited'].includes(assignedUser.status)) {
+        isInvalid = true;
+        reason = `Usuario asignado tiene estado '${assignedUser.status}'.`;
+      } else {
+        // Verify tenant match
+        const leadClientStr = lead.clientId?.toString();
+        const userClientStr = assignedUser.clientId?.toString();
+        const userInClientIds = (assignedUser.clientIds || []).some(
+          (cid) => cid.toString() === leadClientStr
+        );
+        if (userClientStr !== leadClientStr && !userInClientIds) {
+          isInvalid = true;
+          reason = 'El vendedor asignado pertenece a otra empresa.';
+        }
+      }
+
+      if (isInvalid) {
+        const now = new Date();
+        await leadsCollection.updateOne(
+          { _id: lead._id },
+          { $set: { assignedToUserId: null, updatedAt: now } }
+        );
+
+        await activitiesCollection.insertOne({
+          clientId: lead.clientId,
+          leadId: lead._id,
+          type: 'assignment',
+          description: `Asignación comercial corregida automáticamente: ${reason}`,
+          data: {
+            previousAssignedToUserId: lead.assignedToUserId?.toString(),
+            repaired: true,
+            reason,
+          },
+          performedBy: null,
+          performedByName: 'Sistema (Mantenimiento)',
+          createdAt: now,
+        });
+
+        console.log('[MAINTENANCE] Repaired invalid lead assignment:', {
+          leadId: lead._id.toString(),
+          reason,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[MAINTENANCE] Warning during assignment repair:', err.message);
+  }
 }
 
 /**

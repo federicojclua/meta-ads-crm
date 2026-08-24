@@ -208,11 +208,14 @@ export function CsvImportModal({
                 className="w-full h-10 px-3 rounded-md border border-brand-border bg-white text-sm text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
               >
                 <option value="">-- Sin asignar (o usar columna del CSV) --</option>
-                {salespeople.map((sp) => (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.displayName || sp.email}
-                  </option>
-                ))}
+                {salespeople.map((sp) => {
+                  const spId = sp.id || sp._id;
+                  return (
+                    <option key={spId} value={spId}>
+                      {sp.displayName || sp.email}{sp.status === 'invited' ? ' (Pendiente de activación)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
