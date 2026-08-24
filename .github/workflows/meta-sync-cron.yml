@@ -35,9 +35,9 @@ jobs:
             exit 0
           fi
 
-          # 2. Validar que la configuración obligatoria esté presente en secrets
-          if [ -z "${{ secrets.CRON_SECRET }}" ] || [ -z "${{ secrets.APP_URL }}" ]; then
-            echo "::error::Error de configuración: Faltan las credenciales requeridas (CRON_SECRET o APP_URL) en GitHub Secrets."
+          # 2. Validar que la configuración obligatoria esté presente en secrets/vars
+          if [ -z "${{ secrets.CRON_SECRET }}" ] || [ -z "${{ vars.APP_URL }}" ]; then
+            echo "::error::Error de configuración: Faltan las credenciales requeridas (CRON_SECRET en GitHub Secrets o APP_URL en GitHub Variables)."
             exit 1
           fi
 
@@ -45,7 +45,7 @@ jobs:
           JOB_KEY="cron_$(date -u +%Y%m%d_%H)"
           echo "Disparando job de sincronización $JOB_KEY..."
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.APP_URL }}/api/meta/sync" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ vars.APP_URL }}/api/meta/sync" \
             -H "Content-Type: application/json" \
             -H "X-Cron-Auth: ${{ secrets.CRON_SECRET }}" \
             -d "{\"jobKey\":\"$JOB_KEY\",\"lookbackDays\":7}")

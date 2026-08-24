@@ -46,15 +46,23 @@ Official Meta Documentation Reference: [Meta Marketing API Reference](https://de
 
 ## 4. Environment Variables
 
-```bash
-# Server-side only (never expose in VITE_ prefix)
-META_APP_ID=123456789012345
-META_APP_SECRET=abcdef0123456789abcdef0123456789
-META_SYSTEM_USER_TOKEN=EAAB...
-META_BUSINESS_ID=123456789012345
-META_API_VERSION=v26.0
-CRON_SECRET=super_secret_cron_token_minimum_32_chars
-```
+### Netlify Functions Config
+Configure these variables in the Netlify site settings (marked as secret where appropriate):
+* `META_APP_ID`: Meta Developer App ID.
+* `META_APP_SECRET`: Meta App Secret (Secret).
+* `META_SYSTEM_USER_TOKEN`: Dedicated System User access token (Secret).
+* `META_BUSINESS_ID`: Business Portfolio ID.
+* `META_API_VERSION`: Graph API version (`v26.0`).
+* `CRON_SECRET`: Random 32-character token to secure crons (Secret).
+* `META_MANUAL_SYNC_ENABLED`: Set to `true` to allow manual sync triggers by super_admins; if absent/false, manual sync is completely disabled.
+* `MONGODB_URI`: MongoDB connection string (Secret).
+* `URL`: Reserved server variable automatically injected by Netlify. Do not configure manually.
+
+### GitHub Actions Variables & Secrets
+Configure these in the GitHub Repository settings:
+* `secrets.CRON_SECRET`: Match value in Netlify (Secret).
+* `vars.APP_URL`: Public base URL of the Netlify application (e.g., `https://crm.animamkt.com`) (Non-secret Variable).
+* `vars.META_SYNC_ENABLED`: Set to `true` to enable automatic cron; set to `false` to disable.
 
 ---
 
@@ -62,10 +70,11 @@ CRON_SECRET=super_secret_cron_token_minimum_32_chars
 
 1. **Authorization Header:** All HTTP requests send `Authorization: Bearer <token>`.
 2. **AppSecret Proof:** Every outgoing request appends `appsecret_proof = HMAC-SHA256(META_APP_SECRET, META_SYSTEM_USER_TOKEN)`.
-3. **Usage Headers:** Parsed from `x-business-use-case-usage` and `x-app-usage`.
-   - $\ge 75\%$: Proactive throttling and sleep delay.
-   - $\ge 90\%$: Halt pagination for that account.
+3. **Usage Headers:** Parsed from `x-business-use-case-usage`, `x-app-usage`, and `Retry-After`.
+   - Preventative limit: $\ge 75\%$ triggers proactive backoff and sleep delays.
+   - Throttling: If rate limits are exceeded, the client backs off gracefully according to HTTP 429/17/32/613 instructions.
 4. **Log Sanitization:** All tokens and secrets are redacted to `[REDACTED]` prior to logging.
+5. **No Token Leakage:** The `/api/meta/status` API only returns boolean flags indicating whether the secrets are set. It never exposes token values, prefixes, suffixes, or enmascarados.
 
 ---
 
@@ -75,3 +84,4 @@ CRON_SECRET=super_secret_cron_token_minimum_32_chars
 - Runs on schedule `0 */6 * * *` and `workflow_dispatch`.
 - Authenticates via header `X-Cron-Auth: ${{ secrets.CRON_SECRET }}` compared with `crypto.timingSafeEqual`.
 - Concurrency protected: multiple simultaneous syncs for the same account are rejected (`409 SYNC_JOB_ALREADY_RUNNING`).
+- Independent: Automatic cron execution does not require or depend on the status of `META_MANUAL_SYNC_ENABLED`.

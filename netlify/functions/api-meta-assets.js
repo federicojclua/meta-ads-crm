@@ -29,25 +29,30 @@ export const handler = async (event) => {
       if (!config.isConfigured) {
         return jsonResponse(200, {
           ok: true,
-          status: 'META_NOT_CONFIGURED',
           configured: false,
           connectionStatus: 'not_configured',
           apiVersion: config.apiVersion,
-          lastSuccessfulRequestAt: null,
-          permissionsStatus: 'unconfigured',
-          message: 'Credenciales de Meta Ads no configuradas en el servidor.',
+          hasAppId: Boolean(config.appId),
+          hasAppSecret: Boolean(config.appSecret),
+          hasSystemUserToken: Boolean(config.systemUserToken),
+          hasBusinessId: Boolean(config.businessId),
+          hasCronSecret: Boolean(config.cronSecret),
+          manualSyncEnabled: process.env.META_MANUAL_SYNC_ENABLED === 'true',
         });
       }
 
       const connection = await metaClient.checkConnectionStatus();
       return jsonResponse(200, {
         ok: true,
-        status: connection.connectionStatus === 'connected' ? 'CONNECTED' : 'CONNECTION_ERROR',
         configured: connection.configured,
         connectionStatus: connection.connectionStatus,
         apiVersion: connection.apiVersion,
-        lastSuccessfulRequestAt: connection.lastSuccessfulRequestAt,
-        permissionsStatus: connection.permissionsStatus,
+        hasAppId: Boolean(config.appId),
+        hasAppSecret: Boolean(config.appSecret),
+        hasSystemUserToken: Boolean(config.systemUserToken),
+        hasBusinessId: Boolean(config.businessId),
+        hasCronSecret: Boolean(config.cronSecret),
+        manualSyncEnabled: process.env.META_MANUAL_SYNC_ENABLED === 'true',
       });
     }
 
@@ -154,11 +159,32 @@ export const handler = async (event) => {
         return errorResponse(400, "El tipo debe ser 'ad_account', 'dataset' o 'pixel'.", 'INVALID_TYPE');
       }
 
-      if (!id || typeof id !== 'string' || id.trim().length < 5) {
-        return errorResponse(400, 'El identificador de Meta es inválido.', 'INVALID_META_ID');
+      if (!id || typeof id !== 'string') {
+        return errorResponse(400, 'El identificador de Meta debe ser un string.', 'INVALID_META_ID');
       }
 
       const cleanId = id.trim();
+      if (cleanId.length < 5 || cleanId.length > 25) {
+        return errorResponse(400, 'El identificador de Meta debe tener entre 5 y 25 caracteres.', 'INVALID_META_ID');
+      }
+
+      // Check if it contains spaces or is a URL
+      if (/\s/.test(cleanId) || cleanId.includes('/') || cleanId.includes(':')) {
+        return errorResponse(400, 'El identificador de Meta no debe contener espacios ni caracteres de URL.', 'INVALID_META_ID');
+      }
+
+      // Numeric check (with optional 'act_' prefix for ad accounts)
+      if (type === 'ad_account') {
+        const numericPart = cleanId.startsWith('act_') ? cleanId.substring(4) : cleanId;
+        if (!/^\d+$/.test(numericPart)) {
+          return errorResponse(400, 'El identificador de cuenta publicitaria debe contener solo dígitos.', 'INVALID_META_ID');
+        }
+      } else {
+        if (!/^\d+$/.test(cleanId)) {
+          return errorResponse(400, 'El identificador de píxel/dataset debe contener solo dígitos.', 'INVALID_META_ID');
+        }
+      }
+
       const cleanName = (name || '').trim() || cleanId;
       const now = new Date();
 
@@ -255,6 +281,27 @@ export const handler = async (event) => {
       if (!adAccountId || typeof adAccountId !== 'string') {
         return errorResponse(400, 'adAccountId es requerido.', 'INVALID_AD_ACCOUNT_ID');
       }
+
+      const cleanAdAccountId = adAccountId.trim();
+      const numericAdAccount = cleanAdAccountId.startsWith('act_') ? cleanAdAccountId.substring(4) : cleanAdAccountId;
+      if (cleanAdAccountId.length < 5 || cleanAdAccountId.length > 25 || !/^\d+$/.test(numericAdAccount) || /\s/.test(cleanAdAccountId) || cleanAdAccountId.includes('/') || cleanAdAccountId.includes(':')) {
+        return errorResponse(400, 'adAccountId es inválido.', 'INVALID_AD_ACCOUNT_ID');
+      }
+
+      if (!Array.isArray(allowedDatasetIds)) {
+        return errorResponse(400, 'allowedDatasetIds debe ser un array.', 'INVALID_DATASET_IDS');
+      }
+
+      for (const datasetId of allowedDatasetIds) {
+        if (typeof datasetId !== 'string') {
+          return errorResponse(400, 'El datasetId debe ser un string.', 'INVALID_DATASET_ID');
+        }
+        const cleanDatasetId = datasetId.trim();
+        if (cleanDatasetId.length < 5 || cleanDatasetId.length > 25 || !/^\d+$/.test(cleanDatasetId) || /\s/.test(cleanDatasetId) || cleanDatasetId.includes('/') || cleanDatasetId.includes(':')) {
+          return errorResponse(400, `El datasetId ${datasetId} es inválido.`, 'INVALID_DATASET_ID');
+        }
+      }
+
       if (!assignmentReason || typeof assignmentReason !== 'string' || assignmentReason.trim().length < 5) {
         return errorResponse(400, 'El motivo de asignación es obligatorio para auditoría (mínimo 5 caracteres).', 'REASON_REQUIRED');
       }

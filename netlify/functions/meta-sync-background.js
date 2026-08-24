@@ -61,6 +61,7 @@ export const handler = async (event) => {
         lockUntil,
       },
       $inc: { attempt: 1 },
+    };
 
     const updateResult = await syncLogsCollection.findOneAndUpdate(query, update, { returnDocument: 'after' });
     const updatedJob = updateResult ? (updateResult.value || updateResult) : null;

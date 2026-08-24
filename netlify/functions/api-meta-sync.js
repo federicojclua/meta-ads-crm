@@ -16,13 +16,22 @@ export const handler = async (event) => {
     const cronHeader = headers['x-cron-auth'] || headers['X-Cron-Auth'];
 
     let isCronAuthorized = false;
-    if (config.cronSecret && cronHeader) {
-      isCronAuthorized = timingSafeCompare(cronHeader, config.cronSecret);
+    if (cronHeader) {
+      if (config.cronSecret && timingSafeCompare(cronHeader, config.cronSecret)) {
+        isCronAuthorized = true;
+      } else {
+        return errorResponse(403, 'Solo el super_admin o el cron del sistema con autenticación válida pueden disparar la sincronización.', 'FORBIDDEN');
+      }
     }
 
     let executingUser = null;
 
     if (!isCronAuthorized) {
+      const isManualEnabled = process.env.META_MANUAL_SYNC_ENABLED === 'true';
+      if (!isManualEnabled) {
+        return errorResponse(503, 'La sincronización manual de Meta Ads está temporalmente desactivada.', 'META_MANUAL_SYNC_DISABLED');
+      }
+
       // Require authenticated Firebase user with super_admin role
       const auth = await verifyAuthorizedUser(event);
       if (!auth.authorized || auth.user?.role !== 'super_admin') {
@@ -44,6 +53,18 @@ export const handler = async (event) => {
     }
 
     const { adAccountId, lookbackDays = 7, fullBackfill = false } = payload;
+
+    if (adAccountId !== undefined && adAccountId !== null) {
+      if (typeof adAccountId !== 'string') {
+        return errorResponse(400, 'El adAccountId debe ser un string.', 'INVALID_AD_ACCOUNT_ID');
+      }
+      const cleanId = adAccountId.trim();
+      const numericPart = cleanId.startsWith('act_') ? cleanId.substring(4) : cleanId;
+      if (cleanId.length < 5 || cleanId.length > 25 || !/^\d+$/.test(numericPart)) {
+        return errorResponse(400, 'El adAccountId es inválido.', 'INVALID_AD_ACCOUNT_ID');
+      }
+    }
+
     const effectiveDays = fullBackfill ? 90 : Math.min(90, Math.max(1, lookbackDays));
 
     const targetAccountKey = adAccountId || 'ALL';

@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Phase 5A Gate 1: Endurecimiento Técnico Previo a la Activación (2026-08-24)
+- **Reclasificación de APP_URL:** Modificado el workflow `.github/workflows/meta-sync-cron.yml` para consumir `APP_URL` desde `vars.APP_URL` (variable pública) en lugar de un secret, manteniendo `CRON_SECRET` protegido en secrets.
+- **Endurecimiento de /status:** Refactorizado el endpoint `GET /api/meta/status` para retornar exclusivamente booleanos (`hasAppId`, `hasAppSecret`, `hasSystemUserToken`, etc.) y versionamiento, eliminando cualquier fragmento o enmascaramiento parcial del token para prevenir filtraciones.
+- **Kill Switch de Sincronización Manual:** Implementada la validación de `META_MANUAL_SYNC_ENABLED` en `api-meta-sync.js`. Si no está en `true`, cualquier intento de trigger manual retorna un error `503 Service Unavailable` con código `META_MANUAL_SYNC_DISABLED`, sin afectar la ejecución del cron automatizado con `X-Cron-Auth`.
+- **Cobertura de Pruebas Unitarias:** Añadidas y robustecidas pruebas unitarias en Vitest para certificar las validaciones del workflow, el kill switch, el alta administrativa, conflictos de datasets y preservación histórica.
+
 ### Fixed — Stage 4 Corrective Fixes (2026-08-24)
 - **Consistencia de Sanitizadores:** Se renombraron las funciones sanitizadoras en los modelos a `sanitizeMetaAdAccount`, `sanitizeMetaDataSource` y `sanitizeClientMetaScope` para coincidir exactamente con las importaciones de los endpoints.
 - **Helper de Base de Datos:** Se implementó y exportó la función `getDb` en `db.js` para resolver problemas de importación y carga dinámica de la base de datos en las Netlify Functions de la Etapa 4.
