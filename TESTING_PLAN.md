@@ -282,3 +282,27 @@
 1. Simular dos solicitudes de cobro concurrentes de $60.000 sobre una venta de $100.000.
 2. Verificar que la primera sea procesada atómicamente y la segunda sea rechazada con `409 COLLECTED_EXCEEDS_AMOUNT`.
 3. Verificar que el array `payments` guarde el histórico inmutable con su propio tipo de cambio individual.
+
+---
+
+## 6. Phase 5A — Gate 1: Endurecimiento Técnico, Kill Switch y Alta Manual
+
+### Test 24: Endpoint de Diagnóstico /status Endurecido
+1. Realizar un GET a `/api/meta/status` con credenciales configuradas.
+2. Verificar que la respuesta JSON no contenga valores de tokens, prefijos, sufijos ni fragmentos enmascarados del token (`META_SYSTEM_USER_TOKEN` o `META_APP_SECRET`).
+3. Verificar que retorne flags booleanos: `hasAppId`, `hasAppSecret`, `hasSystemUserToken`, `hasBusinessId`, `hasCronSecret`, y `manualSyncEnabled`.
+
+### Test 25: Kill Switch de Sincronización Manual (`META_MANUAL_SYNC_ENABLED`)
+1. Intentar disparar una sincronización manual mediante POST a `/api/meta/sync` cuando `META_MANUAL_SYNC_ENABLED` es `false` o no está definido.
+2. Verificar que la API responda con HTTP `503 Service Unavailable` y código `META_MANUAL_SYNC_DISABLED`.
+3. Establecer `META_MANUAL_SYNC_ENABLED=true`. Intentar disparar de nuevo como `super_admin`. Verificar que la petición sea aceptada (HTTP `202 Accepted`).
+4. Intentar disparar con `META_MANUAL_SYNC_ENABLED=true` utilizando un rol sin privilegios (`salesperson` o `client`). Verificar rechazo con HTTP `403 Forbidden`.
+
+### Test 26: Independencia del Cron con Kill Switch Activo
+1. Con `META_MANUAL_SYNC_ENABLED=false`, enviar una petición POST a `/api/meta/sync` incluyendo la cabecera `X-Cron-Auth` con el `CRON_SECRET` correcto.
+2. Verificar que la petición de cron sea procesada exitosamente, evadiendo el bloqueo de sincronización manual.
+
+### Test 27: Alta Administrativa y Detección de Conflictos
+1. Registrar una cuenta o píxel mediante `POST /api/meta/assets/manual`. Verificar normalización de IDs.
+2. Asignar el píxel a la Empresa A mediante `POST /api/meta/assign`.
+3. Intentar asignar el mismo píxel a la Empresa B. Verificar que la API bloquee la operación con HTTP `409 Conflict` e identifique el conflicto del activo asignado.

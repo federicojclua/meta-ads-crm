@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Phase 5A Gate 1: Endurecimiento Técnico Previo a la Activación (2026-08-24)
+- **Reclasificación de APP_URL:** Modificado el workflow `.github/workflows/meta-sync-cron.yml` para consumir `APP_URL` desde `vars.APP_URL` (variable pública) en lugar de un secret, manteniendo `CRON_SECRET` protegido en secrets.
+- **Endurecimiento de /status:** Refactorizado el endpoint `GET /api/meta/status` para retornar exclusivamente booleanos (`hasAppId`, `hasAppSecret`, `hasSystemUserToken`, etc.) y versionamiento, eliminando cualquier fragmento o enmascaramiento parcial del token para prevenir filtraciones.
+- **Kill Switch de Sincronización Manual:** Implementada la validación de `META_MANUAL_SYNC_ENABLED` en `api-meta-sync.js`. Si no está en `true`, cualquier intento de trigger manual retorna un error `503 Service Unavailable` con código `META_MANUAL_SYNC_DISABLED`, sin afectar la ejecución del cron automatizado con `X-Cron-Auth`.
+- **Cobertura de Pruebas Unitarias:** Añadidas y robustecidas pruebas unitarias en Vitest para certificar las validaciones del workflow, el kill switch, el alta administrativa, conflictos de datasets y preservación histórica.
+
+### Fixed — Stage 4 Corrective Fixes (2026-08-24)
+- **Consistencia de Sanitizadores:** Se renombraron las funciones sanitizadoras en los modelos a `sanitizeMetaAdAccount`, `sanitizeMetaDataSource` y `sanitizeClientMetaScope` para coincidir exactamente con las importaciones de los endpoints.
+- **Helper de Base de Datos:** Se implementó y exportó la función `getDb` en `db.js` para resolver problemas de importación y carga dinámica de la base de datos en las Netlify Functions de la Etapa 4.
+- **Ejecución en Segundo Plano Asíncrona:** Se refactorizó `api-meta-sync.js` para disparar asíncronamente al worker `meta-sync-background.js` (Netlify Background Function) y retornar un código HTTP `202 Accepted` de forma inmediata.
+- **Seguridad en Background Worker:** Se actualizó `meta-sync-background.js` para verificar de forma estricta el token `X-Cron-Auth` y reutilizar el `jobId` original creado por el trigger para evitar duplicados en la base de datos.
+- **Acceso Explicito en Multiempresa:** Se requiere obligatoriamente el parámetro `clientId` en las consultas de métricas e insights de Meta Ads para administradores globales, y se desactivó la opción de "Todas las empresas" en la interfaz de campañas para prevenir agregaciones globales accidentales.
+- **Robustez en GitHub Actions:** Se ajustó la frecuencia del cron a `17 */6 * * *`, se configuró concurrencia única mediante un grupo de concurrencia de GitHub, se configuró `META_SYNC_ENABLED=false` por defecto y se sanitizaron los logs de salida.
+- **Pruebas y Cobertura:** Se agregaron 8 nuevos casos de pruebas unitarias robustas en Vitest, alcanzando un total de 171 pruebas pasando exitosamente con 0 advertencias de ESLint.
+
 ### Added — Stage 4: Official Integration with Meta Marketing API v26.0, Ad Campaigns, Pixels/Datasets & Multi-Tenant Metrics (2026-08-24)
 - **Integración Oficial con Meta Graph API v26.0 (`_shared/metaClient.js`, `_shared/metaConfig.js`):**
   - Cliente nativo Node.js 24 (`fetch` + `crypto`) sin dependencias pesadas.

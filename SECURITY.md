@@ -180,3 +180,17 @@ Para mitigar ataques de clickjacking, MIME sniffing y garantizar aislamiento seg
 - [ ] Peticiones a otros `clientId` mediante alteración de URL devuelven 403.
 - [ ] Headers seguros configurados (`X-Content-Type-Options`, `X-Frame-Options`).
 - [ ] Audit logs libres de PII sensible y secretos.
+
+---
+
+## 8. Meta Ads Integration Security (Fase 5A)
+
+### Endpoint de Diagnóstico `/api/meta/status`
+* El endpoint de diagnóstico seguro tiene estrictamente prohibido exponer caracteres, fragmentos enmascarados, prefijos, sufijos o longitudes del token de acceso de usuario del sistema (`META_SYSTEM_USER_TOKEN`) o del secreto de la aplicación (`META_APP_SECRET`).
+* Solo se permite el uso de flags booleanos (`hasSystemUserToken: true/false`, etc.) para verificar la configuración en el backend.
+
+### Kill Switch Manual de Ingesta
+* El CRM implementa la variable `META_MANUAL_SYNC_ENABLED`. Si no está configurada como `'true'`, cualquier trigger de sincronización que no venga autenticado mediante `X-Cron-Auth` es rechazado de inmediato con un error `503 Service Unavailable` y código `META_MANUAL_SYNC_DISABLED`, previniendo ejecuciones manuales accidentales e inactivando el endpoint de disparo.
+
+### Aislamiento de Origen
+* El dispatcher de Netlify Functions calcula y llama a la Background Function únicamente a través de la variable del servidor `process.env.URL`. Se ignora preventivamente `event.rawUrl`, `Host`, `Origin`, query params o cabeceras del cliente para impedir ataques de redirección de tráfico o secuestro de ejecuciones en segundo plano.

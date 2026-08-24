@@ -22,7 +22,11 @@ import { calculateDerivedMetrics } from '../../models/MetaInsightDaily.js';
 import { handler as assetsHandler } from '../../netlify/functions/api-meta-assets.js';
 import { handler as insightsHandler } from '../../netlify/functions/api-meta-insights.js';
 import { handler as syncHandler } from '../../netlify/functions/api-meta-sync.js';
+import { handler as backgroundHandler } from '../../netlify/functions/meta-sync-background.js';
 import * as PermissionsModule from '../../netlify/functions/_shared/permissions.js';
+import * as DbModule from '../../netlify/functions/_shared/db.js';
+
+let activeMockDb = null;
 
 describe('Stage 4 — Meta Marketing API v26.0 Backend Test Suite (32 Casos)', () => {
   const originalEnv = process.env;
@@ -37,7 +41,24 @@ describe('Stage 4 — Meta Marketing API v26.0 Backend Test Suite (32 Casos)', (
       META_BUSINESS_ID: '987654321098765',
       META_API_VERSION: 'v26.0',
       CRON_SECRET: 'super_secret_cron_token_32_chars_long',
+      META_MANUAL_SYNC_ENABLED: 'true',
     };
+    activeMockDb = {
+      collection: () => ({
+        find: () => ({
+          sort: () => ({
+            toArray: () => Promise.resolve([]),
+          }),
+          toArray: () => Promise.resolve([]),
+        }),
+        findOne: () => Promise.resolve(null),
+        insertOne: () => Promise.resolve({}),
+        updateOne: () => Promise.resolve({}),
+        updateMany: () => Promise.resolve({}),
+      }),
+    };
+    vi.spyOn(DbModule, 'connectToDatabase').mockImplementation(async () => ({ db: activeMockDb }));
+    vi.spyOn(DbModule, 'getDb').mockImplementation(async () => activeMockDb);
   });
 
   afterEach(() => {
@@ -623,6 +644,954 @@ describe('Stage 4 — Meta Marketing API v26.0 Backend Test Suite (32 Casos)', (
       expect(campaign.crmAttributedSales).toBe(1);
       expect(campaign.cpaCrm).toBe(10000.00); // 10,000 / 1
       expect(campaign.roasCollected).toBe(2.00); // 20,000 / 10,000
+    });
+  });
+
+  // =========================================================================
+  // 8. Pruebas Adicionales Correctivas (Etapa 4 - Nuevos Casos Requeridos)
+  // =========================================================================
+  describe('8. Pruebas Adicionales Correctivas (Etapa 4 - Nuevos Casos)', () => {
+    it('8.1 Sanitizadores: assetsHandler importa y carga sin errores', async () => {
+      const mockCursor = {
+        sort: () => mockCursor,
+        toArray: () => Promise.resolve([]),
+      };
+      const mockDb = {
+        collection: () => {
+          return {
+            find: () => mockCursor,
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/assets',
+      });
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.ok).toBe(true);
+      expect(Array.isArray(data.adAccounts)).toBe(true);
+      expect(Array.isArray(data.dataSources)).toBe(true);
+    });
+
+    it('8.2 appsecret_proof: fórmula determinista exacta', () => {
+      const dummyToken = 'token_123';
+      const dummySecret = 'secret_abc_32_chars_long_12345678';
+      const expectedHmac = crypto.createHmac('sha256', dummySecret).update(dummyToken).digest('hex');
+      const calculated = generateAppSecretProof(dummyToken, dummySecret);
+      expect(calculated).toBe(expectedHmac);
+    });
+
+    it('8.3 Aislamiento: usuario de Empresa A no puede listar activos de Empresa B', async () => {
+      const clientA = new ObjectId();
+
+      const mockCursor = {
+        sort: () => mockCursor,
+        toArray: () => Promise.resolve([]),
+      };
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'client_meta_scopes') {
+            return {
+              find: (query) => {
+                expect(query.clientId).toEqual(clientA);
+                return { toArray: () => Promise.resolve([]) };
+              }
+            };
+          }
+          return {
+            find: () => mockCursor,
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'client', clientId: clientA },
+        isGlobal: false,
+        clientScope: clientA,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/assets',
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('8.4 Aislamiento: usuario de Empresa A no puede consultar insights de Empresa B', async () => {
+      const clientA = new ObjectId();
+      const clientB = new ObjectId();
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_insights_daily') {
+            return {
+              aggregate: (pipeline) => {
+                const matchStage = pipeline[0].$match;
+                expect(matchStage.clientId).toEqual(clientA);
+                return { toArray: () => Promise.resolve([]) };
+              }
+            };
+          }
+          return {
+            find: () => ({
+              toArray: () => Promise.resolve([]),
+            }),
+            findOne: () => Promise.resolve({ _id: clientA, status: 'active' }),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'client', clientId: clientA },
+        isGlobal: false,
+        clientScope: clientA,
+        db: mockDb,
+      });
+
+      const res = await insightsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/insights',
+        queryStringParameters: { clientId: clientB.toString() },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('8.5 Background Sync: dispatcher retorna 202 inmediatamente y no espera al worker', async () => {
+      const superAdminUser = { _id: new ObjectId(), role: 'super_admin' };
+      const jobId = new ObjectId();
+
+      const mockDb = {
+        collection: () => {
+          return {
+            findOne: () => Promise.resolve(null),
+            insertOne: () => Promise.resolve({ insertedId: jobId }),
+            updateOne: () => Promise.resolve({}),
+            updateMany: () => Promise.resolve({ modifiedCount: 0 }),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      process.env.URL = 'https://example.netlify.app';
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: superAdminUser,
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const globalFetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        status: 202,
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        rawUrl: 'https://example.netlify.app/.netlify/functions/api-meta-sync',
+        body: JSON.stringify({ adAccountId: 'act_123' }),
+      });
+
+      expect(res.statusCode).toBe(202);
+      const data = JSON.parse(res.body);
+      expect(data.ok).toBe(true);
+      expect(data.message).toContain('iniciada en segundo plano');
+      expect(globalFetchSpy).toHaveBeenCalled();
+    });
+
+    it('8.6 Reclasificación: solo super_admin puede reasignar datos', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'admin' },
+        isGlobal: true,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/reclassify-historical',
+        body: JSON.stringify({ action: 'preview' }),
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('8.7 datasets: endpoint blocked en allowlist', () => {
+      expect(isVerifiedMetaEndpoint('123456/datasets')).toBe(false);
+    });
+
+    it('8.8 Insights: requiere obligatoriamente clientId para global admin', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+      });
+
+      const res = await insightsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/insights',
+        queryStringParameters: {},
+      });
+
+      expect(res.statusCode).toBe(400);
+      const data = JSON.parse(res.body);
+      expect(data.code).toBe('CLIENT_ID_REQUIRED');
+    });
+
+    it('8.9 URL Injection: event.rawUrl es ignorado y fetch utiliza process.env.URL', async () => {
+      const superAdminUser = { _id: new ObjectId(), role: 'super_admin' };
+      const jobId = new ObjectId();
+
+      const mockDb = {
+        collection: () => ({
+          findOne: () => Promise.resolve(null),
+          insertOne: () => Promise.resolve({ insertedId: jobId }),
+          updateOne: () => Promise.resolve({}),
+          updateMany: () => Promise.resolve({ modifiedCount: 0 }),
+        }),
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: superAdminUser,
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      process.env.URL = 'https://trusted-server.netlify.app';
+
+      const globalFetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        status: 202,
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        rawUrl: 'https://user-injected-malicious-domain.com/some-path',
+        body: JSON.stringify({ adAccountId: 'act_123' }),
+      });
+
+      expect(res.statusCode).toBe(202);
+      expect(globalFetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('https://trusted-server.netlify.app/.netlify/functions/meta-sync-background'),
+        expect.anything()
+      );
+    });
+
+    it('8.10 Concurrencia: doble adquisición atómica del mismo jobId ejecuta el worker una sola vez', async () => {
+      const jobId = new ObjectId();
+      let currentStatus = 'queued';
+      let updateCallsCount = 0;
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_sync_logs') {
+            return {
+              findOne: () => Promise.resolve({ _id: jobId, status: currentStatus, adAccountId: 'act_123', lookbackDays: 7 }),
+              findOneAndUpdate: vi.fn().mockImplementation((query) => {
+                if (query._id.equals(jobId) && query.status === 'queued' && currentStatus === 'queued') {
+                  currentStatus = 'in_progress';
+                  updateCallsCount++;
+                  return Promise.resolve({
+                    value: { _id: jobId, status: 'in_progress', adAccountId: 'act_123', lookbackDays: 7 },
+                  });
+                }
+                return Promise.resolve(null);
+              }),
+              updateOne: () => Promise.resolve({}),
+            };
+          }
+          return {
+            find: () => ({ toArray: () => Promise.resolve([]) }),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      await backgroundHandler({
+        headers: { 'X-Cron-Auth': 'super_secret_cron_token_32_chars_long' },
+        body: JSON.stringify({ jobId: jobId.toString() }),
+      });
+
+      await backgroundHandler({
+        headers: { 'X-Cron-Auth': 'super_secret_cron_token_32_chars_long' },
+        body: JSON.stringify({ jobId: jobId.toString() }),
+      });
+
+      expect(updateCallsCount).toBe(1);
+    });
+
+    it('8.11 Preservación Histórica: asignación posterior a Empresa B no modifica el clientId histórico de Empresa A', async () => {
+      const clientA = new ObjectId();
+      const clientB = new ObjectId();
+
+      const scopes = [
+        {
+          clientId: clientA,
+          adAccountId: 'act_shared_1',
+          allowedDatasetIds: ['pixel_1'],
+          effectiveFrom: new Date('2026-08-01T00:00:00Z'),
+          effectiveTo: new Date('2026-08-10T23:59:59Z'),
+        },
+        {
+          clientId: clientB,
+          adAccountId: 'act_shared_1',
+          allowedDatasetIds: ['pixel_1'],
+          effectiveFrom: new Date('2026-08-11T00:00:00Z'),
+          effectiveTo: null,
+        },
+      ];
+
+      const mockAdAccounts = [
+        { adAccountId: 'act_shared_1', currency: 'ARS', assignedClientId: null, isSharedAccount: true },
+      ];
+
+      const mockDataSources = [
+        { metaDatasetId: 'pixel_1', assignedClientId: null },
+      ];
+
+      const upsertedInsights = [];
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_ad_accounts') return { find: () => ({ toArray: () => Promise.resolve(mockAdAccounts) }), updateOne: vi.fn() };
+          if (name === 'client_meta_scopes') return { find: () => ({ toArray: () => Promise.resolve(scopes) }) };
+          if (name === 'meta_data_sources') return { find: () => ({ toArray: () => Promise.resolve(mockDataSources) }) };
+          if (name === 'meta_insights_daily') {
+            return {
+              updateOne: vi.fn().mockImplementation((query, update) => {
+                const doc = {
+                  clientId: query.clientId,
+                  date: query.date,
+                  adsetId: query.adsetId,
+                  spendMinor: update.$set?.spendMinor || 0,
+                };
+                upsertedInsights.push(doc);
+                return Promise.resolve({ upsertedId: new ObjectId() });
+              }),
+            };
+          }
+          return {
+            find: () => ({ toArray: () => Promise.resolve([]) }),
+            updateOne: vi.fn(),
+          };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(MetaApiClient.prototype, 'fetchAllPages').mockImplementation(async (endpoint) => {
+        if (endpoint.includes('/campaigns')) {
+          return [{ id: 'camp_1', name: 'Campaña Compartida', status: 'ACTIVE' }];
+        }
+        if (endpoint.includes('/adsets')) {
+          return [{ id: 'adset_1', name: 'AdSet Compartido', campaign_id: 'camp_1', promoted_object: { pixel_id: 'pixel_1' } }];
+        }
+        if (endpoint.includes('/insights')) {
+          return [
+            {
+              adset_id: 'adset_1',
+              campaign_id: 'camp_1',
+              date_start: '2026-08-05',
+              spend: '300.00',
+              impressions: '1000',
+              clicks: '50',
+            },
+            {
+              adset_id: 'adset_1',
+              campaign_id: 'camp_1',
+              date_start: '2026-08-15',
+              spend: '700.00',
+              impressions: '2000',
+              clicks: '100',
+            },
+          ];
+        }
+        return [];
+      });
+
+      await executeSyncJob(mockDb, {
+        jobId: new ObjectId(),
+        adAccountId: 'act_shared_1',
+        lookbackDays: 30,
+      });
+
+      const insightAug5 = upsertedInsights.find(x => x.date === '2026-08-05');
+      expect(insightAug5).toBeDefined();
+      expect(insightAug5.clientId).toEqual(clientA);
+
+      const insightAug15 = upsertedInsights.find(x => x.date === '2026-08-15');
+      expect(insightAug15).toBeDefined();
+      expect(insightAug15.clientId).toEqual(clientB);
+    });
+  });
+
+  // =========================================================================
+  // 9. Endurecimiento Técnico, Kill Switch y Validación Manual (Fase 5A)
+  // =========================================================================
+  describe('9. Endurecimiento Técnico, Kill Switch y Validación Manual (Fase 5A)', () => {
+    it('9.1 GET /api/meta/status no contiene fragmentos ni partes del token o secretos y retorna booleanos correctos', async () => {
+      process.env.META_MANUAL_SYNC_ENABLED = 'false';
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'GET',
+        path: '/api/meta/status',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.ok).toBe(true);
+      expect(data.hasAppId).toBe(true);
+      expect(data.hasAppSecret).toBe(true);
+      expect(data.hasSystemUserToken).toBe(true);
+      expect(data.hasBusinessId).toBe(true);
+      expect(data.hasCronSecret).toBe(true);
+      expect(data.manualSyncEnabled).toBe(false);
+
+      // Garantizar que no se fugue ningún fragmento o token completo
+      const bodyStr = res.body;
+      expect(bodyStr).not.toContain('EAAB_test');
+      expect(bodyStr).not.toContain('test_meta_app_secret');
+    });
+
+    it('9.2 POST /api/meta/sync rechaza trigger manual con 503 si META_MANUAL_SYNC_ENABLED es false o no definido', async () => {
+      process.env.META_MANUAL_SYNC_ENABLED = 'false';
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        body: JSON.stringify({ adAccountId: 'act_111111111111111' }),
+      });
+
+      expect(res.statusCode).toBe(503);
+      const data = JSON.parse(res.body);
+      expect(data.code).toBe('META_MANUAL_SYNC_DISABLED');
+      expect(data.error).toContain('desactivada');
+      expect(res.body).not.toContain('EAAB_test');
+    });
+
+    it('9.3 POST /api/meta/sync permite trigger manual si META_MANUAL_SYNC_ENABLED es true y es super_admin', async () => {
+      process.env.META_MANUAL_SYNC_ENABLED = 'true';
+      process.env.URL = 'https://trusted-server.netlify.app';
+
+      const mockDb = {
+        collection: () => ({
+          updateMany: () => Promise.resolve({}),
+          findOne: () => Promise.resolve(null),
+          insertOne: () => Promise.resolve({ insertedId: new ObjectId() }),
+        }),
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      // Mock the netlify dispatcher fetch
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        status: 202,
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        body: JSON.stringify({ adAccountId: 'act_111111111111111' }),
+      });
+
+      expect(res.statusCode).toBe(202);
+    });
+
+    it('9.4 POST /api/meta/sync rechaza trigger manual si META_MANUAL_SYNC_ENABLED es true pero el usuario no es super_admin', async () => {
+      process.env.META_MANUAL_SYNC_ENABLED = 'true';
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'salesperson' },
+        isGlobal: false,
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        body: JSON.stringify({ adAccountId: 'act_111111111111111' }),
+      });
+
+      expect(res.statusCode).toBe(403);
+      const data = JSON.parse(res.body);
+      expect(data.code).toBe('FORBIDDEN');
+    });
+
+    it('9.5 POST /api/meta/sync permite trigger de cron independiente del flag manual', async () => {
+      process.env.META_MANUAL_SYNC_ENABLED = 'false';
+      process.env.URL = 'https://trusted-server.netlify.app';
+
+      const mockDb = {
+        collection: () => ({
+          updateMany: () => Promise.resolve({}),
+          findOne: () => Promise.resolve(null),
+          insertOne: () => Promise.resolve({ insertedId: new ObjectId() }),
+        }),
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: false,
+      });
+
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        status: 202,
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        headers: {
+          'X-Cron-Auth': 'super_secret_cron_token_32_chars_long',
+        },
+        body: JSON.stringify({ adAccountId: 'act_111111111111111' }),
+      });
+
+      expect(res.statusCode).toBe(202);
+    });
+
+    it('9.6 POST /api/meta/assets/manual registra cuenta/dataset válidos, normaliza y valida formatos estrictos', async () => {
+      const mockAdAccounts = [];
+      const mockDataSources = [];
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'meta_ad_accounts') {
+            return {
+              findOne: () => Promise.resolve(null),
+              insertOne: (doc) => {
+                mockAdAccounts.push(doc);
+                return Promise.resolve({ insertedId: new ObjectId() });
+              },
+            };
+          }
+          if (name === 'meta_data_sources') {
+            return {
+              findOne: () => Promise.resolve(null),
+              insertOne: (doc) => {
+                mockDataSources.push(doc);
+                return Promise.resolve({ insertedId: new ObjectId() });
+              },
+            };
+          }
+          return {};
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      // 1. Valid registration of ad account
+      let res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '111111111111111',
+          name: 'Mi Cuenta Realista',
+          currency: 'USD',
+        }),
+      });
+      expect(res.statusCode).toBe(201);
+      expect(mockAdAccounts[0].adAccountId).toBe('act_111111111111111');
+      expect(mockAdAccounts[0]).not.toHaveProperty('appSecret');
+      expect(mockAdAccounts[0]).not.toHaveProperty('token');
+
+      // 2. Reject letters where digits are expected
+      res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '11111abc11111',
+          name: 'Cuenta Inválida',
+        }),
+      });
+      expect(res.statusCode).toBe(400);
+
+      // 3. Reject spaces
+      res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '1111 1111',
+          name: 'Cuenta Con Espacios',
+        }),
+      });
+      expect(res.statusCode).toBe(400);
+
+      // 4. Reject URLs
+      res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: 'https://graph.facebook.com/123',
+          name: 'Cuenta URL',
+        }),
+      });
+      expect(res.statusCode).toBe(400);
+
+      // 5. Reject objects in id (MongoDB Injection check)
+      res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: { $gt: '' },
+          name: 'Cuenta Inyección',
+        }),
+      });
+      expect(res.statusCode).toBe(400);
+
+      // 6. Reject empty IDs
+      res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '',
+          name: 'Cuenta Vacía',
+        }),
+      });
+      expect(res.statusCode).toBe(400);
+
+      // 7. Reject excessively long IDs
+      res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '111111111111111111111111111111',
+          name: 'Cuenta Larga',
+        }),
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('9.7 POST /api/meta/assign detecta conflicto de dataset asignado a otra empresa', async () => {
+      const clientA = new ObjectId();
+      const clientB = new ObjectId();
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'clients') {
+            return {
+              findOne: () => Promise.resolve({ _id: clientA, status: 'active' }),
+            };
+          }
+          if (name === 'meta_data_sources') {
+            return {
+              find: () => ({
+                toArray: () => Promise.resolve([
+                  { metaDatasetId: '222222222222222', assignedClientId: clientB },
+                ]),
+              }),
+            };
+          }
+          return {};
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assign',
+        body: JSON.stringify({
+          clientId: clientA.toString(),
+          adAccountId: 'act_111111111111111',
+          allowedDatasetIds: ['222222222222222'],
+          assignmentReason: 'Motivo de prueba obligatorio de 5 chars',
+        }),
+      });
+
+      expect(res.statusCode).toBe(409);
+      const data = JSON.parse(res.body);
+      expect(data.code).toBe('DATA_SOURCE_ALREADY_ASSIGNED');
+    });
+
+    it('9.8 POST /api/meta/sync rechaza valores alternativos no estrictos en META_MANUAL_SYNC_ENABLED', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+      });
+
+      for (const val of ['TRUE', '1', 'yes', ' true ', 'enabled']) {
+        process.env.META_MANUAL_SYNC_ENABLED = val;
+        const res = await syncHandler({
+          httpMethod: 'POST',
+          path: '/api/meta/sync',
+          body: JSON.stringify({ adAccountId: 'act_111111111111111' }),
+        });
+        expect(res.statusCode).toBe(503);
+      }
+    });
+
+    it('9.9 POST /api/meta/sync rechaza usuario suspendido o inactivo', async () => {
+      process.env.META_MANUAL_SYNC_ENABLED = 'true';
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: false,
+        error: 'Usuario suspendido.',
+        statusCode: 403,
+      });
+
+      const res = await syncHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/sync',
+        body: JSON.stringify({ adAccountId: 'act_111111111111111' }),
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('9.10 POST /api/meta/assets/manual ignora campos inesperados en el payload', async () => {
+      const mockAdAccounts = [];
+      const mockDb = {
+        collection: () => ({
+          findOne: () => Promise.resolve(null),
+          insertOne: (doc) => {
+            mockAdAccounts.push(doc);
+            return Promise.resolve({ insertedId: new ObjectId() });
+          },
+        }),
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '111111111111111',
+          name: 'Mi Cuenta',
+          unexpected_field: 'malicious_content',
+        }),
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(mockAdAccounts[0]).not.toHaveProperty('unexpected_field');
+      expect(mockAdAccounts[0]).not.toHaveProperty('appSecret');
+      expect(mockAdAccounts[0]).not.toHaveProperty('token');
+    });
+
+    it('9.11 POST /api/meta/assets/manual rechaza usuarios sin rol super_admin', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'salesperson' },
+        isGlobal: false,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assets/manual',
+        body: JSON.stringify({
+          type: 'ad_account',
+          id: '111111111111111',
+        }),
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('9.12 POST /api/meta/assign rechaza usuarios sin rol super_admin', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'salesperson' },
+        isGlobal: false,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assign',
+        body: JSON.stringify({
+          clientId: new ObjectId().toString(),
+          adAccountId: 'act_111111111111111',
+        }),
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('9.13 POST /api/meta/assign archiva scopes activos anteriores para el mismo cliente y cuenta', async () => {
+      const clientA = new ObjectId();
+      let archived = false;
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'clients') {
+            return { findOne: () => Promise.resolve({ _id: clientA, status: 'active' }) };
+          }
+          if (name === 'meta_data_sources') {
+            return {
+              find: () => ({ toArray: () => Promise.resolve([]) }),
+              updateMany: () => Promise.resolve({ modifiedCount: 1 }),
+            };
+          }
+          if (name === 'client_meta_scopes') {
+            return {
+              updateMany: (query, update) => {
+                if (query.clientId.equals(clientA) && query.adAccountId === 'act_111111111111111' && query.status === 'active' && update.$set.status === 'archived') {
+                  archived = true;
+                }
+                return Promise.resolve({ modifiedCount: 1 });
+              },
+              insertOne: () => Promise.resolve({ insertedId: new ObjectId() }),
+            };
+          }
+          return { updateOne: () => Promise.resolve({}) };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: new ObjectId(), role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assign',
+        body: JSON.stringify({
+          clientId: clientA.toString(),
+          adAccountId: 'act_111111111111111',
+          allowedDatasetIds: ['222222222222222'],
+          assignmentReason: 'Motivo de prueba obligatorio de 5 chars',
+        }),
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(archived).toBe(true);
+    });
+
+    it('9.14 POST /api/meta/assign registra metadatos de auditoría en el scope creado', async () => {
+      const clientA = new ObjectId();
+      const userId = new ObjectId();
+      let savedScope = null;
+
+      const mockDb = {
+        collection: (name) => {
+          if (name === 'clients') {
+            return { findOne: () => Promise.resolve({ _id: clientA, status: 'active' }) };
+          }
+          if (name === 'meta_data_sources') {
+            return {
+              find: () => ({ toArray: () => Promise.resolve([]) }),
+              updateMany: () => Promise.resolve({ modifiedCount: 1 }),
+            };
+          }
+          if (name === 'client_meta_scopes') {
+            return {
+              updateMany: () => Promise.resolve({}),
+              insertOne: (doc) => {
+                savedScope = doc;
+                return Promise.resolve({ insertedId: new ObjectId() });
+              },
+            };
+          }
+          return { updateOne: () => Promise.resolve({}) };
+        },
+      };
+      activeMockDb = mockDb;
+
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValue({
+        authorized: true,
+        user: { _id: userId, role: 'super_admin' },
+        isGlobal: true,
+        db: mockDb,
+      });
+
+      const res = await assetsHandler({
+        httpMethod: 'POST',
+        path: '/api/meta/assign',
+        body: JSON.stringify({
+          clientId: clientA.toString(),
+          adAccountId: 'act_111111111111111',
+          allowedDatasetIds: ['222222222222222'],
+          assignmentReason: 'Motivo de prueba obligatorio de 5 chars',
+        }),
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(savedScope).toBeDefined();
+      expect(savedScope.assignedByUserId).toEqual(userId);
+      expect(savedScope.assignmentReason).toBe('Motivo de prueba obligatorio de 5 chars');
+      expect(savedScope.effectiveFrom).toBeInstanceOf(Date);
+    });
+
+    it('9.15 El workflow de GitHub Actions usa vars.APP_URL y secrets.CRON_SECRET', async () => {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const yamlPath = path.join(process.cwd(), '.github/workflows/meta-sync-cron.yml');
+      const content = fs.readFileSync(yamlPath, 'utf8');
+
+      expect(content).toContain('vars.APP_URL');
+      expect(content).toContain('secrets.CRON_SECRET');
+      expect(content).not.toContain('secrets.APP_URL');
+      expect(content).toContain('if [ "$ENABLED" != "true" ]; then');
+      expect(content).toContain('exit 0');
+      expect(content).toContain('if [ -z "${{ secrets.CRON_SECRET }}" ] || [ -z "${{ vars.APP_URL }}" ]; then');
+      expect(content).toContain('exit 1');
     });
   });
 });

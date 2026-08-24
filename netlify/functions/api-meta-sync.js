@@ -3,7 +3,6 @@ import { getDb } from './_shared/db.js';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
 import { getMetaConfig, timingSafeCompare, sanitizeMetaLog } from './_shared/metaConfig.js';
-import { executeSyncJob } from './_shared/metaSyncWorker.js';
 
 export const handler = async (event) => {
   try {
@@ -17,13 +16,22 @@ export const handler = async (event) => {
     const cronHeader = headers['x-cron-auth'] || headers['X-Cron-Auth'];
 
     let isCronAuthorized = false;
-    if (config.cronSecret && cronHeader) {
-      isCronAuthorized = timingSafeCompare(cronHeader, config.cronSecret);
+    if (cronHeader) {
+      if (config.cronSecret && timingSafeCompare(cronHeader, config.cronSecret)) {
+        isCronAuthorized = true;
+      } else {
+        return errorResponse(403, 'Solo el super_admin o el cron del sistema con autenticación válida pueden disparar la sincronización.', 'FORBIDDEN');
+      }
     }
 
     let executingUser = null;
 
     if (!isCronAuthorized) {
+      const isManualEnabled = process.env.META_MANUAL_SYNC_ENABLED === 'true';
+      if (!isManualEnabled) {
+        return errorResponse(503, 'La sincronización manual de Meta Ads está temporalmente desactivada.', 'META_MANUAL_SYNC_DISABLED');
+      }
+
       // Require authenticated Firebase user with super_admin role
       const auth = await verifyAuthorizedUser(event);
       if (!auth.authorized || auth.user?.role !== 'super_admin') {
@@ -45,6 +53,18 @@ export const handler = async (event) => {
     }
 
     const { adAccountId, lookbackDays = 7, fullBackfill = false } = payload;
+
+    if (adAccountId !== undefined && adAccountId !== null) {
+      if (typeof adAccountId !== 'string') {
+        return errorResponse(400, 'El adAccountId debe ser un string.', 'INVALID_AD_ACCOUNT_ID');
+      }
+      const cleanId = adAccountId.trim();
+      const numericPart = cleanId.startsWith('act_') ? cleanId.substring(4) : cleanId;
+      if (cleanId.length < 5 || cleanId.length > 25 || !/^\d+$/.test(numericPart)) {
+        return errorResponse(400, 'El adAccountId es inválido.', 'INVALID_AD_ACCOUNT_ID');
+      }
+    }
+
     const effectiveDays = fullBackfill ? 90 : Math.min(90, Math.max(1, lookbackDays));
 
     const targetAccountKey = adAccountId || 'ALL';
@@ -65,17 +85,20 @@ export const handler = async (event) => {
       }
     );
 
-    // 2. Concurrency lock: Check if an active sync is currently running for this account
+    // 2. Concurrency lock: Check if an active sync is currently running or queued for this account
     const activeRunningJob = await syncLogsCollection.findOne({
       adAccountId: targetAccountKey,
-      status: 'in_progress',
-      startedAt: { $gte: thirtyMinutesAgo },
+      status: { $in: ['in_progress', 'queued'] },
+      $or: [
+        { startedAt: { $gte: thirtyMinutesAgo } },
+        { createdAt: { $gte: thirtyMinutesAgo } },
+      ],
     });
 
     if (activeRunningJob) {
       return errorResponse(
         409,
-        `Ya existe una sincronización en progreso para ${targetAccountKey} iniciada hace menos de 30 minutos.`,
+        `Ya existe una sincronización en progreso o en cola para ${targetAccountKey} iniciada hace menos de 30 minutos.`,
         'SYNC_JOB_ALREADY_RUNNING'
       );
     }
@@ -83,35 +106,109 @@ export const handler = async (event) => {
     const jobId = new ObjectId();
     const now = new Date();
 
-    // 3. Create sync job log
+    // 3. Create sync job log in queued state
     await syncLogsCollection.insertOne({
       _id: jobId,
       trigger: isCronAuthorized ? 'cron' : 'manual',
       triggeredByUserId: executingUser?._id || null,
       adAccountId: targetAccountKey,
       lookbackDays: effectiveDays,
-      status: 'in_progress',
-      startedAt: now,
+      status: 'queued',
+      createdAt: now,
+      startedAt: null,
       finishedAt: null,
+      attempt: 0,
       adAccountsProcessed: 0,
       rowsUpserted: 0,
       errorsCount: 0,
       errors: [],
     });
 
-    // 4. Execute synchronization worker
-    const syncResult = await executeSyncJob(db, {
-      jobId,
-      adAccountId,
-      lookbackDays: effectiveDays,
-    });
+    // 4. Trigger Background Function asynchronously using server environment URL
+    const serverBaseUrl = process.env.URL || process.env.TEST_URL_OVERRIDE;
+    if (!serverBaseUrl) {
+      console.error('[META_SYNC] Server URL not configured in process.env.URL');
+      await syncLogsCollection.updateOne(
+        { _id: jobId },
+        {
+          $set: {
+            status: 'failed',
+            finishedAt: new Date(),
+            failureReason: 'Server URL configuration missing',
+          },
+        }
+      );
+      return errorResponse(500, 'Configuración de URL del servidor faltante.', 'SERVER_URL_MISSING');
+    }
 
-    return jsonResponse(200, {
+    let url;
+    try {
+      url = new URL(serverBaseUrl);
+    } catch (urlErr) {
+      console.error('[META_SYNC] Invalid server URL format:', sanitizeMetaLog(urlErr.message));
+      await syncLogsCollection.updateOne(
+        { _id: jobId },
+        {
+          $set: {
+            status: 'failed',
+            finishedAt: new Date(),
+            failureReason: `Invalid server URL format: ${urlErr.message}`,
+          },
+        }
+      );
+      return errorResponse(500, 'Formato de URL del servidor no válido.', 'SERVER_URL_INVALID');
+    }
+
+    // Require HTTPS protocol in production/Netlify environment
+    const isProd = process.env.NODE_ENV === 'production' || (process.env.URL && !process.env.URL.includes('localhost'));
+    if (isProd && url.protocol !== 'https:') {
+      console.error('[META_SYNC] Insecure protocol rejected in production:', url.protocol);
+      await syncLogsCollection.updateOne(
+        { _id: jobId },
+        {
+          $set: {
+            status: 'failed',
+            finishedAt: new Date(),
+            failureReason: 'Insecure protocol rejected in production',
+          },
+        }
+      );
+      return errorResponse(500, 'Protocolo inseguro rechazado.', 'SECURE_PROTOCOL_REQUIRED');
+    }
+
+    url.pathname = '/.netlify/functions/meta-sync-background';
+
+    try {
+      await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Cron-Auth': config.cronSecret || '',
+        },
+        body: JSON.stringify({
+          jobId: jobId.toString(),
+        }),
+      });
+    } catch (fetchErr) {
+      console.error('[META_SYNC] Error triggering background function:', fetchErr);
+      await syncLogsCollection.updateOne(
+        { _id: jobId },
+        {
+          $set: {
+            status: 'failed',
+            finishedAt: new Date(),
+            failureReason: `Failed to trigger background worker: ${fetchErr.message}`,
+          },
+        }
+      );
+      return errorResponse(500, `Error al disparar la sincronización en segundo plano: ${sanitizeMetaLog(fetchErr.message)}`, 'SYNC_TRIGGER_FAILED');
+    }
+
+    return jsonResponse(202, {
       ok: true,
       jobId: jobId.toString(),
       trigger: isCronAuthorized ? 'cron' : 'manual',
-      message: 'Sincronización completada exitosamente.',
-      ...syncResult,
+      message: 'Sincronización iniciada en segundo plano.',
     });
   } catch (err) {
     console.error('[META_SYNC] Error during sync dispatch:', sanitizeMetaLog(err.message));
