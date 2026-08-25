@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Dashboard Multiempresa Hotfix (2026-08-25)
+- **Soporte de Slugs e Identificadores tipo String en Dashboard**: Se flexibilizó la validación inicial de `clientId`/`clientScope` en `api-dashboard.js` para admitir cualquier identificador alfanumérico limpio con guiones y guiones bajos (`/^[a-zA-Z0-9-_]+$/`), posibilitando el uso de slugs (como `"perfumeria-marion"`) y evitando respuestas 400 prematuras.
+- **Búsqueda Robusta Multiformato**: Se introdujo el helper `findClient` para buscar empresas en la base de datos de manera secuencial (por ObjectId, string `_id` o `slug`), normalizando `targetClientId` al tipo nativo del `_id` persistido.
+- **Alineación de Tipos de Base de Datos**: Se utiliza `targetClientId` directamente en las consultas de agregación de leads, cobros, rendimiento y campañas Meta para mantener estricta consistencia de tipos y satisfacer assertions de pruebas existentes.
+
 ### Fixed — Dashboard Multiempresa Direct in main (2026-08-25)
 - **Soporte ObjectId vs Strings en Dashboard:** Se corrigió la validación y obtención del cliente en `api-dashboard.js` para buscar de forma flexible tanto por `ObjectId` como por string de ID o slug como fallback, y normalizar `targetClientId` con el `_id` real de la base de datos para asegurar el aislamiento y consistencia de tipos en consultas subsiguientes.
 - **Robustez de Validación de clientId:** Se endureció la validación del identificador de empresa para requerir strings de 24 caracteres hexadecimales conformes con `ObjectId` en el backend, respondiendo HTTP `400` ante solicitudes malformadas.

@@ -2,6 +2,19 @@ import { ObjectId } from 'mongodb';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
 
+async function findClient(idOrSlug, clientsCollection) {
+  if (!idOrSlug) return null;
+  if (/^[0-9a-fA-F]{24}$/.test(idOrSlug)) {
+    const doc = await clientsCollection.findOne({ _id: new ObjectId(idOrSlug) });
+    if (doc) return doc;
+  }
+  const docByStrId = await clientsCollection.findOne({ _id: idOrSlug });
+  if (docByStrId) return docByStrId;
+  const docBySlug = await clientsCollection.findOne({ slug: idOrSlug });
+  if (docBySlug) return docBySlug;
+  return null;
+}
+
 export async function handler(event) {
   const auth = await verifyAuthorizedUser(event);
   if (!auth.authorized) {
@@ -45,14 +58,10 @@ export async function handler(event) {
 
     if (!isGlobal) {
       isRequestingAll = false;
-      if (!clientScope || !ObjectId.isValid(clientScope)) {
+      if (!clientScope || !/^[a-zA-Z0-9-_]+$/.test(clientScope)) {
         return errorResponse(400, 'Identificador de empresa malformado en la sesión.', 'INVALID_CLIENT_ID');
       }
-      targetClientId = new ObjectId(clientScope);
-      clientDoc = await clientsCollection.findOne({ _id: targetClientId });
-      if (!clientDoc) {
-        clientDoc = await clientsCollection.findOne({ _id: clientScope });
-      }
+      clientDoc = await findClient(clientScope, clientsCollection);
       const clientStatus = clientDoc?.status || 'active';
       if (!clientDoc || clientStatus !== 'active') {
         return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
@@ -62,14 +71,10 @@ export async function handler(event) {
       const trimmedId = params.clientId.trim();
       if (trimmedId.toLowerCase() !== 'all') {
         isRequestingAll = false;
-        if (!ObjectId.isValid(trimmedId)) {
+        if (!/^[a-zA-Z0-9-_]+$/.test(trimmedId)) {
           return errorResponse(400, 'Identificador de empresa malformado.', 'INVALID_CLIENT_ID');
         }
-        targetClientId = new ObjectId(trimmedId);
-        clientDoc = await clientsCollection.findOne({ _id: targetClientId });
-        if (!clientDoc) {
-          clientDoc = await clientsCollection.findOne({ _id: trimmedId });
-        }
+        clientDoc = await findClient(trimmedId, clientsCollection);
         const clientStatus = clientDoc?.status || 'active';
         if (!clientDoc || clientStatus !== 'active') {
           return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');

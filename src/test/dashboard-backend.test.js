@@ -232,7 +232,7 @@ describe('Backend Dashboard API (api-dashboard)', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('5. ObjectId malformado retorna 400', async () => {
+  it('5. Identificador de empresa malformado retorna 400', async () => {
     vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
       authorized: true,
       user: { _id: new ObjectId(), role: 'super_admin' },
@@ -244,7 +244,7 @@ describe('Backend Dashboard API (api-dashboard)', () => {
     const res = await dashboardHandler({
       httpMethod: 'GET',
       path: '/api/dashboard/stats',
-      queryStringParameters: { clientId: 'invalid-id-not-found' },
+      queryStringParameters: { clientId: 'invalid/id/with/slashes' },
     });
 
     expect(res.statusCode).toBe(400);
