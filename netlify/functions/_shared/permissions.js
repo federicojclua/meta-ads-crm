@@ -91,7 +91,8 @@ export async function verifyAuthorizedUser(event, allowedRoles = []) {
       }
 
       const clientDoc = await clientsCollection.findOne(clientQuery);
-      if (!clientDoc || clientDoc.status !== 'active') {
+      const clientStatus = clientDoc?.status || 'active';
+      if (!clientDoc || clientStatus !== 'active') {
         return {
           authorized: false,
           status: 403,

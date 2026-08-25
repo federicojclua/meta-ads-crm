@@ -18,6 +18,20 @@ import { Alert } from '../components/ui/Alert';
 import { apiClient, ApiError } from '../lib/api';
 import { ROLE_LABELS, CURRENT_STAGE } from '../lib/constants';
 
+const formatAmountsMap = (amountsMap) => {
+  if (!amountsMap || Object.keys(amountsMap).length === 0) return '$0,00';
+  const entries = Object.entries(amountsMap);
+  if (entries.length === 1) {
+    const [curr, val] = entries[0];
+    const symbol = curr === 'USD' ? 'u$s' : '$';
+    return `${symbol}${val.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return entries.map(([curr, val]) => {
+    const symbol = curr === 'USD' ? 'u$s' : '$';
+    return `${symbol}${val.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}`;
+  }).join(' / ');
+};
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const { userProfile, firebaseUser, loading: authLoading } = useAuth();
@@ -119,7 +133,7 @@ export function DashboardPage() {
               >
                 <option value="">Todas las Empresas</option>
                 {clients.map((c) => (
-                  <option key={c.id || c._id} value={c.id || c._id}>
+                  <option key={c._id || c.id} value={c._id || c.id}>
                     {c.name}
                   </option>
                 ))}
@@ -210,7 +224,7 @@ export function DashboardPage() {
               <DollarSign className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-2xl font-extrabold text-emerald-700 mt-2 font-mono">
-              {isLoading ? '...' : error ? '-' : `$${kpis?.totalCollectedFormatted || '0,00'}`}
+              {isLoading ? '...' : error ? '-' : formatAmountsMap(kpis?.amountsByCurrency)}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
@@ -242,12 +256,12 @@ export function DashboardPage() {
               <Megaphone className="w-4 h-4 text-blue-600" />
             </div>
             <div className={`text-2xl font-extrabold mt-2 font-mono ${kpis?.metaMetrics?.hasMetaIntegration ? 'text-blue-700' : 'text-gray-400 italic text-xl font-bold'}`}>
-              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasMetaIntegration ? `$${kpis.metaMetrics.adSpendFormatted}` : 'Sin datos de Meta'}
+              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasMetaIntegration ? formatAmountsMap(kpis.metaMetrics.spendAmountsByCurrency) : 'Sin datos de Meta'}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary flex justify-between">
-            <span>CPL: <strong>{kpis?.metaMetrics?.cplFormatted ? `$${kpis.metaMetrics.cplFormatted}` : '—'}</strong></span>
-            <span>CPA: <strong>{kpis?.metaMetrics?.cpaFormatted ? `$${kpis.metaMetrics.cpaFormatted}` : '—'}</strong></span>
+            <span>CPL: <strong>{kpis?.metaMetrics?.hasMetaIntegration && kpis.metaMetrics.cplAmountsByCurrency && Object.keys(kpis.metaMetrics.cplAmountsByCurrency).length > 0 ? formatAmountsMap(kpis.metaMetrics.cplAmountsByCurrency) : '—'}</strong></span>
+            <span>CPA: <strong>{kpis?.metaMetrics?.hasMetaIntegration && kpis.metaMetrics.cpaAmountsByCurrency && Object.keys(kpis.metaMetrics.cpaAmountsByCurrency).length > 0 ? formatAmountsMap(kpis.metaMetrics.cpaAmountsByCurrency) : '—'}</strong></span>
           </div>
         </div>
 
@@ -261,7 +275,7 @@ export function DashboardPage() {
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
             <div className={`text-2xl font-extrabold mt-2 font-mono ${kpis?.metaMetrics?.hasRoas ? 'text-emerald-700' : 'text-gray-400 italic text-xl font-bold'}`}>
-              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasRoas ? kpis.metaMetrics.roasFormatted : 'Sin datos de Meta'}
+              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasRoas ? kpis.metaMetrics.roasFormatted : '—'}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">

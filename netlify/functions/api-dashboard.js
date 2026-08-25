@@ -27,7 +27,12 @@ export async function handler(event) {
 
     let activeClients = [];
     if (clientsCollection && typeof clientsCollection.find === 'function') {
-      const activeClientsCursor = clientsCollection.find({ status: 'active' });
+      const activeClientsCursor = clientsCollection.find({
+        $or: [
+          { status: 'active' },
+          { status: { $exists: false } }
+        ]
+      });
       activeClients = activeClientsCursor && typeof activeClientsCursor.toArray === 'function'
         ? await activeClientsCursor.toArray()
         : [];
@@ -40,28 +45,33 @@ export async function handler(event) {
 
     if (!isGlobal) {
       isRequestingAll = false;
-      targetClientId = ObjectId.isValid(clientScope) ? new ObjectId(clientScope) : clientScope;
-      clientDoc = await clientsCollection.findOne({
-        $or: [
-          ...(ObjectId.isValid(clientScope) ? [{ _id: new ObjectId(clientScope) }] : []),
-          { _id: clientScope },
-          { slug: clientScope },
-        ],
-      });
-      if (!clientDoc || (clientDoc.status && clientDoc.status !== 'active')) {
+      if (!clientScope || !ObjectId.isValid(clientScope)) {
+        return errorResponse(400, 'Identificador de empresa malformado en la sesión.', 'INVALID_CLIENT_ID');
+      }
+      targetClientId = new ObjectId(clientScope);
+      clientDoc = await clientsCollection.findOne({ _id: targetClientId });
+      if (!clientDoc) {
+        clientDoc = await clientsCollection.findOne({ _id: clientScope });
+      }
+      const clientStatus = clientDoc?.status || 'active';
+      if (!clientDoc || clientStatus !== 'active') {
         return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
       }
+      targetClientId = clientDoc._id;
     } else if (params.clientId && params.clientId.trim() !== '') {
       const trimmedId = params.clientId.trim();
       if (trimmedId.toLowerCase() !== 'all') {
         isRequestingAll = false;
-        const queryConditions = [
-          ...(ObjectId.isValid(trimmedId) ? [{ _id: new ObjectId(trimmedId) }] : []),
-          { _id: trimmedId },
-          { slug: trimmedId },
-        ];
-        clientDoc = await clientsCollection.findOne({ $or: queryConditions });
-        if (!clientDoc || (clientDoc.status && clientDoc.status !== 'active')) {
+        if (!ObjectId.isValid(trimmedId)) {
+          return errorResponse(400, 'Identificador de empresa malformado.', 'INVALID_CLIENT_ID');
+        }
+        targetClientId = new ObjectId(trimmedId);
+        clientDoc = await clientsCollection.findOne({ _id: targetClientId });
+        if (!clientDoc) {
+          clientDoc = await clientsCollection.findOne({ _id: trimmedId });
+        }
+        const clientStatus = clientDoc?.status || 'active';
+        if (!clientDoc || clientStatus !== 'active') {
           return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
         }
         targetClientId = clientDoc._id;
@@ -309,7 +319,7 @@ export async function handler(event) {
       if (!isRequestingAll && targetClientId) {
         metaMatch.clientId = targetClientId;
       } else if (isRequestingAll) {
-        metaMatch.clientId = { $in: activeClientIds };
+        metaMatch.clientId = { $in: allActiveIdentifiers };
       }
       if (params.startDate || params.endDate) {
         metaMatch.date = {};
@@ -340,7 +350,13 @@ export async function handler(event) {
     const roasByCurrency = {};
     const cplByCurrency = {};
     const cpaByCurrency = {};
-    let hasMetaIntegration = metaSummary.length > 0;
+
+    let hasMetaIntegration = false;
+    if (!isRequestingAll) {
+      hasMetaIntegration = !!(clientDoc && Array.isArray(clientDoc.metaAdAccountIds) && clientDoc.metaAdAccountIds.length > 0);
+    } else {
+      hasMetaIntegration = activeClients.some(c => Array.isArray(c.metaAdAccountIds) && c.metaAdAccountIds.length > 0);
+    }
 
     metaSummary.forEach((row) => {
       const curr = row._id || 'ARS';
@@ -374,6 +390,9 @@ export async function handler(event) {
 
     // Format outputs
     let adSpendFormatted = 'Sin datos de Meta';
+    if (hasMetaIntegration) {
+      adSpendFormatted = '0,00';
+    }
     const spendKeys = Object.keys(spendByCurrency);
     if (spendKeys.length === 1) {
       const curr = spendKeys[0];
@@ -436,6 +455,39 @@ export async function handler(event) {
 
     const defaultCurrency = clientDoc?.defaultCurrency || 'ARS';
 
+    const amountsByCurrency = {};
+    if (Object.keys(revenueByCurrency).length === 0) {
+      if (!isRequestingAll) {
+        amountsByCurrency[defaultCurrency] = 0;
+      }
+    } else {
+      Object.keys(revenueByCurrency).forEach(curr => {
+        amountsByCurrency[curr] = Number((revenueByCurrency[curr].collectedMinor / 100).toFixed(2));
+      });
+    }
+
+    const spendAmountsByCurrency = {};
+    const cplAmountsByCurrency = {};
+    const cpaAmountsByCurrency = {};
+
+    Object.keys(spendByCurrency).forEach(curr => {
+      spendAmountsByCurrency[curr] = Number((spendByCurrency[curr].spendMinor / 100).toFixed(2));
+    });
+    if (hasMetaIntegration && spendKeys.length === 0 && !isRequestingAll) {
+      spendAmountsByCurrency[defaultCurrency] = 0;
+    }
+
+    Object.keys(cplByCurrency).forEach(curr => {
+      if (cplByCurrency[curr] !== null) {
+        cplAmountsByCurrency[curr] = Number(cplByCurrency[curr].toFixed(2));
+      }
+    });
+    Object.keys(cpaByCurrency).forEach(curr => {
+      if (cpaByCurrency[curr] !== null) {
+        cpaAmountsByCurrency[curr] = Number(cpaByCurrency[curr].toFixed(2));
+      }
+    });
+
     return jsonResponse(200, {
       kpis: {
         totalLeadsCount,
@@ -453,15 +505,19 @@ export async function handler(event) {
         revenueByCurrency: formattedRevenue,
         totalCollectedDefaultMinor,
         totalCollectedFormatted,
+        amountsByCurrency,
         defaultCurrency,
         metaMetrics: {
           hasMetaIntegration,
           adSpend: hasMetaIntegration ? 1 : null,
           adSpendFormatted,
           spendByCurrency,
+          spendAmountsByCurrency,
           roasByCurrency,
           cplByCurrency,
+          cplAmountsByCurrency,
           cpaByCurrency,
+          cpaAmountsByCurrency,
           cplFormatted,
           hasCpl,
           cpaFormatted,

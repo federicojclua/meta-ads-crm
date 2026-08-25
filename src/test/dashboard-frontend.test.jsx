@@ -319,4 +319,46 @@ describe('Frontend Dashboard UI & Conversion Rate Denominator Handling', () => {
       expect(screen.queryByText('ETAPA 3 · ACTIVA')).not.toBeInTheDocument();
     });
   });
+
+  it('7. Una respuesta vacía exitosa no muestra el banner rojo', async () => {
+    global.fetch = vi.fn().mockImplementation((url) => {
+      if (url.includes('/api/clients')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ clients: [] }),
+        });
+      }
+      if (url.includes('/api/dashboard/stats')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            kpis: {
+              totalLeadsCount: 0,
+              wonLeadsCount: 0,
+              conversionRate: null,
+              hasConversionData: false,
+              totalCollectedFormatted: '0,00',
+              revenueByCurrency: {},
+              pipelineBreakdown: { new: 0, contacted: 0, qualified: 0, won: 0, lost: 0 },
+            },
+            salespeoplePerformance: [],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    });
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Reintentar/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Error al cargar las estadísticas/i)).not.toBeInTheDocument();
+    });
+  });
 });

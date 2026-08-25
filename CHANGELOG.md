@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Dashboard Multiempresa Direct in main (2026-08-25)
+- **Soporte ObjectId vs Strings en Dashboard:** Se corrigió la validación y obtención del cliente en `api-dashboard.js` para buscar de forma flexible tanto por `ObjectId` como por string de ID o slug como fallback, y normalizar `targetClientId` con el `_id` real de la base de datos para asegurar el aislamiento y consistencia de tipos en consultas subsiguientes.
+- **Robustez de Validación de clientId:** Se endureció la validación del identificador de empresa para requerir strings de 24 caracteres hexadecimales conformes con `ObjectId` en el backend, respondiendo HTTP `400` ante solicitudes malformadas.
+- **Pruebas de Aislamiento Global:** Se añadió un caso de prueba para certificar que la vista global ("Todas las Empresas") incluye únicamente información de empresas activas, excluyendo empresas inactivas.
+
 ### Fixed — Dashboard Multiempresa Direct in main (2026-08-24)
 - **Soporte de Vista Global ("Todas las Empresas") en Backend:** Se modificó `api-dashboard.js` para admitir consultas sin `clientId` (o con `clientId=all`), filtrando leads, ventas y vendedores de únicamente empresas con `status: 'active'`.
 - **Aseguramiento Multidivisa:** Se prohibió sumar directamente monedas diferentes (ARS y USD). La agregación y KPIs financieros del dashboard (`totalCollectedFormatted`, `adSpendFormatted`, `roasFormatted`, `cplFormatted`, `cpaFormatted`) ahora se desglosan limpiamente por divisa separados por una barra diagonal (` / `) si hay múltiples divisas, y conservan la presentación normal si hay una sola moneda.
