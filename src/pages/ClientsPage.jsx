@@ -50,7 +50,7 @@ export function ClientsPage() {
     isLoading: isLoadingClients,
     error: clientsError,
   } = useQuery({
-    queryKey: ['clients'],
+    queryKey: ['clients', userProfile?._id],
     queryFn: () => apiClient('/api/clients'),
   });
 
@@ -60,7 +60,7 @@ export function ClientsPage() {
     isLoading: isLoadingUsers,
     error: usersError,
   } = useQuery({
-    queryKey: ['users'],
+    queryKey: ['users', userProfile?._id],
     queryFn: () => apiClient('/api/users'),
     enabled: isGlobalAdmin || activeTab === 'users',
   });
