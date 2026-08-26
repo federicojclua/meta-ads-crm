@@ -6,6 +6,7 @@ import {
   Megaphone,
   Settings,
   X,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Badge } from '../ui/Badge';
@@ -16,6 +17,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/app', icon: LayoutDashboard, exact: true },
+    { name: 'Revenue & Retorno', href: '/app/revenue', icon: TrendingUp },
     { name: 'Clientes', href: '/app/clients', icon: Building2 },
     { name: 'Leads & Pipeline', href: '/app/leads', icon: Users },
     { name: 'Campañas Meta', href: '/app/campaigns', icon: Megaphone },

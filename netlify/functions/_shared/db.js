@@ -331,6 +331,11 @@ export async function ensureIndexes(db) {
       { createdAt: -1 },
       { name: 'idx_meta_sync_logs_created' }
     ),
+    createIndexSafely(
+      db.collection('exchange_rates'),
+      { baseCurrency: 1, quoteCurrency: 1, validFrom: -1 },
+      { name: 'idx_exchange_rates_lookup' }
+    ),
   ]);
 
   // 4. Idempotent Data Repair: Fix historical leads with invalid assignments (e.g. non-salesperson roles)

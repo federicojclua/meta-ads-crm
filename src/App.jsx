@@ -12,6 +12,7 @@ import { LeadsPage } from './pages/LeadsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RevenueDashboardPage } from './pages/RevenueDashboardPage';
 
 export function App() {
   return (
@@ -36,6 +37,7 @@ export function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="revenue" element={<RevenueDashboardPage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="leads" element={<LeadsPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
