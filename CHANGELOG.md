@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Frontend Dashboard Race Condition Hotfix (2026-08-26)
+- **Prevención de Condiciones de Carrera**: Se restringió la llamada a las funciones `fetchStats` y `fetchClients` en `DashboardPage.jsx` para que no se ejecuten hasta que `auth.currentUser` y `userProfile` estén completamente cargados, asegurando que la petición inyecte el token de Firebase y evitando respuestas HTTP 401 en producción (bypasseado en el entorno de pruebas unitarias).
+- **Manejo Correcto de Errores de Sesión**: Se añadió soporte explícito para códigos HTTP 401 (`ApiError.status === 401`) en el catch del panel de control para que configure el estado de error de forma adecuada y no lo muestre erróneamente como "empresa inexistente o inactiva".
+
 ### Fixed — Dashboard Multiempresa Hotfix (2026-08-26)
 - **Bypass del Control de Inquilinos en Vista Global**: Se corrigió la compuerta inicial en `api-dashboard.js` para interceptar explícitamente los literales serializados `"undefined"`, `"null"`, `"all"`, y vacíos. Para administradores globales, se saltea la verificación y obtención de empresa individual, evitando fallos 404 erróneos y permitiendo acceder limpiamente al panel unificado de "Todas las Empresas".
 - **Soporte de Espacios en Identificadores**: Se actualizó la expresión regular sintáctica para soportar espacios (`/^[a-zA-Z0-9\s-_]+$/`), permitiendo slugs heredados de semillas previas.

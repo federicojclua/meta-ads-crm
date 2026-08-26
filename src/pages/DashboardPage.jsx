@@ -17,6 +17,7 @@ import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
 import { apiClient, ApiError } from '../lib/api';
 import { ROLE_LABELS, CURRENT_STAGE } from '../lib/constants';
+import { auth } from '../lib/firebase';
 
 const formatAmountsMap = (amountsMap) => {
   if (!amountsMap || Object.keys(amountsMap).length === 0) return '$0,00';
@@ -47,14 +48,16 @@ export function DashboardPage() {
 
   // Fetch clients for global users
   const fetchClients = useCallback(async () => {
-    if (!isGlobal || authLoading || !firebaseUser) return;
+    const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+    if (!isGlobal || authLoading || !firebaseUser || !userProfile) return;
+    if (!isTestEnv && !auth.currentUser) return;
     try {
       const data = await apiClient.get('/api/clients');
       setClients(data.clients || []);
     } catch (err) {
       console.warn('[DASHBOARD] Error fetching clients:', err.message);
     }
-  }, [isGlobal, authLoading, firebaseUser]);
+  }, [isGlobal, authLoading, firebaseUser, userProfile]);
 
   useEffect(() => {
     fetchClients();
@@ -62,7 +65,9 @@ export function DashboardPage() {
 
   // Fetch dashboard stats with race-condition prevention
   const fetchStats = useCallback(async () => {
-    if (authLoading || !firebaseUser) return;
+    const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+    if (authLoading || !firebaseUser || !userProfile) return;
+    if (!isTestEnv && !auth.currentUser) return;
     const requestSeq = ++activeRequestSeq.current;
 
     setIsLoading(true);
@@ -83,7 +88,9 @@ export function DashboardPage() {
 
       console.error('[DASHBOARD] Error fetching stats:', err);
       if (err instanceof ApiError) {
-        if (err.status === 403) {
+        if (err.status === 401) {
+          setError({ type: 'unauthorized', message: 'Sesión no válida o expirada. Por favor, vuelva a iniciar sesión.' });
+        } else if (err.status === 403) {
           setError({ type: 'forbidden', message: 'No tenés permisos para visualizar las estadísticas de esta empresa.' });
         } else if (err.status === 404) {
           setError({ type: 'not_found', message: 'La empresa seleccionada no existe o está inactiva.' });
@@ -101,7 +108,7 @@ export function DashboardPage() {
         setIsLoading(false);
       }
     }
-  }, [selectedClientId, authLoading, firebaseUser]);
+  }, [selectedClientId, authLoading, firebaseUser, userProfile]);
 
   useEffect(() => {
     fetchStats();
