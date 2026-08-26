@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 5B: Revenue Dashboard & Historical Multimoneda (2026-08-26)
+- **Modelo de Tasas de Cambio (`ExchangeRate.js`)**: Agregado modelo de validación, búsqueda e históricos cronológicos de tipo `exchange_rates` (USD a ARS).
+- **API de Tasas (`api-exchange-rates.js`)**: Creado endpoint administrativo con control de super_admin, logs de auditoría y validación de superposiciones.
+- **Motor de Agregación de Revenue (`api-dashboard-revenue.js`)**: Motor con cálculo de ROAS Blended/Atribuido, CPL, CPA y control estricto multi-tenant y de vendedor.
+- **API de Exportación (`api-dashboard-revenue-export.js`)**: Endpoint para generar CSV protegido contra CSV injection y payloads PDF JSON.
+- **Frontend del Revenue Dashboard (`RevenueDashboardPage.jsx`)**: Vista de performance con filtros por URL, gráficos SVG dinámicos integrados, embudo y desglose por campañas con drill-down a adsets.
+- **Pruebas y Linter**: Agregadas 13 pruebas unitarias de conversión y 3 pruebas de aislamiento multi-tenant e integración.
+
 ### Fixed — Frontend Dashboard Race Condition Hotfix (2026-08-26)
 - **Prevención de Condiciones de Carrera**: Se restringió la llamada a las funciones `fetchStats` y `fetchClients` en `DashboardPage.jsx` para que no se ejecuten hasta que `auth.currentUser` y `userProfile` estén completamente cargados, asegurando que la petición inyecte el token de Firebase y evitando respuestas HTTP 401 en producción (bypasseado en el entorno de pruebas unitarias).
 - **Manejo Correcto de Errores de Sesión**: Se añadió soporte explícito para códigos HTTP 401 (`ApiError.status === 401`) en el catch del panel de control para que configure el estado de error de forma adecuada y no lo muestre erróneamente como "empresa inexistente o inactiva".
