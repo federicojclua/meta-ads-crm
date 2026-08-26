@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added — Stage 7: Release, Hardening & Cierre del MVP (2026-08-26)
+- **Internacionalización Global Completa (i18n)**: Integrado el hook `useLanguage` y diccionarios completos en español (`es`) e inglés (`en`) en todos los componentes y vistas principales (`Sidebar.jsx`, `Header.jsx`, `RevenueDashboardPage.jsx`, `AdminCenterPage.jsx`, `LeadsPage.jsx`, `CampaignsPage.jsx`, `SettingsPage.jsx` y `formatRole`). Eliminados todos los textos en "Spanglish" del sistema, permitiendo un cambio fluido y consistente de idioma en toda la plataforma.
 - **Localización Dinámica e i18n**: Configurada localización dinámica basada en el idioma activo de `LanguageProvider` y la zona horaria del inquilino (tenant) para formatear monedas, números y fechas a través de helpers `formatCurrency`, `formatDate` y `formatNumber` en todo el flujo del frontend.
 - **Límite de Tasa (Rate Limiting) en Netlify Functions**: Creado middleware centralizado basado en MongoDB (`checkRateLimit`) con índice TTL para mitigar abuso en endpoints críticos (`api-meta-sync` y `api-dashboard-revenue-export`).
 - **Seguridad HTTP & CSP**: Configurado un conjunto estricto de cabeceras HTTP de seguridad (incluyendo Content Security Policy compatible con Firebase Auth y Google Fonts) en `netlify.toml`.
