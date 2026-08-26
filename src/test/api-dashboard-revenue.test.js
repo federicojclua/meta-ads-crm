@@ -259,7 +259,7 @@ describe('Revenue Aggregation Engine & Tenant Isolation Tests', () => {
       expect(res.headers['Content-Type']).toBe('text/csv; charset=utf-8');
       
       // Verify formula trigger is escaped by prepending single quote inside double quotes: "'=Empresa Peligrosa"
-      expect(res.body).toContain('\"\'=Empresa Peligrosa\"');
+      expect(res.body).toContain(`"'=Empresa Peligrosa"`);
     });
 
     it('2. GET /api/dashboard/revenue/export con clientUser intentando forzar otro clientId usa clientScope de sesion', async () => {

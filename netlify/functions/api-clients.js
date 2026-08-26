@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
+import { getDb } from './_shared/db.js';
 import {
   generateSlug,
   validateClientDocument,
@@ -14,7 +15,8 @@ export async function handler(event) {
     return errorResponse(auth.status, auth.error, auth.code);
   }
 
-  const { user, db, clientScope, isGlobal } = auth;
+  const { user, clientScope, isGlobal } = auth;
+  const db = auth.db || await getDb();
   const clientsCollection = db.collection('clients');
   const method = event.httpMethod;
   const now = new Date();
@@ -130,6 +132,21 @@ export async function handler(event) {
         const insertResult = await clientsCollection.insertOne(clientData);
         const createdClient = await clientsCollection.findOne({ _id: insertResult.insertedId });
 
+        // Audit log registration
+        const auditLogsCollection = db.collection('audit_logs');
+        if (auditLogsCollection && typeof auditLogsCollection.insertOne === 'function') {
+          await auditLogsCollection.insertOne({
+            action: 'CREATE_CLIENT',
+            performedByUserId: user?._id || null,
+            performedAt: now,
+            details: {
+              clientId: insertResult.insertedId.toString(),
+              name: clientData.name,
+              slug: clientData.slug,
+            },
+          });
+        }
+
         return jsonResponse(201, {
           client: sanitizeClientResponse(createdClient),
           message: 'Empresa creada exitosamente.',
@@ -194,6 +211,20 @@ export async function handler(event) {
           }
         );
 
+        const auditLogsCollection = db.collection('audit_logs');
+        if (auditLogsCollection && typeof auditLogsCollection.insertOne === 'function') {
+          await auditLogsCollection.insertOne({
+            action: 'DEACTIVATE_CLIENT',
+            performedByUserId: user?._id || null,
+            performedAt: now,
+            details: {
+              clientId: existingClient._id.toString(),
+              name: existingClient.name,
+              slug: existingClient.slug,
+            },
+          });
+        }
+
         const updatedClient = await clientsCollection.findOne({ _id: existingClient._id });
         return jsonResponse(200, {
           client: sanitizeClientResponse(updatedClient),
@@ -220,6 +251,20 @@ export async function handler(event) {
             },
           }
         );
+
+        const auditLogsCollection = db.collection('audit_logs');
+        if (auditLogsCollection && typeof auditLogsCollection.insertOne === 'function') {
+          await auditLogsCollection.insertOne({
+            action: 'REACTIVATE_CLIENT',
+            performedByUserId: user?._id || null,
+            performedAt: now,
+            details: {
+              clientId: existingClient._id.toString(),
+              name: existingClient.name,
+              slug: existingClient.slug,
+            },
+          });
+        }
 
         const updatedClient = await clientsCollection.findOne({ _id: existingClient._id });
         return jsonResponse(200, {
@@ -322,6 +367,19 @@ export async function handler(event) {
           { _id: existingClient._id },
           { $set: updateFields }
         );
+
+        const auditLogsCollection = db.collection('audit_logs');
+        if (auditLogsCollection && typeof auditLogsCollection.insertOne === 'function') {
+          await auditLogsCollection.insertOne({
+            action: 'UPDATE_CLIENT',
+            performedByUserId: user?._id || null,
+            performedAt: now,
+            details: {
+              clientId: existingClient._id.toString(),
+              updatedFields: Object.keys(updateFields).filter(k => k !== 'updatedBy' && k !== 'updatedAt'),
+            },
+          });
+        }
 
         const updated = await clientsCollection.findOne({ _id: existingClient._id });
         return jsonResponse(200, {

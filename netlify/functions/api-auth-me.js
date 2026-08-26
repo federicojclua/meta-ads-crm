@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { verifyAuth } from './_shared/auth.js';
 import { connectToDatabase } from './_shared/db.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
@@ -35,6 +36,14 @@ export async function handler(event) {
       usersCollection.findOne({ normalizedEmail }),
     ]);
 
+    const headers = event.headers || {};
+    const inviteToken = headers['x-invite-token'] || headers['X-Invite-Token'];
+    let userByInviteToken = null;
+    if (inviteToken) {
+      const hash = crypto.createHash('sha256').update(inviteToken).digest('hex');
+      userByInviteToken = await usersCollection.findOne({ invitationTokenHash: hash });
+    }
+
     // 3. Strict Identity Mismatch Checks
     if (userByUid && userByUid.normalizedEmail !== normalizedEmail) {
       return errorResponse(
@@ -52,7 +61,7 @@ export async function handler(event) {
       );
     }
 
-    let userProfile = userByUid || userByEmail;
+    let userProfile = userByUid || userByEmail || userByInviteToken;
 
     // 4. Atomic Bootstrap for Super Admin or rejection of unknown users
     if (!userProfile) {
@@ -159,6 +168,45 @@ export async function handler(event) {
     let effectiveStatus = userProfile.status;
 
     if (!userProfile.firebaseUid) {
+      if (userProfile.status === 'invited' && userProfile.invitationTokenHash) {
+        const headers = event.headers || {};
+        const inviteToken = headers['x-invite-token'] || headers['X-Invite-Token'];
+        if (!inviteToken) {
+          return errorResponse(403, 'Se requiere un token de invitación válido para activar la cuenta.', 'INVITE_TOKEN_REQUIRED');
+        }
+
+        const hash = crypto.createHash('sha256').update(inviteToken).digest('hex');
+        if (userProfile.invitationTokenHash !== hash) {
+          return errorResponse(403, 'El token de invitación es inválido o no coincide.', 'INVALID_OR_EXPIRED_INVITATION');
+        }
+
+        if (userProfile.invitationExpiresAt && now > new Date(userProfile.invitationExpiresAt)) {
+          return errorResponse(403, 'El token de invitación ha expirado.', 'INVALID_OR_EXPIRED_INVITATION');
+        }
+
+        if (userProfile.normalizedEmail !== normalizedEmail) {
+          return errorResponse(403, 'El correo autenticado no coincide con el correo invitado.', 'IDENTITY_MISMATCH');
+        }
+
+        updateFields.invitationTokenHash = null;
+        updateFields.invitationExpiresAt = null;
+
+        // Register audit log
+        const auditLogsCollection = db.collection('audit_logs');
+        if (auditLogsCollection && typeof auditLogsCollection.insertOne === 'function') {
+          await auditLogsCollection.insertOne({
+            action: 'ACCEPT_INVITATION',
+            performedByUserId: userProfile._id,
+            performedAt: now,
+            details: {
+              email: userProfile.normalizedEmail,
+              role: userProfile.role,
+              clientId: userProfile.clientId ? userProfile.clientId.toString() : null,
+            },
+          });
+        }
+      }
+
       updateFields.firebaseUid = decodedToken.uid;
       updateFields.activatedAt = userProfile.activatedAt || now;
       if (userProfile.status === 'invited' || userProfile.status === 'pending_invite') {

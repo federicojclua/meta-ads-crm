@@ -7,8 +7,74 @@ import { getMetaConfig, timingSafeCompare, sanitizeMetaLog } from './_shared/met
 export const handler = async (event) => {
   try {
     const method = event.httpMethod;
+
+    if (method === 'GET') {
+      const headers = event.headers || {};
+      const cronHeader = headers['x-cron-auth'] || headers['X-Cron-Auth'];
+      if (cronHeader) {
+        return errorResponse(405, 'Método no permitido para cron con GET.', 'METHOD_NOT_ALLOWED');
+      }
+
+      const auth = await verifyAuthorizedUser(event);
+      if (!auth.authorized) {
+        return errorResponse(405, 'Método no permitido. Utilice POST o GET.', 'METHOD_NOT_ALLOWED');
+      }
+
+      const { isGlobal, clientScope } = auth;
+      const db = await getDb();
+      const syncLogsCollection = db.collection('meta_sync_logs');
+
+      const params = event.queryStringParameters || {};
+      const page = Math.max(1, parseInt(params.page || '1', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(params.limit || '10', 10)));
+      const skip = (page - 1) * limit;
+
+      let query = {};
+      if (!isGlobal) {
+        if (!clientScope || !ObjectId.isValid(clientScope)) {
+          return jsonResponse(200, { ok: true, logs: [], pagination: { page, limit, total: 0, pages: 0 } });
+        }
+        const scopes = await db.collection('client_meta_scopes').find({ clientId: new ObjectId(clientScope), status: 'active' }).toArray();
+        const adAccountIds = scopes.map(s => s.adAccountId);
+        query = { adAccountId: { $in: adAccountIds } };
+      } else if (params.clientId && ObjectId.isValid(params.clientId)) {
+        const scopes = await db.collection('client_meta_scopes').find({ clientId: new ObjectId(params.clientId), status: 'active' }).toArray();
+        const adAccountIds = scopes.map(s => s.adAccountId);
+        query = { adAccountId: { $in: adAccountIds } };
+      }
+
+      const total = await syncLogsCollection.countDocuments(query);
+      const logs = await syncLogsCollection.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
+
+      return jsonResponse(200, {
+        ok: true,
+        logs: logs.map(l => ({
+          id: l._id.toString(),
+          trigger: l.trigger,
+          triggeredByUserId: l.triggeredByUserId ? l.triggeredByUserId.toString() : null,
+          adAccountId: l.adAccountId,
+          lookbackDays: l.lookbackDays,
+          status: l.status,
+          createdAt: l.createdAt ? l.createdAt.toISOString() : null,
+          startedAt: l.startedAt ? l.startedAt.toISOString() : null,
+          finishedAt: l.finishedAt ? l.finishedAt.toISOString() : null,
+          adAccountsProcessed: l.adAccountsProcessed,
+          rowsUpserted: l.rowsUpserted,
+          errorsCount: l.errorsCount,
+          errors: l.errors || [],
+          failureReason: l.failureReason || null,
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        }
+      });
+    }
+
     if (method !== 'POST') {
-      return errorResponse(405, 'Método no permitido. Utilice POST.', 'METHOD_NOT_ALLOWED');
+      return errorResponse(405, 'Método no permitido. Utilice POST o GET.', 'METHOD_NOT_ALLOWED');
     }
 
     const config = getMetaConfig();

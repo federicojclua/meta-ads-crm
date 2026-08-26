@@ -1,4 +1,6 @@
+import crypto from 'node:crypto';
 import { ObjectId } from 'mongodb';
+import { getDb } from './_shared/db.js';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { getFirebaseAdmin } from './_shared/firebaseAdmin.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
@@ -15,7 +17,8 @@ export async function handler(event) {
     return errorResponse(auth.status, auth.error, auth.code);
   }
 
-  const { user, db, clientScope, isGlobal, isSuperAdmin } = auth;
+  const { user, clientScope, isGlobal, isSuperAdmin } = auth;
+  const db = auth.db || await getDb();
   const usersCollection = db.collection('users');
   const clientsCollection = db.collection('clients');
   const method = event.httpMethod;
@@ -164,6 +167,10 @@ export async function handler(event) {
         return errorResponse(409, `El correo ${rawEmail} ya se encuentra registrado en Anima MKT CRM.`, 'EMAIL_ALREADY_EXISTS');
       }
 
+      const invitationToken = crypto.randomBytes(32).toString('hex');
+      const invitationTokenHash = crypto.createHash('sha256').update(invitationToken).digest('hex');
+      const invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days expiration
+
       const newUserData = {
         firebaseUid: null,
         email: rawEmail,
@@ -177,6 +184,8 @@ export async function handler(event) {
         permissions: DEFAULT_PERMISSIONS[role] || {},
         invitedBy: user._id,
         invitedAt: now,
+        invitationTokenHash,
+        invitationExpiresAt,
         activatedAt: null,
         lastLoginAt: null,
         createdAt: now,
@@ -186,10 +195,28 @@ export async function handler(event) {
       const result = await usersCollection.insertOne(newUserData);
       const createdUser = await usersCollection.findOne({ _id: result.insertedId });
 
+      // Audit log registration
+      const auditLogsCollection = db.collection('audit_logs');
+      if (auditLogsCollection && typeof auditLogsCollection.insertOne === 'function') {
+        await auditLogsCollection.insertOne({
+          action: 'INVITE_USER',
+          performedByUserId: user?._id || null,
+          performedAt: now,
+          details: {
+            userId: result.insertedId.toString(),
+            email: normalizedEmail,
+            role,
+            clientId: targetClientId ? targetClientId.toString() : null,
+          },
+        });
+      }
+
       return jsonResponse(201, {
         user: sanitizeUserResponse(createdUser),
-        message: 'Usuario preautorizado exitosamente. El usuario podrá acceder iniciando sesión con Google.',
+        message: 'Usuario preautorizado exitosamente. Comparta el enlace de invitación de un solo uso con el usuario.',
         loginUrl: '/login',
+        inviteToken: invitationToken,
+        inviteLink: `/login?inviteToken=${invitationToken}`,
       });
     }
 

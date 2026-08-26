@@ -7,7 +7,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { ServiceUnavailablePage } from './pages/ServiceUnavailablePage';
 import { DashboardPage } from './pages/DashboardPage';
-import { ClientsPage } from './pages/ClientsPage';
+import { AdminCenterPage } from './pages/AdminCenterPage';
 import { LeadsPage } from './pages/LeadsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -38,7 +38,8 @@ export function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="revenue" element={<RevenueDashboardPage />} />
-        <Route path="clients" element={<ClientsPage />} />
+        <Route path="admin" element={<AdminCenterPage />} />
+        <Route path="clients" element={<Navigate to="/app/admin" replace />} />
         <Route path="leads" element={<LeadsPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
         <Route path="settings" element={<SettingsPage />} />

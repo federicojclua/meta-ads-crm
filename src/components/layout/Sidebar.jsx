@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Building2,
   Users,
   Megaphone,
   Settings,
   X,
   TrendingUp,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Badge } from '../ui/Badge';
@@ -18,7 +18,9 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
   const navigation = [
     { name: 'Dashboard', href: '/app', icon: LayoutDashboard, exact: true },
     { name: 'Revenue & Retorno', href: '/app/revenue', icon: TrendingUp },
-    { name: 'Clientes', href: '/app/clients', icon: Building2 },
+    ...(userProfile && ['super_admin', 'admin'].includes(userProfile.role)
+      ? [{ name: 'Administración', href: '/app/admin', icon: ShieldCheck }]
+      : []),
     { name: 'Leads & Pipeline', href: '/app/leads', icon: Users },
     { name: 'Campañas Meta', href: '/app/campaigns', icon: Megaphone },
     { name: 'Configuración', href: '/app/settings', icon: Settings },

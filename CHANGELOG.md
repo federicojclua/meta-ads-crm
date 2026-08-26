@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 6: Panel de Administración & Seguridad Multi-Tenant (2026-08-26)
+- **Invitaciones Criptográficas de Un Solo Uso**: Implementado flujo de preautorización que genera tokens seguros de un solo uso con hash SHA-256 (`invitationTokenHash`) y expiración de 7 días.
+- **Auditoría Multi-Tenant de Empresas**: Registro automatizado de logs de auditoría (`audit_logs`) con diffs detallados para creación, modificación, deactivación y reactivación de empresas.
+- **Logs de Sync Meta Paginados**: Endpoint GET con aislamiento de inquilinos y paginación para consultar el historial de sincronización.
+- **Panel Administrativo Consolidado (UI)**: Nueva interfaz unificada `AdminCenterPage.jsx` con pestañas para CRUD de empresas, usuarios/invitaciones, activos Meta, salud & sync, tasas de cambio e historial de auditoría.
+- **Robustez de Tests**: Corregidos mocks e integraciones para que toda la suite de 244 tests pase con éxito (100% pass), con compatibilidad total para preautorizaciones legacy.
+
 ### Added — Stage 5B: Revenue Dashboard & Historical Multimoneda (2026-08-26)
 - **Modelo de Tasas de Cambio (`ExchangeRate.js`)**: Agregado modelo de validación, búsqueda e históricos cronológicos de tipo `exchange_rates` (USD a ARS).
 - **API de Tasas (`api-exchange-rates.js`)**: Creado endpoint administrativo con control de super_admin, logs de auditoría y validación de superposiciones.
