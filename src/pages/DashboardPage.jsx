@@ -18,6 +18,7 @@ import { Alert } from '../components/ui/Alert';
 import { apiClient, ApiError } from '../lib/api';
 import { ROLE_LABELS, CURRENT_STAGE } from '../lib/constants';
 import { auth } from '../lib/firebase';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const formatAmountsMap = (amountsMap) => {
   if (!amountsMap || Object.keys(amountsMap).length === 0) return '$0,00';
@@ -36,6 +37,7 @@ const formatAmountsMap = (amountsMap) => {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { userProfile, firebaseUser, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
 
   const [stats, setStats] = useState(null);
@@ -89,18 +91,18 @@ export function DashboardPage() {
       console.error('[DASHBOARD] Error fetching stats:', err);
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          setError({ type: 'unauthorized', message: 'Sesión no válida o expirada. Por favor, vuelva a iniciar sesión.' });
+          setError({ type: 'unauthorized', message: t('dashboard.errorUnauthorized') });
         } else if (err.status === 403) {
-          setError({ type: 'forbidden', message: 'No tenés permisos para visualizar las estadísticas de esta empresa.' });
+          setError({ type: 'forbidden', message: t('dashboard.errorForbidden') });
         } else if (err.status === 404) {
-          setError({ type: 'not_found', message: 'La empresa seleccionada no existe o está inactiva.' });
+          setError({ type: 'not_found', message: t('dashboard.errorNotFound') });
         } else if (err.status >= 500) {
-          setError({ type: 'server_error', message: 'El servicio de analíticas no está disponible temporalmente.' });
+          setError({ type: 'server_error', message: t('dashboard.errorServer') });
         } else {
           setError({ type: 'error', message: err.message });
         }
       } else {
-        setError({ type: 'network_error', message: 'Error de red al consultar el panel. Verifique su conexión.' });
+        setError({ type: 'network_error', message: t('dashboard.errorNetwork') });
       }
       setStats(null);
     } finally {
@@ -123,10 +125,10 @@ export function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-brand-border">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-brand-text-primary tracking-tight">
-            Panel de Control & Rendimiento Comercial
+            {t('dashboard.title')}
           </h1>
           <p className="text-xs md:text-sm text-brand-text-secondary mt-0.5">
-            Bienvenido, <span className="font-semibold text-brand-text-primary">{userProfile?.displayName || userProfile?.email}</span>.
+            {t('dashboard.welcome')} <span className="font-semibold text-brand-text-primary">{userProfile?.displayName || userProfile?.email}</span>.
           </p>
         </div>
 
@@ -138,7 +140,7 @@ export function DashboardPage() {
                 onChange={(e) => setSelectedClientId(e.target.value)}
                 className="h-8 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
               >
-                <option value="">Todas las Empresas</option>
+                <option value="">{t('common.allCompanies')}</option>
                 {clients.map((c) => (
                   <option key={c._id || c.id} value={c._id || c.id}>
                     {c.name}
@@ -156,7 +158,7 @@ export function DashboardPage() {
                     title="Abrir pipeline de prospectos de esta empresa"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Abrir Pipeline</span>
+                    <span>{t('dashboard.openPipeline')}</span>
                   </Button>
                   <Button
                     size="sm"
@@ -166,7 +168,7 @@ export function DashboardPage() {
                     title="Abrir campañas de Meta Ads de esta empresa"
                   >
                     <Megaphone className="w-3.5 h-3.5" />
-                    <span>Abrir Campañas</span>
+                    <span>{t('dashboard.openCampaigns')}</span>
                   </Button>
                 </>
               )}
@@ -195,7 +197,7 @@ export function DashboardPage() {
             className="text-xs gap-1 py-1 ml-4"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reintentar</span>
+            <span>{t('common.retry')}</span>
           </Button>
         </Alert>
       )}
@@ -207,7 +209,7 @@ export function DashboardPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                Leads en Pipeline
+                {t('dashboard.leadsInPipeline')}
               </span>
               <Users className="w-4 h-4 text-brand-primary" />
             </div>
@@ -216,8 +218,8 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary flex justify-between">
-            <span>Ganados: <strong>{isLoading ? '...' : error ? '-' : (kpis?.wonLeadsCount ?? 0)}</strong></span>
-            <span>Tasa Conv.: <strong>{isLoading ? '...' : error ? '-' : (kpis?.hasConversionData ? `${kpis.conversionRate}%` : 'Sin datos')}</strong></span>
+            <span>{t('dashboard.won')} <strong>{isLoading ? '...' : error ? '-' : (kpis?.wonLeadsCount ?? 0)}</strong></span>
+            <span>{t('dashboard.convRate')} <strong>{isLoading ? '...' : error ? '-' : (kpis?.hasConversionData ? `${kpis.conversionRate}%` : t('dashboard.noData'))}</strong></span>
           </div>
         </div>
 
@@ -226,7 +228,7 @@ export function DashboardPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                Ingresos Cobrados
+                {t('dashboard.collectedRevenue')}
               </span>
               <DollarSign className="w-4 h-4 text-emerald-600" />
             </div>
@@ -236,9 +238,9 @@ export function DashboardPage() {
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
             {isLoading ? (
-              'Cargando monedas...'
+              t('dashboard.loadingCurrencies')
             ) : error ? (
-              'Error al cargar cobros'
+              t('dashboard.errorLoadingCollections')
             ) : kpis?.revenueByCurrency && Object.keys(kpis.revenueByCurrency).length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {Object.entries(kpis.revenueByCurrency).map(([curr, val]) => (
@@ -248,7 +250,7 @@ export function DashboardPage() {
                 ))}
               </div>
             ) : (
-              'Sin cobros registrados'
+              t('dashboard.noCollections')
             )}
           </div>
         </div>
@@ -258,12 +260,12 @@ export function DashboardPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                Inversión Meta Ads
+                {t('dashboard.metaInvestment')}
               </span>
               <Megaphone className="w-4 h-4 text-blue-600" />
             </div>
             <div className={`text-2xl font-extrabold mt-2 font-mono ${kpis?.metaMetrics?.hasMetaIntegration ? 'text-blue-700' : 'text-gray-400 italic text-xl font-bold'}`}>
-              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasMetaIntegration ? formatAmountsMap(kpis.metaMetrics.spendAmountsByCurrency) : 'Sin datos de Meta'}
+              {isLoading ? '...' : error ? '-' : kpis?.metaMetrics?.hasMetaIntegration ? formatAmountsMap(kpis.metaMetrics.spendAmountsByCurrency) : t('dashboard.noMetaData')}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary flex justify-between">
@@ -277,7 +279,7 @@ export function DashboardPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                ROAS sobre Cobros
+                {t('dashboard.roasOnCollections')}
               </span>
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
@@ -286,7 +288,7 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-brand-border/60 text-[11px] text-brand-text-secondary">
-            {kpis?.metaMetrics?.hasRoas ? 'Calculado sobre ingresos cobrados' : 'Requiere inversión e ingresos'}
+            {kpis?.metaMetrics?.hasRoas ? t('dashboard.roasCalculated') : t('dashboard.roasRequires')}
           </div>
         </div>
       </div>
@@ -297,33 +299,33 @@ export function DashboardPage() {
         <div className="bg-white border border-brand-border rounded-lg p-5 shadow-subtle space-y-4">
           <h3 className="text-xs font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-brand-primary" />
-            <span>Distribución del Pipeline</span>
+            <span>{t('dashboard.pipelineDistribution')}</span>
           </h3>
 
           {isLoading ? (
-            <p className="text-xs text-brand-text-secondary italic py-4">Cargando distribución...</p>
+            <p className="text-xs text-brand-text-secondary italic py-4">{t('dashboard.loadingDistribution')}</p>
           ) : error ? (
-            <p className="text-xs text-rose-600 italic py-4">No se pudo cargar el desglose.</p>
+            <p className="text-xs text-rose-600 italic py-4">{t('dashboard.errorDistribution')}</p>
           ) : (
             <div className="space-y-2.5 text-xs">
               <div className="flex items-center justify-between p-2 rounded bg-blue-50/70 border border-blue-100">
-                <span className="font-semibold text-blue-900">1. Nuevos</span>
+                <span className="font-semibold text-blue-900">{t('dashboard.stageNew')}</span>
                 <span className="font-mono font-bold text-blue-950">{kpis?.pipelineBreakdown?.new || 0}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-amber-50/70 border border-amber-100">
-                <span className="font-semibold text-amber-900">2. Contactados</span>
+                <span className="font-semibold text-amber-900">{t('dashboard.stageContacted')}</span>
                 <span className="font-mono font-bold text-amber-950">{kpis?.pipelineBreakdown?.contacted || 0}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-purple-50/70 border border-purple-100">
-                <span className="font-semibold text-purple-900">3. Calificados</span>
+                <span className="font-semibold text-purple-900">{t('dashboard.stageQualified')}</span>
                 <span className="font-mono font-bold text-purple-950">{kpis?.pipelineBreakdown?.qualified || 0}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-emerald-50/70 border border-emerald-100">
-                <span className="font-semibold text-emerald-900">4. Ganados / Cerrados</span>
+                <span className="font-semibold text-emerald-900">{t('dashboard.stageWon')}</span>
                 <span className="font-mono font-bold text-emerald-950">{kpis?.pipelineBreakdown?.won || 0}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-rose-50/70 border border-rose-100">
-                <span className="font-semibold text-rose-900">5. Perdidos</span>
+                <span className="font-semibold text-rose-900">{t('dashboard.stageLost')}</span>
                 <span className="font-mono font-bold text-rose-950">{kpis?.pipelineBreakdown?.lost || 0}</span>
               </div>
             </div>
@@ -334,28 +336,28 @@ export function DashboardPage() {
         <div className="lg:col-span-2 bg-white border border-brand-border rounded-lg p-5 shadow-subtle space-y-4">
           <h3 className="text-xs font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
             <Award className="w-4 h-4 text-brand-primary" />
-            <span>Rendimiento por Vendedor</span>
+            <span>{t('dashboard.salespersonPerformance')}</span>
           </h3>
 
           {isLoading ? (
-            <p className="text-xs text-brand-text-secondary italic py-4">Cargando vendedores...</p>
+            <p className="text-xs text-brand-text-secondary italic py-4">{t('dashboard.loadingSalespeople')}</p>
           ) : error ? (
-            <p className="text-xs text-rose-600 italic py-4">No se pudo cargar el rendimiento por vendedor.</p>
+            <p className="text-xs text-rose-600 italic py-4">{t('dashboard.errorSalespeople')}</p>
           ) : salespeople.length === 0 ? (
             <p className="text-xs text-brand-text-secondary italic py-4">
-              Sin datos de vendedores para mostrar en este filtro.
+              {t('dashboard.noSalespeopleData')}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-[#F7F6F2] border-b border-brand-border text-[11px] font-bold text-brand-text-secondary uppercase">
                   <tr>
-                    <th className="p-2">Vendedor</th>
-                    <th className="p-2 text-center">Leads Asignados</th>
-                    <th className="p-2 text-center">Ganados</th>
-                    <th className="p-2 text-center">Ventas</th>
-                    <th className="p-2 text-center">Tasa Conv.</th>
-                    <th className="p-2 text-right">Cobrado</th>
+                    <th className="p-2">{t('dashboard.thSalesperson')}</th>
+                    <th className="p-2 text-center">{t('dashboard.thAssignedLeads')}</th>
+                    <th className="p-2 text-center">{t('dashboard.thWon')}</th>
+                    <th className="p-2 text-center">{t('dashboard.thSales')}</th>
+                    <th className="p-2 text-center">{t('dashboard.thConvRate')}</th>
+                    <th className="p-2 text-right">{t('dashboard.thCollected')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border/60">
@@ -371,7 +373,7 @@ export function DashboardPage() {
                           )}
                           {sp.isPendingActivation && (
                             <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded font-normal">
-                              Pendiente activación
+                              {t('dashboard.pendingActivation')}
                             </span>
                           )}
                         </div>
@@ -380,7 +382,7 @@ export function DashboardPage() {
                       <td className="p-2 text-center font-mono font-bold text-emerald-700">{sp.wonLeadsCount}</td>
                       <td className="p-2 text-center font-mono">{sp.salesCount ?? 0}</td>
                       <td className="p-2 text-center font-mono">
-                        {sp.hasConversionData ? `${sp.conversionRate}%` : 'Sin datos'}
+                        {sp.hasConversionData ? `${sp.conversionRate}%` : t('dashboard.noData')}
                       </td>
                       <td className="p-2 text-right font-mono font-bold text-brand-text-primary">
                         {sp.revenueByCurrency && Object.keys(sp.revenueByCurrency).length > 1 ? (
@@ -424,27 +426,27 @@ export function DashboardPage() {
           <div className="p-4 bg-[#F7F6F2] border border-brand-border rounded-md">
             <div className="flex items-center gap-2 font-bold text-brand-text-primary mb-1">
               <Users className="w-4 h-4 text-brand-primary" />
-              <span>Pipeline & Asignaciones</span>
+              <span>{t('dashboard.pipelineAndAssignments')}</span>
             </div>
             <p className="text-brand-text-secondary leading-relaxed">
-              Tablero Kanban con 5 etapas comerciales, reasignación controlada e importación masiva CSV.
+              {t('dashboard.pipelineDesc')}
             </p>
           </div>
 
           <div className="p-4 bg-[#F7F6F2] border border-brand-border rounded-md">
             <div className="flex items-center gap-2 font-bold text-brand-text-primary mb-1">
               <DollarSign className="w-4 h-4 text-brand-primary" />
-              <span>Ventas & Cobros en Centavos</span>
+              <span>{t('dashboard.salesAndCollections')}</span>
             </div>
             <p className="text-brand-text-secondary leading-relaxed">
-              Control de montos cobrados parciales y totales por divisa con validación de límites.
+              {t('dashboard.salesDesc')}
             </p>
           </div>
 
           <div className="p-4 bg-[#F7F6F2] border border-brand-border rounded-md">
             <div className="flex items-center gap-2 font-bold text-brand-text-primary mb-1">
               <Sparkles className="w-4 h-4 text-brand-primary" />
-              <span>Próximo Paso: Etapa 4</span>
+              <span>{t('dashboard.nextStep')}</span>
             </div>
             <p className="text-brand-text-secondary leading-relaxed">
               {CURRENT_STAGE.NEXT_STAGE_NAME}.
