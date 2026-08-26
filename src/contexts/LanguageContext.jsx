@@ -128,9 +128,43 @@ const translations = {
     },
     settings: {
       title: 'Configuración de Perfil',
+      subtitle: 'Gestión de perfil, identidad y seguridad de acceso a Anima MKT CRM.',
       language: 'Preferencia de Idioma',
       selectLanguage: 'Seleccionar Idioma',
       password: 'Seguridad y Contraseña',
+      identityRoleTitle: 'Perfil de Identidad & Rol',
+      emailLabel: 'Correo Electrónico:',
+      roleLabel: 'Rol en MongoDB:',
+      accessSecurityTitle: 'Seguridad de Acceso & Proveedores Vinculados',
+      accessSecurityDesc: 'Administrá los métodos de autenticación habilitados para ingresar a tu cuenta.',
+      googleProvider: 'Google Workspace / Gmail',
+      googleConnected: 'Conectado',
+      googleNotConnected: 'No conectado',
+      googleLinkedTo: 'Vinculado al correo {email}.',
+      googleNotAvailable: 'No disponible como método de inicio directo.',
+      passwordProvider: 'Contraseña Directa',
+      passwordConfigured: 'Configurada',
+      passwordNotConfigured: 'No configurada',
+      passwordActiveDesc: 'Permite iniciar sesión ingresando correo y contraseña en el CRM.',
+      passwordInactiveDesc: 'Tu cuenta fue creada con Google. Podés configurar una contraseña para habilitar acceso directo.',
+      forgotOrChange: '¿Olvidaste o querés cambiarla?',
+      resetViaEmail: 'Restablecer vía Email',
+      resetEmailSent: 'Correo enviado',
+      enablePasswordTitle: '¿Deseas habilitar acceso con correo y contraseña?',
+      enablePasswordDesc: 'Te permitirá ingresar directamente sin depender del popup de Google. Tu cuenta y permisos permanecerán idénticos.',
+      createPassword: 'Crear Contraseña',
+      configurePasswordTitle: 'Configurar Contraseña de Acceso',
+      cancelAction: 'Cancelar',
+      newPassword: 'Nueva Contraseña',
+      newPasswordPlaceholder: 'Mínimo 6 caracteres',
+      confirmPassword: 'Confirmar Contraseña',
+      confirmPasswordPlaceholder: 'Repetí la contraseña',
+      minChars: 'Al menos 6 caracteres',
+      passwordsMatch: 'Las contraseñas coinciden',
+      passwordsDontMatch: 'Las contraseñas no coinciden',
+      linking: 'Vinculando...',
+      setPassword: 'Establecer Contraseña',
+      passwordsMismatchError: 'Las contraseñas ingresadas no coinciden.',
     }
   },
   en: {
@@ -258,9 +292,43 @@ const translations = {
     },
     settings: {
       title: 'Profile Settings',
+      subtitle: 'Profile management, identity and access security for Anima MKT CRM.',
       language: 'Language Preference',
       selectLanguage: 'Select Language',
       password: 'Security & Password',
+      identityRoleTitle: 'Identity Profile & Role',
+      emailLabel: 'Email Address:',
+      roleLabel: 'MongoDB Role:',
+      accessSecurityTitle: 'Access Security & Linked Providers',
+      accessSecurityDesc: 'Manage the authentication methods enabled to log into your account.',
+      googleProvider: 'Google Workspace / Gmail',
+      googleConnected: 'Connected',
+      googleNotConnected: 'Not connected',
+      googleLinkedTo: 'Linked to {email}.',
+      googleNotAvailable: 'Not available as a direct sign-in method.',
+      passwordProvider: 'Direct Password',
+      passwordConfigured: 'Configured',
+      passwordNotConfigured: 'Not configured',
+      passwordActiveDesc: 'Allows sign-in via email and password in the CRM.',
+      passwordInactiveDesc: 'Your account was created with Google. You can set a password to enable direct access.',
+      forgotOrChange: 'Forgot or want to change it?',
+      resetViaEmail: 'Reset via Email',
+      resetEmailSent: 'Email sent',
+      enablePasswordTitle: 'Enable email and password access?',
+      enablePasswordDesc: 'This will let you sign in directly without depending on Google popup. Your account and permissions will remain identical.',
+      createPassword: 'Create Password',
+      configurePasswordTitle: 'Configure Access Password',
+      cancelAction: 'Cancel',
+      newPassword: 'New Password',
+      newPasswordPlaceholder: 'Minimum 6 characters',
+      confirmPassword: 'Confirm Password',
+      confirmPasswordPlaceholder: 'Repeat the password',
+      minChars: 'At least 6 characters',
+      passwordsMatch: 'Passwords match',
+      passwordsDontMatch: 'Passwords do not match',
+      linking: 'Linking...',
+      setPassword: 'Set Password',
+      passwordsMismatchError: 'The entered passwords do not match.',
     }
   }
 };
@@ -323,14 +391,24 @@ export function useLanguage() {
     return {
       language: 'es',
       setLanguage: () => {},
-      t: (key) => {
-        if (key === 'menu.dashboard') return 'Dashboard';
-        if (key === 'menu.revenue') return 'Panel Financiero';
-        if (key === 'menu.admin') return 'Centro de Admin';
-        if (key === 'menu.leads') return 'Leads / Prospectos';
-        if (key === 'menu.campaigns') return 'Campañas Meta';
-        if (key === 'menu.settings') return 'Configuración';
-        return key;
+      t: (keyPath, variables = {}) => {
+        const keys = keyPath.split('.');
+        let value = translations.es;
+        for (const k of keys) {
+          if (value && value[k] !== undefined) {
+            value = value[k];
+          } else {
+            return keyPath;
+          }
+        }
+        if (typeof value === 'string') {
+          let str = value;
+          Object.entries(variables).forEach(([k, v]) => {
+            str = str.replace(`{${k}}`, v);
+          });
+          return str;
+        }
+        return keyPath;
       }
     };
   }

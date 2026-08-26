@@ -47,7 +47,7 @@ export function SettingsPage() {
     if (!passwordsMatch) {
       setFeedback({
         type: 'error',
-        message: 'Las contraseñas ingresadas no coinciden.',
+        message: t('settings.passwordsMismatchError'),
       });
       return;
     }
@@ -161,7 +161,7 @@ export function SettingsPage() {
             {t('settings.title')}
           </h1>
           <p className="text-xs md:text-sm text-brand-text-secondary mt-0.5">
-            Gestión de perfil, identidad y seguridad de acceso a Anima MKT CRM.
+            {t('settings.subtitle')}
           </p>
         </div>
         <div>
@@ -215,15 +215,15 @@ export function SettingsPage() {
       <div className="bg-white p-6 border border-brand-border rounded-lg shadow-subtle">
         <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-brand-primary" />
-          <span>Perfil de Identidad & Rol</span>
+          <span>{t('settings.identityRoleTitle')}</span>
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div className="p-3.5 bg-[#F7F6F2] border border-brand-border rounded">
-            <span className="text-brand-text-secondary block font-semibold mb-1">Correo Electrónico:</span>
+            <span className="text-brand-text-secondary block font-semibold mb-1">{t('settings.emailLabel')}</span>
             <span className="font-mono font-medium text-brand-text-primary">{userProfile?.email || firebaseUser?.email}</span>
           </div>
           <div className="p-3.5 bg-[#F7F6F2] border border-brand-border rounded">
-            <span className="text-brand-text-secondary block font-semibold mb-1">Rol en MongoDB:</span>
+            <span className="text-brand-text-secondary block font-semibold mb-1">{t('settings.roleLabel')}</span>
             <span className="font-mono font-extrabold text-brand-primary tracking-wide">
               {formatRole(userProfile?.role)}
             </span>
@@ -236,10 +236,10 @@ export function SettingsPage() {
         <div>
           <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-brand-primary" />
-            <span>Seguridad de Acceso & Proveedores Vinculados</span>
+            <span>{t('settings.accessSecurityTitle')}</span>
           </h3>
           <p className="text-xs text-brand-text-secondary mt-1">
-            Administrá los métodos de autenticación habilitados para ingresar a tu cuenta.
+            {t('settings.accessSecurityDesc')}
           </p>
         </div>
 
@@ -253,22 +253,22 @@ export function SettingsPage() {
                   <div className="w-6 h-6 rounded bg-white border border-brand-border flex items-center justify-center text-xs font-bold text-brand-primary">
                     G
                   </div>
-                  <span className="text-xs font-bold text-brand-text-primary">Google Workspace / Gmail</span>
+                  <span className="text-xs font-bold text-brand-text-primary">{t('settings.googleProvider')}</span>
                 </div>
                 {hasGoogleProvider ? (
                   <Badge variant="success" className="text-[10px] px-2 py-0.5">
-                    Conectado
+                    {t('settings.googleConnected')}
                   </Badge>
                 ) : (
                   <Badge variant="neutral" className="text-[10px] px-2 py-0.5">
-                    No conectado
+                    {t('settings.googleNotConnected')}
                   </Badge>
                 )}
               </div>
               <p className="text-[11px] text-brand-text-secondary">
                 {hasGoogleProvider
-                  ? `Vinculado al correo ${firebaseUser?.email || userProfile?.email}.`
-                  : 'No disponible como método de inicio directo.'}
+                  ? t('settings.googleLinkedTo', { email: firebaseUser?.email || userProfile?.email })
+                  : t('settings.googleNotAvailable')}
               </p>
             </div>
           </div>
@@ -281,28 +281,28 @@ export function SettingsPage() {
                   <div className="w-6 h-6 rounded bg-white border border-brand-border flex items-center justify-center text-xs font-bold text-brand-primary">
                     <Lock className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-xs font-bold text-brand-text-primary">Contraseña Directa</span>
+                  <span className="text-xs font-bold text-brand-text-primary">{t('settings.passwordProvider')}</span>
                 </div>
                 {hasPasswordProvider ? (
                   <Badge variant="success" className="text-[10px] px-2 py-0.5">
-                    Configurada
+                    {t('settings.passwordConfigured')}
                   </Badge>
                 ) : (
                   <Badge variant="warning" className="text-[10px] px-2 py-0.5">
-                    No configurada
+                    {t('settings.passwordNotConfigured')}
                   </Badge>
                 )}
               </div>
               <p className="text-[11px] text-brand-text-secondary">
                 {hasPasswordProvider
-                  ? 'Permite iniciar sesión ingresando correo y contraseña en el CRM.'
-                  : 'Tu cuenta fue creada con Google. Podés configurar una contraseña para habilitar acceso directo.'}
+                  ? t('settings.passwordActiveDesc')
+                  : t('settings.passwordInactiveDesc')}
               </p>
             </div>
 
             {hasPasswordProvider && (
               <div className="mt-3 pt-3 border-t border-brand-border/60 flex items-center justify-between">
-                <span className="text-[11px] text-brand-text-secondary">¿Olvidaste o querés cambiarla?</span>
+                <span className="text-[11px] text-brand-text-secondary">{t('settings.forgotOrChange')}</span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -310,7 +310,7 @@ export function SettingsPage() {
                   disabled={actionLoading || resetEmailSent}
                   className="text-[11px] text-brand-primary p-0 hover:bg-transparent underline"
                 >
-                  {resetEmailSent ? 'Correo enviado' : 'Restablecer vía Email'}
+                  {resetEmailSent ? t('settings.resetEmailSent') : t('settings.resetViaEmail')}
                 </Button>
               </div>
             )}
@@ -324,10 +324,10 @@ export function SettingsPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h4 className="text-xs font-bold text-brand-text-primary">
-                    ¿Deseas habilitar acceso con correo y contraseña?
+                    {t('settings.enablePasswordTitle')}
                   </h4>
                   <p className="text-[11px] text-brand-text-secondary mt-0.5">
-                    Te permitirá ingresar directamente sin depender del popup de Google. Tu cuenta y permisos permanecerán idénticos.
+                    {t('settings.enablePasswordDesc')}
                   </p>
                 </div>
                 <Button
@@ -339,14 +339,14 @@ export function SettingsPage() {
                   }}
                   className="shrink-0 text-xs"
                 >
-                  Crear Contraseña
+                  {t('settings.createPassword')}
                 </Button>
               </div>
             ) : (
               <form onSubmit={handleLinkPassword} className="space-y-4 pt-1">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-brand-text-primary uppercase tracking-wider">
-                    Configurar Contraseña de Acceso
+                    {t('settings.configurePasswordTitle')}
                   </h4>
                   <button
                     type="button"
@@ -357,7 +357,7 @@ export function SettingsPage() {
                     }}
                     className="text-[11px] text-brand-text-secondary hover:text-brand-text-primary underline"
                   >
-                    Cancelar
+                    {t('settings.cancelAction')}
                   </button>
                 </div>
 
@@ -368,7 +368,7 @@ export function SettingsPage() {
                       htmlFor="newPassword"
                       className="block text-xs font-semibold text-brand-text-primary mb-1"
                     >
-                      Nueva Contraseña
+                      {t('settings.newPassword')}
                     </label>
                     <div className="relative">
                       <input
@@ -376,7 +376,7 @@ export function SettingsPage() {
                         type={showPassword ? 'text' : 'password'}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
+                        placeholder={t('settings.newPasswordPlaceholder')}
                         autoComplete="new-password"
                         required
                         disabled={actionLoading}
@@ -399,7 +399,7 @@ export function SettingsPage() {
                       htmlFor="confirmPassword"
                       className="block text-xs font-semibold text-brand-text-primary mb-1"
                     >
-                      Confirmar Contraseña
+                      {t('settings.confirmPassword')}
                     </label>
                     <div className="relative">
                       <input
@@ -407,7 +407,7 @@ export function SettingsPage() {
                         type={showConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Repetí la contraseña"
+                        placeholder={t('settings.confirmPasswordPlaceholder')}
                         autoComplete="new-password"
                         required
                         disabled={actionLoading}
@@ -434,7 +434,7 @@ export function SettingsPage() {
                       }`}
                     />
                     <span className={isPasswordValidLength ? 'text-status-success font-medium' : 'text-brand-text-secondary'}>
-                      Al menos 6 caracteres
+                      {t('settings.minChars')}
                     </span>
                   </div>
                   {confirmPassword.length > 0 && (
@@ -445,7 +445,7 @@ export function SettingsPage() {
                         }`}
                       />
                       <span className={passwordsMatch ? 'text-status-success font-medium' : 'text-brand-primary'}>
-                        {passwordsMatch ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+                        {passwordsMatch ? t('settings.passwordsMatch') : t('settings.passwordsDontMatch')}
                       </span>
                     </div>
                   )}
@@ -461,7 +461,7 @@ export function SettingsPage() {
                     className="text-xs gap-1.5"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>{actionLoading ? 'Vinculando...' : 'Establecer Contraseña'}</span>
+                    <span>{actionLoading ? t('settings.linking') : t('settings.setPassword')}</span>
                   </Button>
                 </div>
               </form>
