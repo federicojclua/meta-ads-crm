@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ObjectId } from 'mongodb';
 import { handler as revenueHandler } from '../../netlify/functions/api-dashboard-revenue.js';
+import { handler as exportHandler } from '../../netlify/functions/api-dashboard-revenue-export.js';
 import * as DbModule from '../../netlify/functions/_shared/db.js';
 import * as PermissionsModule from '../../netlify/functions/_shared/permissions.js';
 
@@ -121,6 +122,10 @@ describe('Revenue Aggregation Engine & Tenant Isolation Tests', () => {
       }),
     };
 
+    const mockAuditLogsCollection = {
+      insertOne: vi.fn().mockResolvedValue({}),
+    };
+
     mockDb = {
       collection: vi.fn().mockImplementation((name) => {
         if (name === 'exchange_rates') return mockExchangeRatesCollection;
@@ -128,6 +133,7 @@ describe('Revenue Aggregation Engine & Tenant Isolation Tests', () => {
         if (name === 'leads') return mockLeadsCollection;
         if (name === 'sales') return mockSalesCollection;
         if (name === 'meta_insights_daily') return mockMetaInsightsCollection;
+        if (name === 'audit_logs') return mockAuditLogsCollection;
         return null;
       }),
     };
@@ -220,5 +226,65 @@ describe('Revenue Aggregation Engine & Tenant Isolation Tests', () => {
     expect(body.kpis.attributed.spendMinor).toBe(1000);
     expect(body.kpis.attributed.revenueMinor).toBe(5000);
     expect(body.kpis.attributed.roas).toBe(5); // 50 / 10 = 5.0x
+  });
+
+  describe('Export Revenue Report Endpoint', () => {
+    it('1. GET /api/dashboard/revenue/export en formato CSV escapa inyeccion de formula en celdas', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: clientUserA,
+        db: mockDb,
+        isGlobal: false,
+        clientScope: clientAId.toString(),
+      });
+
+      // Mock clients.findOne to return a company name starting with a potential formula trigger
+      mockClientsCollection.findOne.mockResolvedValueOnce({
+        _id: clientAId,
+        name: '=Empresa Peligrosa',
+        slug: 'empresa-peligrosa',
+        status: 'active',
+      });
+
+      const res = await exportHandler({
+        httpMethod: 'GET',
+        queryStringParameters: {
+          startDate: '2026-08-01',
+          endDate: '2026-08-20',
+          format: 'csv',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['Content-Type']).toBe('text/csv; charset=utf-8');
+      
+      // Verify formula trigger is escaped by prepending single quote inside double quotes: "'=Empresa Peligrosa"
+      expect(res.body).toContain('\"\'=Empresa Peligrosa\"');
+    });
+
+    it('2. GET /api/dashboard/revenue/export con clientUser intentando forzar otro clientId usa clientScope de sesion', async () => {
+      vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+        authorized: true,
+        user: clientUserA,
+        db: mockDb,
+        isGlobal: false,
+        clientScope: clientAId.toString(),
+      });
+
+      const res = await exportHandler({
+        httpMethod: 'GET',
+        queryStringParameters: {
+          clientId: clientBId.toString(), // tries to leak Client B data
+          startDate: '2026-08-01',
+          endDate: '2026-08-20',
+          format: 'pdf_json',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // Verify it generated metadata for Client A (not B)
+      expect(body.reportMetadata.clientId).toBe(clientAId.toString());
+    });
   });
 });
