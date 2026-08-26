@@ -532,6 +532,9 @@ export async function handler(event) {
     });
 
     return jsonResponse(200, {
+      clientId: clientDoc ? clientDoc._id.toString() : 'global',
+      companyName: clientDoc ? clientDoc.name : 'Todas las Empresas',
+      timezone: clientDoc?.timezone || 'America/Argentina/Buenos_Aires',
       kpis: {
         totalLeadsCount,
         activeLeadsCount: totalLeadsCount,

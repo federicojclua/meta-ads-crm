@@ -23,6 +23,8 @@ import { LeadModal } from '../components/leads/LeadModal';
 import { LeadDetailModal } from '../components/leads/LeadDetailModal';
 import { SaleModal } from '../components/leads/SaleModal';
 import { CsvImportModal } from '../components/leads/CsvImportModal';
+import { useLanguage } from '../contexts/LanguageContext';
+import { formatDate, formatCurrency, formatNumber } from '../lib/utils';
 import { apiClient, ApiError } from '../lib/api';
 import {
   LEAD_STAGES,
@@ -35,6 +37,7 @@ export function LeadsPage() {
   const initialClientId = searchParams.get('clientId') || '';
 
   const { userProfile, firebaseUser, loading: authLoading } = useAuth();
+  const { t, language } = useLanguage();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
   const isSalesperson = userProfile?.role === 'salesperson';
 
@@ -46,6 +49,10 @@ export function LeadsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [feedback, setFeedback] = useState(null);
+
+  const activeClientId = isGlobal ? selectedClientId : userProfile?.clientId;
+  const selectedClientDoc = clients.find(c => (c._id || c.id) === activeClientId);
+  const tenantTimezone = selectedClientDoc?.timezone || 'America/Argentina/Buenos_Aires';
 
   // View state: 'kanban' | 'table'
   const [viewMode, setViewMode] = useState('kanban');
@@ -67,15 +74,14 @@ export function LeadsPage() {
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  // Fetch clients for global users
+  // Fetch clients for all users (non-global gets their own client)
   const fetchClients = useCallback(async () => {
-    if (!isGlobal || authLoading || !firebaseUser) return;
+    if (authLoading || !firebaseUser) return;
     try {
       const data = await apiClient.get('/api/clients');
       const clientsList = data.clients || [];
       setClients(clientsList);
       if (clientsList.length > 0 && !selectedClientId) {
-        // Keep initial clientId from URL if valid, otherwise select first client
         if (initialClientId && clientsList.some((c) => (c.id || c._id) === initialClientId)) {
           setSelectedClientId(initialClientId);
         } else {
@@ -85,7 +91,7 @@ export function LeadsPage() {
     } catch (err) {
       console.warn('[LEADS] Error fetching clients:', err.message);
     }
-  }, [isGlobal, authLoading, firebaseUser, initialClientId, selectedClientId]);
+  }, [authLoading, firebaseUser, initialClientId, selectedClientId]);
 
   useEffect(() => {
     fetchClients();
@@ -615,7 +621,7 @@ export function LeadsPage() {
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-brand-text-secondary">
-                    ${(totalValueMinor / 100).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                    {formatCurrency(totalValueMinor / 100, 'ARS', language === 'es' ? 'es-AR' : 'en-US')}
                   </span>
                 </div>
 
@@ -661,7 +667,7 @@ export function LeadsPage() {
                           {lead.assignedToUser?.displayName || 'Sin asignar'}
                         </span>
                         <span className="font-bold font-mono text-brand-text-primary">
-                          ${((lead.valueEstimateMinor || 0) / 100).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                          {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency || 'ARS', language === 'es' ? 'es-AR' : 'en-US')}
                         </span>
                       </div>
 
@@ -745,13 +751,13 @@ export function LeadsPage() {
                       {lead.assignedToUser?.displayName || <span className="italic text-gray-400">Sin asignar</span>}
                     </td>
                     <td className="p-3 font-mono font-bold text-brand-text-primary">
-                      ${((lead.valueEstimateMinor || 0) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 })} {lead.currency}
+                      {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency, language === 'es' ? 'es-AR' : 'en-US')}
                     </td>
                     <td className="p-3 uppercase font-mono text-[10px] text-brand-text-secondary">
                       {lead.source}
                     </td>
                     <td className="p-3 text-brand-text-secondary">
-                      {lead.acquiredAt ? new Date(lead.acquiredAt).toLocaleDateString('es-AR') : '-'}
+                      {lead.acquiredAt ? formatDate(lead.acquiredAt, tenantTimezone, language === 'es' ? 'es-AR' : 'en-US') : '-'}
                     </td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -807,6 +813,7 @@ export function LeadsPage() {
         onOpenSaleModal={openSaleModal}
         salespeople={salespeople}
         userRole={userProfile?.role}
+        timezone={tenantTimezone}
       />
 
       <SaleModal

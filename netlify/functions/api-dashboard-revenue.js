@@ -5,6 +5,22 @@ import { jsonResponse, errorResponse } from './_shared/response.js';
 import { calculateDerivedMetrics } from '../../models/MetaInsightDaily.js';
 import { convertCurrencyHistorically } from '../../models/ExchangeRate.js';
 
+async function findClient(idOrSlug, clientsCollection) {
+  if (!idOrSlug) return null;
+  if (!clientsCollection || typeof clientsCollection.findOne !== 'function') {
+    return { _id: idOrSlug };
+  }
+  if (/^[0-9a-fA-F]{24}$/.test(idOrSlug)) {
+    const doc = await clientsCollection.findOne({ _id: new ObjectId(idOrSlug) });
+    if (doc) return doc;
+  }
+  const docByStrId = await clientsCollection.findOne({ _id: idOrSlug });
+  if (docByStrId) return docByStrId;
+  const docBySlug = await clientsCollection.findOne({ slug: idOrSlug });
+  if (docBySlug) return docBySlug;
+  return null;
+}
+
 /**
  * Netlify Function: api-dashboard-revenue
  * Consolidates Meta Ads performance with CRM Leads, Sales and Payments.
@@ -28,27 +44,32 @@ export const handler = async (event) => {
     const params = event.queryStringParameters || {};
 
     // 1. Strict Tenant Scoping & Authorization Validation
-    let targetClientId = null;
+    const rawClientId = (params.clientId !== undefined && params.clientId !== null)
+      ? String(params.clientId).trim()
+      : (params.clientid !== undefined && params.clientid !== null)
+        ? String(params.clientid).trim()
+        : '';
+
+    let clientDoc = null;
+    const clientsCollection = db.collection('clients');
+
     if (!isGlobal) {
-      if (!clientScope || !ObjectId.isValid(clientScope)) {
+      if (!clientScope) {
         return errorResponse(403, 'Usuario sin empresa asignada.', 'FORBIDDEN');
       }
-      targetClientId = new ObjectId(clientScope);
+      clientDoc = await findClient(clientScope, clientsCollection);
     } else {
-      if (params.clientId && ObjectId.isValid(params.clientId)) {
-        targetClientId = new ObjectId(params.clientId);
-      } else {
+      if (!rawClientId) {
         return errorResponse(400, 'El parámetro clientId es obligatorio para administradores globales.', 'CLIENT_ID_REQUIRED');
       }
+      clientDoc = await findClient(rawClientId, clientsCollection);
     }
 
-    // Verify active client exists
-    const clientDoc = await db.collection('clients').findOne({ _id: targetClientId, status: 'active' });
-    if (!clientDoc) {
+    if (!clientDoc || clientDoc.status === 'inactive') {
       return errorResponse(404, 'La empresa seleccionada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
     }
 
-    // Respect Salesperson role constraints
+    const targetClientId = clientDoc._id;   // Respect Salesperson role constraints
     const isSalesperson = user.role === 'salesperson';
     let salespersonId = null;
     if (isSalesperson) {
@@ -428,6 +449,7 @@ export const handler = async (event) => {
       ok: true,
       clientId: targetClientId.toString(),
       companyName: clientDoc.name,
+      timezone: clientDoc.timezone || 'America/Argentina/Buenos_Aires',
       startDate: startDateStr,
       endDate: endDateStr,
       currency: targetCurrency,

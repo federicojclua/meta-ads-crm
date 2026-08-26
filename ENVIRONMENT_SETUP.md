@@ -181,3 +181,4 @@ npx netlify deploy --prod
 | `META_API_VERSION`          | Netlify / .env.local| Server-side config (v26.0)   |
 | `ENABLE_META_LEAD_ADS`      | Netlify / .env.local| Server-side feature flag     |
 | `CRON_SECRET`               | Netlify / .env.local| Server-side SECRET           |
+| `META_MANUAL_SYNC_ENABLED`   | Netlify / .env.local| Server-side feature flag     |

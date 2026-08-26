@@ -5,6 +5,19 @@ import { jsonResponse, errorResponse } from './_shared/response.js';
 import { sanitizeMetaLog } from './_shared/metaConfig.js';
 import { calculateDerivedMetrics } from '../../models/MetaInsightDaily.js';
 
+async function findClient(idOrSlug, clientsCollection) {
+  if (!idOrSlug) return null;
+  if (/^[0-9a-fA-F]{24}$/.test(idOrSlug)) {
+    const doc = await clientsCollection.findOne({ _id: new ObjectId(idOrSlug) });
+    if (doc) return doc;
+  }
+  const docByStrId = await clientsCollection.findOne({ _id: idOrSlug });
+  if (docByStrId) return docByStrId;
+  const docBySlug = await clientsCollection.findOne({ slug: idOrSlug });
+  if (docBySlug) return docBySlug;
+  return null;
+}
+
 export const handler = async (event) => {
   try {
     const auth = await verifyAuthorizedUser(event);
@@ -31,22 +44,30 @@ export const handler = async (event) => {
     const clientsCollection = db.collection('clients');
 
     // 1. Determine authorized target clientId
-    let targetClientId = null;
+    const rawClientId = (params.clientId !== undefined && params.clientId !== null)
+      ? String(params.clientId).trim()
+      : (params.clientid !== undefined && params.clientid !== null)
+        ? String(params.clientid).trim()
+        : '';
+
+    let clientDoc = null;
     if (isGlobal) {
-      if (!params.clientId || !ObjectId.isValid(params.clientId)) {
+      if (!rawClientId) {
         return errorResponse(400, 'El parámetro clientId es obligatorio para consultar las métricas.', 'CLIENT_ID_REQUIRED');
       }
-      targetClientId = new ObjectId(params.clientId);
-      const clientExists = await clientsCollection.findOne({ _id: targetClientId, status: 'active' });
-      if (!clientExists) {
-        return errorResponse(404, 'Empresa no encontrada o inactiva.', 'CLIENT_NOT_FOUND');
-      }
+      clientDoc = await findClient(rawClientId, clientsCollection);
     } else {
-      if (!clientScope || !ObjectId.isValid(clientScope)) {
+      if (!clientScope) {
         return errorResponse(403, 'Usuario sin empresa autorizada.', 'FORBIDDEN');
       }
-      targetClientId = new ObjectId(clientScope);
+      clientDoc = await findClient(clientScope, clientsCollection);
     }
+
+    if (!clientDoc || clientDoc.status === 'inactive') {
+      return errorResponse(404, 'Empresa no encontrada o inactiva.', 'CLIENT_NOT_FOUND');
+    }
+
+    const targetClientId = clientDoc._id;
 
     // 2. Build tenant query filter (Tenant-First)
     const matchQuery = {};

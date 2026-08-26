@@ -431,6 +431,25 @@ Tracks Meta sync progress to enable idempotent, incremental syncing.
 
 ---
 
+### 2.11 `rate_limits`
+
+Colección temporal para el control de tasa y mitigación de abuso de endpoints costosos (Rate Limiting).
+
+```json
+{
+  "_id": "ObjectId",
+  "ip": "string",
+  "endpoint": "string",
+  "windowStart": "ISODate",
+  "count": "integer"
+}
+```
+
+**Indexes:**
+- `{ windowStart: 1 }` — `{ expireAfterSeconds: 3600, name: "idx_rate_limits_ttl" }`
+
+---
+
 ## 3. Relationship Diagram
 
 ```

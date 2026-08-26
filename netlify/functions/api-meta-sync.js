@@ -3,6 +3,23 @@ import { getDb } from './_shared/db.js';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
 import { getMetaConfig, timingSafeCompare, sanitizeMetaLog } from './_shared/metaConfig.js';
+import { checkRateLimit, getClientIp } from './_shared/rateLimiter.js';
+
+async function findClient(idOrSlug, clientsCollection) {
+  if (!idOrSlug) return null;
+  if (!clientsCollection || typeof clientsCollection.findOne !== 'function') {
+    return { _id: idOrSlug };
+  }
+  if (/^[0-9a-fA-F]{24}$/.test(idOrSlug)) {
+    const doc = await clientsCollection.findOne({ _id: new ObjectId(idOrSlug) });
+    if (doc) return doc;
+  }
+  const docByStrId = await clientsCollection.findOne({ _id: idOrSlug });
+  if (docByStrId) return docByStrId;
+  const docBySlug = await clientsCollection.findOne({ slug: idOrSlug });
+  if (docBySlug) return docBySlug;
+  return null;
+}
 
 export const handler = async (event) => {
   try {
@@ -11,6 +28,7 @@ export const handler = async (event) => {
     if (method === 'GET') {
       const headers = event.headers || {};
       const cronHeader = headers['x-cron-auth'] || headers['X-Cron-Auth'];
+
       if (cronHeader) {
         return errorResponse(405, 'Método no permitido para cron con GET.', 'METHOD_NOT_ALLOWED');
       }
@@ -30,17 +48,25 @@ export const handler = async (event) => {
       const skip = (page - 1) * limit;
 
       let query = {};
+      const clientsCollection = db.collection('clients');
       if (!isGlobal) {
-        if (!clientScope || !ObjectId.isValid(clientScope)) {
+        if (!clientScope) {
           return jsonResponse(200, { ok: true, logs: [], pagination: { page, limit, total: 0, pages: 0 } });
         }
-        const scopes = await db.collection('client_meta_scopes').find({ clientId: new ObjectId(clientScope), status: 'active' }).toArray();
+        const clientDoc = await findClient(clientScope, clientsCollection);
+        if (!clientDoc) {
+          return jsonResponse(200, { ok: true, logs: [], pagination: { page, limit, total: 0, pages: 0 } });
+        }
+        const scopes = await db.collection('client_meta_scopes').find({ clientId: clientDoc._id, status: 'active' }).toArray();
         const adAccountIds = scopes.map(s => s.adAccountId);
         query = { adAccountId: { $in: adAccountIds } };
-      } else if (params.clientId && ObjectId.isValid(params.clientId)) {
-        const scopes = await db.collection('client_meta_scopes').find({ clientId: new ObjectId(params.clientId), status: 'active' }).toArray();
-        const adAccountIds = scopes.map(s => s.adAccountId);
-        query = { adAccountId: { $in: adAccountIds } };
+      } else if (params.clientId) {
+        const clientDoc = await findClient(params.clientId, clientsCollection);
+        if (clientDoc) {
+          const scopes = await db.collection('client_meta_scopes').find({ clientId: clientDoc._id, status: 'active' }).toArray();
+          const adAccountIds = scopes.map(s => s.adAccountId);
+          query = { adAccountId: { $in: adAccountIds } };
+        }
       }
 
       const total = await syncLogsCollection.countDocuments(query);
@@ -104,6 +130,13 @@ export const handler = async (event) => {
         return errorResponse(403, 'Solo el super_admin o el cron del sistema con autenticación válida pueden disparar la sincronización.', 'FORBIDDEN');
       }
       executingUser = auth.user;
+
+      // Rate limit manual sync: 5 per minute per IP
+      const clientIp = getClientIp(event);
+      const isAllowed = await checkRateLimit(clientIp, 'meta-sync-manual', 5, 60000);
+      if (!isAllowed) {
+        return errorResponse(429, 'Demasiadas solicitudes de sincronización. Por favor espere un minuto.', 'TOO_MANY_REQUESTS');
+      }
     }
 
     const db = await getDb();

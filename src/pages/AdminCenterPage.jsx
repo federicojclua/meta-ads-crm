@@ -22,8 +22,9 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../contexts/LanguageContext';
 import { apiClient } from '../lib/api';
-import { formatRole } from '../lib/utils';
+import { formatRole, formatDate, formatCurrency, formatNumber } from '../lib/utils';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
@@ -34,6 +35,7 @@ import { Modal } from '../components/ui/Modal';
 
 export function AdminCenterPage() {
   const { userProfile } = useAuth();
+  const { t, language } = useLanguage();
   const queryClient = useQueryClient();
   const isSuperAdmin = userProfile?.role === 'super_admin';
   const isGlobalAdmin = ['super_admin', 'admin'].includes(userProfile?.role);
@@ -64,48 +66,48 @@ export function AdminCenterPage() {
 
   // 1. Fetch Clients
   const { data: clientsData, isLoading: isLoadingClients } = useQuery({
-    queryKey: ['clients'],
+    queryKey: ['clients', userProfile?._id],
     queryFn: () => apiClient('/api/clients'),
   });
 
   // 2. Fetch Users
   const { data: usersData } = useQuery({
-    queryKey: ['users'],
+    queryKey: ['users', userProfile?._id],
     queryFn: () => apiClient('/api/users'),
     enabled: isGlobalAdmin,
   });
 
   // 3. Fetch Exchange Rates
   const { data: exchangeRatesData, isLoading: isLoadingRates } = useQuery({
-    queryKey: ['exchangeRates'],
+    queryKey: ['exchangeRates', userProfile?._id],
     queryFn: () => apiClient('/api/exchange-rates'),
     enabled: isGlobalAdmin,
   });
 
   // 4. Fetch Meta Status
   const { data: metaStatus, isLoading: isLoadingMetaStatus } = useQuery({
-    queryKey: ['metaStatus'],
+    queryKey: ['metaStatus', userProfile?._id],
     queryFn: () => apiClient('/api/meta/status'),
     enabled: isGlobalAdmin,
   });
 
   // 5. Fetch Meta Assets & Scopes
   const { data: metaAssetsData } = useQuery({
-    queryKey: ['metaAssets'],
+    queryKey: ['metaAssets', userProfile?._id],
     queryFn: () => apiClient('/api/meta/assets'),
     enabled: isGlobalAdmin,
   });
 
   // 6. Fetch Meta Sync Logs
   const { data: syncLogsData, isLoading: isLoadingSyncLogs } = useQuery({
-    queryKey: ['syncLogs', syncLogPage],
+    queryKey: ['syncLogs', syncLogPage, userProfile?._id],
     queryFn: () => apiClient(`/api/meta/sync?page=${syncLogPage}&limit=5`),
     enabled: isGlobalAdmin,
   });
 
   // 7. Fetch Audit Logs
   const { data: auditLogsData, isLoading: isLoadingAuditLogs } = useQuery({
-    queryKey: ['auditLogs'],
+    queryKey: ['auditLogs', userProfile?._id],
     queryFn: () => apiClient('/api/audit-logs'), // Super Admin utility
     enabled: isSuperAdmin && activeTab === 'audit_logs',
   });
@@ -625,7 +627,7 @@ export function AdminCenterPage() {
                       <p className="text-[10px] text-brand-text-secondary mt-1">Disparador: <strong>{log.trigger}</strong> | Filas actualizadas: <strong>{log.rowsUpserted}</strong></p>
                       {log.failureReason && <p className="text-[10px] text-rose-700 font-semibold mt-1">Error: {log.failureReason}</p>}
                     </div>
-                    <span className="text-[10px] text-brand-text-secondary font-mono">{log.createdAt ? new Date(log.createdAt).toLocaleString('es-AR') : ''}</span>
+                    <span className="text-[10px] text-brand-text-secondary font-mono">{log.createdAt ? formatDate(log.createdAt, 'America/Argentina/Buenos_Aires', language === 'es' ? 'es-AR' : 'en-US') : ''}</span>
                   </div>
                 ))}
 
@@ -787,7 +789,7 @@ export function AdminCenterPage() {
                     <tr key={log.id} className="border-b border-brand-border/40 hover:bg-[#F7F6F2]/30">
                       <td className="py-2 font-bold text-brand-text-primary"><Badge variant="primary" className="text-[9px]">{log.action}</Badge></td>
                       <td className="py-2 text-brand-text-secondary font-mono text-[10px]">{log.performedByUserId}</td>
-                      <td className="py-2 text-brand-text-secondary font-mono text-[10px]">{new Date(log.performedAt).toLocaleString('es-AR')}</td>
+                      <td className="py-2 text-brand-text-secondary font-mono text-[10px]">{formatDate(log.performedAt, 'America/Argentina/Buenos_Aires', language === 'es' ? 'es-AR' : 'en-US')}</td>
                       <td className="py-2 text-brand-text-secondary font-mono text-[10px]">{JSON.stringify(log.details)}</td>
                     </tr>
                   ))}

@@ -9,6 +9,22 @@ import { sanitizeMetaAdAccount } from '../../models/MetaAdAccount.js';
 import { sanitizeMetaDataSource } from '../../models/MetaDataSource.js';
 import { sanitizeClientMetaScope } from '../../models/ClientMetaScope.js';
 
+async function findClient(idOrSlug, clientsCollection) {
+  if (!idOrSlug) return null;
+  if (!clientsCollection || typeof clientsCollection.findOne !== 'function') {
+    return { _id: idOrSlug };
+  }
+  if (/^[0-9a-fA-F]{24}$/.test(idOrSlug)) {
+    const doc = await clientsCollection.findOne({ _id: new ObjectId(idOrSlug) });
+    if (doc) return doc;
+  }
+  const docByStrId = await clientsCollection.findOne({ _id: idOrSlug });
+  if (docByStrId) return docByStrId;
+  const docBySlug = await clientsCollection.findOne({ slug: idOrSlug });
+  if (docBySlug) return docBySlug;
+  return null;
+}
+
 export const handler = async (event) => {
   try {
     const auth = await verifyAuthorizedUser(event);
@@ -56,7 +72,7 @@ export const handler = async (event) => {
       });
     }
 
-    const db = auth.db || (typeof getDb === 'function' ? await getDb() : null);
+    const db = auth.db || (await getDb());
     if (!db) {
       return errorResponse(500, 'Error conectando con la base de datos.', 'DATABASE_ERROR');
     }
@@ -76,14 +92,22 @@ export const handler = async (event) => {
     if (method === 'GET' && path.endsWith('/assets')) {
       let targetClientId = null;
       if (!isGlobal) {
-        if (!clientScope || !ObjectId.isValid(clientScope)) {
+        if (!clientScope) {
           return errorResponse(403, 'Usuario sin empresa asignada.', 'FORBIDDEN');
         }
-        targetClientId = new ObjectId(clientScope);
+        const clientDoc = await findClient(clientScope, clientsCollection);
+        if (!clientDoc) {
+          return errorResponse(404, 'Empresa no encontrada.', 'CLIENT_NOT_FOUND');
+        }
+        targetClientId = clientDoc._id;
       } else {
         const queryParams = event.queryStringParameters || {};
-        if (queryParams.clientId && ObjectId.isValid(queryParams.clientId)) {
-          targetClientId = new ObjectId(queryParams.clientId);
+        const rawClientId = queryParams.clientId ? String(queryParams.clientId).trim() : '';
+        if (rawClientId) {
+          const clientDoc = await findClient(rawClientId, clientsCollection);
+          if (clientDoc) {
+            targetClientId = clientDoc._id;
+          }
         }
       }
 

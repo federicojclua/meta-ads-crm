@@ -15,6 +15,8 @@ import {
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { formatDate, formatCurrency, formatNumber } from '../../lib/utils';
 import { apiClient } from '../../lib/api';
 import {
   LEAD_STAGES,
@@ -36,7 +38,9 @@ export function LeadDetailModal({
   onOpenSaleModal,
   salespeople = [],
   userRole,
+  timezone = 'America/Argentina/Buenos_Aires',
 }) {
+  const { t, language } = useLanguage();
   const isSalesperson = userRole === 'salesperson';
   const canManageAssignment = !isSalesperson;
 
@@ -247,7 +251,7 @@ export function LeadDetailModal({
                 <span>
                   Valor Estimado:{' '}
                   <strong className="text-brand-text-primary font-mono">
-                    ${((lead.valueEstimateMinor || 0) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 })} {lead.currency}
+                    {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency, language === 'es' ? 'es-AR' : 'en-US')}
                   </strong>
                 </span>
               </div>
@@ -415,7 +419,7 @@ export function LeadDetailModal({
                       {ACTIVITY_TYPE_LABELS[act.type] || act.type}
                     </span>
                     <span className="text-gray-500 font-mono">
-                      {act.createdAt ? new Date(act.createdAt).toLocaleString('es-AR') : '-'}
+                      {act.createdAt ? formatDate(act.createdAt, timezone, language === 'es' ? 'es-AR' : 'en-US') : '-'}
                     </span>
                   </div>
                   <p className="text-brand-text-secondary text-xs">{act.description}</p>

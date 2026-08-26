@@ -3,6 +3,8 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Alert } from '../ui/Alert';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { formatDate, formatCurrency, formatNumber } from '../../lib/utils';
 
 export function SaleModal({
   isOpen,
@@ -16,6 +18,7 @@ export function SaleModal({
   defaultCurrency = 'ARS',
   isLoading = false,
 }) {
+  const { t, language } = useLanguage();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('ARS');
   const [collectedAmount, setCollectedAmount] = useState('');
@@ -139,16 +142,16 @@ export function SaleModal({
           <div className="p-3.5 bg-[#F7F6F2] border border-brand-border rounded-lg text-xs space-y-2">
             <div className="flex justify-between">
               <span className="text-brand-text-secondary">Importe Total Venta:</span>
-              <strong className="text-brand-text-primary font-mono">${sale.amountFormatted} {sale.currency}</strong>
+              <strong className="text-brand-text-primary font-mono">{formatCurrency(sale.amountMinor / 100, sale.currency, language === 'es' ? 'es-AR' : 'en-US')}</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-brand-text-secondary">Cobrado Hasta Ahora:</span>
-              <strong className="text-emerald-700 font-mono">${sale.collectedAmountFormatted} {sale.currency}</strong>
+              <strong className="text-emerald-700 font-mono">{formatCurrency(sale.collectedAmountMinor / 100, sale.currency, language === 'es' ? 'es-AR' : 'en-US')}</strong>
             </div>
             <div className="flex justify-between border-t border-brand-border/60 pt-1.5">
               <span className="text-brand-text-secondary font-semibold">Saldo Pendiente:</span>
               <strong className="text-amber-700 font-mono">
-                ${(((sale.amountMinor - sale.collectedAmountMinor) || 0) / 100).toLocaleString('es-AR', { minimumFractionDigits: 2 })} {sale.currency}
+                {formatCurrency(((sale.amountMinor - sale.collectedAmountMinor) || 0) / 100, sale.currency, language === 'es' ? 'es-AR' : 'en-US')}
               </strong>
             </div>
           </div>

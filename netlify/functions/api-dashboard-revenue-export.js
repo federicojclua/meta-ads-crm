@@ -3,6 +3,7 @@ import { getDb } from './_shared/db.js';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
 import { convertCurrencyHistorically } from '../../models/ExchangeRate.js';
+import { checkRateLimit, getClientIp } from './_shared/rateLimiter.js';
 
 /**
  * Sanitizes a cell value for CSV formatting, escaping any potential formula triggers
@@ -22,11 +23,34 @@ function sanitizeCsvCell(val) {
   return `"${str}"`;
 }
 
+async function findClient(idOrSlug, clientsCollection) {
+  if (!idOrSlug) return null;
+  if (!clientsCollection || typeof clientsCollection.findOne !== 'function') {
+    return { _id: idOrSlug };
+  }
+  if (/^[0-9a-fA-F]{24}$/.test(idOrSlug)) {
+    const doc = await clientsCollection.findOne({ _id: new ObjectId(idOrSlug) });
+    if (doc) return doc;
+  }
+  const docByStrId = await clientsCollection.findOne({ _id: idOrSlug });
+  if (docByStrId) return docByStrId;
+  const docBySlug = await clientsCollection.findOne({ slug: idOrSlug });
+  if (docBySlug) return docBySlug;
+  return null;
+}
+
 export const handler = async (event) => {
   try {
     const auth = await verifyAuthorizedUser(event);
     if (!auth.authorized) {
       return errorResponse(auth.status, auth.error, auth.code);
+    }
+
+    // Rate limit exports: 10 per minute per IP
+    const clientIp = getClientIp(event);
+    const isAllowed = await checkRateLimit(clientIp, 'revenue-export', 10, 60000);
+    if (!isAllowed) {
+      return errorResponse(429, 'Demasiadas solicitudes de exportación. Por favor espere un minuto.', 'TOO_MANY_REQUESTS');
     }
 
     const { user, clientScope, isGlobal } = auth;
@@ -40,25 +64,33 @@ export const handler = async (event) => {
     const params = event.queryStringParameters || {};
 
     // 1. Tenant security scoping
-    let targetClientId = null;
+    const rawClientId = (params.clientId !== undefined && params.clientId !== null)
+      ? String(params.clientId).trim()
+      : (params.clientid !== undefined && params.clientid !== null)
+        ? String(params.clientid).trim()
+        : '';
+
+    let clientDoc = null;
+    const clientsCollection = db.collection('clients');
+
     if (!isGlobal) {
-      if (!clientScope || !ObjectId.isValid(clientScope)) {
+      if (!clientScope) {
         return errorResponse(403, 'Usuario sin empresa asignada.', 'FORBIDDEN');
       }
-      targetClientId = new ObjectId(clientScope);
+      clientDoc = await findClient(clientScope, clientsCollection);
     } else {
-      if (params.clientId && ObjectId.isValid(params.clientId)) {
-        targetClientId = new ObjectId(params.clientId);
-      } else {
+      if (!rawClientId) {
         return errorResponse(400, 'El parámetro clientId es obligatorio para exportar datos.', 'CLIENT_ID_REQUIRED');
       }
+      clientDoc = await findClient(rawClientId, clientsCollection);
     }
 
     // Verify active client
-    const clientDoc = await db.collection('clients').findOne({ _id: targetClientId, status: 'active' });
-    if (!clientDoc) {
+    if (!clientDoc || clientDoc.status === 'inactive') {
       return errorResponse(404, 'La empresa seleccionada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
     }
+
+    const targetClientId = clientDoc._id;
 
     // Salesperson constraint
     const isSalesperson = user.role === 'salesperson';

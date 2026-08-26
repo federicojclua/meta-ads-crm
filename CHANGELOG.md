@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 7: Release, Hardening & Cierre del MVP (2026-08-26)
+- **Localización Dinámica e i18n**: Configurada localización dinámica basada en el idioma activo de `LanguageProvider` y la zona horaria del inquilino (tenant) para formatear monedas, números y fechas a través de helpers `formatCurrency`, `formatDate` y `formatNumber` en todo el flujo del frontend.
+- **Límite de Tasa (Rate Limiting) en Netlify Functions**: Creado middleware centralizado basado en MongoDB (`checkRateLimit`) con índice TTL para mitigar abuso en endpoints críticos (`api-meta-sync` y `api-dashboard-revenue-export`).
+- **Seguridad HTTP & CSP**: Configurado un conjunto estricto de cabeceras HTTP de seguridad (incluyendo Content Security Policy compatible con Firebase Auth y Google Fonts) en `netlify.toml`.
+- **Manejo de Errores Global (React Boundary)**: Implementado e integrado componente `ErrorBoundary` a nivel raíz para mitigar excepciones imprevistas del renderizado en React.
+- **Plan de Contingencia & Recuperación**: Diseñado manual operativo `RECOVERY.md` para backups de base de datos, rollback en Netlify y mitigación de catástrofes.
+- **Garantía E2E y Robustez del Backend**: Validado que la suite de 244 pruebas unitarias pase con 100% de éxito, corrigiendo la preautorización de contraseñas de Firebase y previniendo colisiones de test sprying.
+
 ### Added — Stage 6: Panel de Administración & Seguridad Multi-Tenant (2026-08-26)
 - **Invitaciones Criptográficas de Un Solo Uso**: Implementado flujo de preautorización que genera tokens seguros de un solo uso con hash SHA-256 (`invitationTokenHash`) y expiración de 7 días.
 - **Auditoría Multi-Tenant de Empresas**: Registro automatizado de logs de auditoría (`audit_logs`) con diffs detallados para creación, modificación, deactivación y reactivación de empresas.

@@ -111,7 +111,7 @@ describe('Stage 4 — Frontend Meta Ads UI & Components Tests', () => {
     await waitFor(() => {
       expect(screen.getByText('Campañas & Meta Ads')).toBeInTheDocument();
       expect(screen.getByText('Campaña Primavera 2026')).toBeInTheDocument();
-      expect(screen.getByText('$150.000,00')).toBeInTheDocument();
+      expect(screen.getByText(/\$\s?150\.000,00/)).toBeInTheDocument();
       expect(screen.getByText('3x')).toBeInTheDocument();
       expect(screen.getByText('Campaña Sin Atribución CRM')).toBeInTheDocument();
     });

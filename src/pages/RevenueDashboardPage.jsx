@@ -13,14 +13,17 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Alert';
 import { apiClient, ApiError } from '../lib/api';
 import { auth } from '../lib/firebase';
+import { formatDate, formatCurrency, formatNumber } from '../lib/utils';
 
 export function RevenueDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { userProfile, firebaseUser, loading: authLoading } = useAuth();
+  const { t, language } = useLanguage();
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
   const isSalesperson = userProfile?.role === 'salesperson';
 
@@ -462,33 +465,33 @@ export function RevenueDashboardPage() {
             {/* Meta Spend */}
             <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">Inversión Meta Ads</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">{t('revenue.investment')}</span>
                 <div className="text-xl md:text-2xl font-black text-brand-text-primary mt-1 font-mono">
-                  {kpis?.spendFormatted} <span className="text-xs font-normal">{currencyMode}</span>
+                  {formatCurrency(kpis?.spendMinor / 100, currencyMode, language === 'es' ? 'es-AR' : 'en-US')}
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-brand-border/60 text-[10px] text-brand-text-secondary">
-                Atribuible directa: <strong>{kpis?.attributed?.spendMinor ? `$${(kpis.attributed.spendMinor / 100).toFixed(2)}` : '—'}</strong>
+                Atribuible directa: <strong>{kpis?.attributed?.spendMinor ? formatCurrency(kpis.attributed.spendMinor / 100, currencyMode, language === 'es' ? 'es-AR' : 'en-US') : '—'}</strong>
               </div>
             </div>
 
             {/* Income */}
             <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">Ingresos Cobrados</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">{t('revenue.totalCollected')}</span>
                 <div className="text-xl md:text-2xl font-black text-emerald-700 mt-1 font-mono">
-                  {kpis?.revenueFormatted} <span className="text-xs font-normal">{currencyMode}</span>
+                  {formatCurrency(kpis?.revenueMinor / 100, currencyMode, language === 'es' ? 'es-AR' : 'en-US')}
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-brand-border/60 text-[10px] text-brand-text-secondary">
-                Atribuible directa: <strong>{kpis?.attributed?.revenueMinor ? `$${(kpis.attributed.revenueMinor / 100).toFixed(2)}` : '—'}</strong>
+                Atribuible directa: <strong>{kpis?.attributed?.revenueMinor ? formatCurrency(kpis.attributed.revenueMinor / 100, currencyMode, language === 'es' ? 'es-AR' : 'en-US') : '—'}</strong>
               </div>
             </div>
 
             {/* ROAS */}
             <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">ROAS de Campañas</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">{t('revenue.roas')}</span>
                 <div className="text-xl md:text-2xl font-black text-emerald-700 mt-1 font-mono">
                   {kpis?.attributed?.roas !== null ? `${kpis.attributed.roas}x` : '—'}
                 </div>
@@ -501,14 +504,14 @@ export function RevenueDashboardPage() {
             {/* Leads Atribuidos */}
             <div className="bg-white p-5 border border-brand-border rounded-lg shadow-subtle flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">Prospectos Atribuidos</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-text-secondary">{t('revenue.attributedLeads')}</span>
                 <div className="text-xl md:text-2xl font-black text-brand-text-primary mt-1 font-mono">
-                  {kpis?.attributed?.leadsCount ?? 0}
+                  {kpis?.attributed?.leadsCount !== undefined ? formatNumber(kpis.attributed.leadsCount, language === 'es' ? 'es-AR' : 'en-US') : 0}
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-brand-border/60 text-[10px] text-brand-text-secondary flex justify-between">
-                <span>Total CRM: <strong>{kpis?.totalLeadsCount}</strong></span>
-                <span>CPL Atrib.: <strong>{kpis?.attributed?.cpl ? `$${kpis.attributed.cpl}` : '—'}</strong></span>
+                <span>Total CRM: <strong>{kpis?.totalLeadsCount !== undefined ? formatNumber(kpis.totalLeadsCount, language === 'es' ? 'es-AR' : 'en-US') : '0'}</strong></span>
+                <span>CPL Atrib.: <strong>{kpis?.attributed?.cpl ? formatCurrency(kpis.attributed.cpl, currencyMode, language === 'es' ? 'es-AR' : 'en-US') : '—'}</strong></span>
               </div>
             </div>
           </div>
@@ -628,12 +631,12 @@ export function RevenueDashboardPage() {
                           </button>
                           <span>{c.name}</span>
                         </td>
-                        <td className="py-2.5 px-2 text-right font-mono">${c.spend.toFixed(2)}</td>
-                        <td className="py-2.5 px-2 text-right font-mono">{c.clicks}</td>
-                        <td className="py-2.5 px-2 text-right font-mono">{c.leadsCount}</td>
-                        <td className="py-2.5 px-2 text-right font-mono">{c.cpl !== null ? `$${c.cpl}` : '—'}</td>
-                        <td className="py-2.5 px-2 text-right font-mono">{c.salesCount}</td>
-                        <td className="py-2.5 px-2 text-right font-mono font-semibold text-emerald-700">${c.revenue.toFixed(2)}</td>
+                        <td className="py-2.5 px-2 text-right font-mono">{formatCurrency(c.spend, currencyMode, language === 'es' ? 'es-AR' : 'en-US')}</td>
+                        <td className="py-2.5 px-2 text-right font-mono">{formatNumber(c.clicks, language === 'es' ? 'es-AR' : 'en-US')}</td>
+                        <td className="py-2.5 px-2 text-right font-mono">{formatNumber(c.leadsCount, language === 'es' ? 'es-AR' : 'en-US')}</td>
+                        <td className="py-2.5 px-2 text-right font-mono">{c.cpl !== null ? formatCurrency(c.cpl, currencyMode, language === 'es' ? 'es-AR' : 'en-US') : '—'}</td>
+                        <td className="py-2.5 px-2 text-right font-mono">{formatNumber(c.salesCount, language === 'es' ? 'es-AR' : 'en-US')}</td>
+                        <td className="py-2.5 px-2 text-right font-mono font-semibold text-emerald-700">{formatCurrency(c.revenue, currencyMode, language === 'es' ? 'es-AR' : 'en-US')}</td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">{c.roas !== null ? `${c.roas}x` : '—'}</td>
                       </tr>
 
@@ -644,8 +647,8 @@ export function RevenueDashboardPage() {
                             <ArrowRight className="w-3.5 h-3.5 text-brand-text-secondary/60" />
                             <span>{as.name}</span>
                           </td>
-                          <td className="py-2 px-2 text-right font-mono">${as.spend.toFixed(2)}</td>
-                          <td className="py-2 px-2 text-right font-mono">{as.clicks}</td>
+                          <td className="py-2 px-2 text-right font-mono">{formatCurrency(as.spend, currencyMode, language === 'es' ? 'es-AR' : 'en-US')}</td>
+                          <td className="py-2 px-2 text-right font-mono">{formatNumber(as.clicks, language === 'es' ? 'es-AR' : 'en-US')}</td>
                           <td className="py-2 px-2 text-right font-mono">—</td>
                           <td className="py-2 px-2 text-right font-mono">—</td>
                           <td className="py-2 px-2 text-right font-mono">—</td>

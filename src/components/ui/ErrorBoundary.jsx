@@ -1,94 +1,74 @@
-import { Component } from 'react';
-import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import React from 'react';
+import { ShieldAlert, RotateCcw } from 'lucide-react';
 import { Button } from './Button';
 
-export class ErrorBoundary extends Component {
+export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      incidentId: null,
-    };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
-    const incidentId = 'inc_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
-    return {
-      hasError: true,
-      error,
-      incidentId,
-    };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('[ERROR_BOUNDARY_CATCH]', {
-      incidentId: this.state.incidentId,
-      errorName: error?.name,
-      errorMessage: error?.message,
-      componentStack: errorInfo?.componentStack,
-    });
+    console.error('[ErrorBoundary] Caught rendering crash:', error, errorInfo);
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
   }
 
   handleReset = () => {
-    this.setState({
-      hasError: false,
-      error: null,
-      incidentId: null,
-    });
-  };
-
-  handleGoDashboard = () => {
-    this.setState({
-      hasError: false,
-      error: null,
-      incidentId: null,
-    });
-    window.location.href = '/app';
+    this.setState({ hasError: false, error: null, errorInfo: null });
+    window.location.reload();
   };
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
-        <div className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border border-brand-border rounded-lg shadow-subtle my-6 max-w-2xl mx-auto">
-          <div className="w-12 h-12 mb-4 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
-            <AlertTriangle className="w-6 h-6" aria-hidden="true" />
-          </div>
-
-          <h2 className="text-lg md:text-xl font-extrabold text-brand-text-primary mb-2 tracking-tight">
-            Ocurrió un error al cargar este módulo.
-          </h2>
-
-          <p className="text-xs md:text-sm text-brand-text-secondary max-w-md mb-4 leading-relaxed">
-            Se produjo un error inesperado al renderizar la vista. Podés intentar recargar el módulo o regresar al panel de control.
-          </p>
-
-          {this.state.incidentId && (
-            <div className="mb-6 px-3 py-1.5 bg-[#F7F6F2] border border-brand-border rounded text-[11px] font-mono text-brand-text-secondary">
-              Identificador del incidente: <span className="font-bold text-brand-text-primary">{this.state.incidentId}</span>
+        <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center p-6">
+          <div className="bg-white border border-brand-border rounded-lg shadow-subtle p-8 max-w-md w-full text-center space-y-6">
+            <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mx-auto text-brand-primary">
+              <ShieldAlert className="w-8 h-8" />
             </div>
-          )}
 
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={this.handleReset}
-              className="text-xs gap-1.5"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reintentar</span>
-            </Button>
+            <div className="space-y-2">
+              <h1 className="text-lg font-black text-brand-text-primary uppercase tracking-wider">
+                Ocurrió un error al cargar este módulo.
+              </h1>
+              <p className="text-xs text-brand-text-secondary leading-relaxed">
+                Identificador del incidente: INC-{(Math.random() * 100000).toFixed(0)}
+              </p>
+            </div>
 
-            <Button
-              type="button"
-              variant="primary"
-              onClick={this.handleGoDashboard}
-              className="text-xs gap-1.5"
-            >
-              <Home className="w-3.5 h-3.5" />
-              <span>Volver al Dashboard</span>
-            </Button>
+            {this.state.error && (
+              <div className="p-3 bg-gray-50 border border-brand-border rounded text-[11px] font-mono text-brand-primary text-left break-all max-h-32 overflow-y-auto select-all">
+                {this.state.error.toString()}
+              </div>
+            )}
+
+            <div className="pt-2 space-y-2">
+              <Button
+                variant="primary"
+                onClick={this.handleReset}
+                className="w-full justify-center gap-2 text-xs"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Reintentar</span>
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => { window.location.href = '/app'; }}
+                className="w-full justify-center text-xs bg-gray-100 hover:bg-gray-200 text-brand-text-primary border border-brand-border"
+              >
+                Volver al Dashboard
+              </Button>
+            </div>
           </div>
         </div>
       );

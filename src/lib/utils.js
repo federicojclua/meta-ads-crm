@@ -5,25 +5,41 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount, currency = 'ARS') {
+export function formatCurrency(amount, currency = 'ARS', locale = 'es-AR') {
   if (amount === null || amount === undefined) return '-';
-  return new Intl.NumberFormat('es-AR', {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
     maximumFractionDigits: 2,
   }).format(amount);
 }
 
-export function formatDate(dateString) {
+export function formatDate(dateString, timeZone = 'America/Argentina/Buenos_Aires', locale = 'es-AR') {
   if (!dateString) return '-';
   const date = new Date(dateString);
-  return new Intl.DateTimeFormat('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: timeZone,
+    }).format(date);
+  } catch (e) {
+    return new Intl.DateTimeFormat(locale, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  }
+}
+
+export function formatNumber(value, locale = 'es-AR', options = {}) {
+  if (value === null || value === undefined) return '-';
+  return new Intl.NumberFormat(locale, options).format(value);
 }
 
 export function formatRole(role) {

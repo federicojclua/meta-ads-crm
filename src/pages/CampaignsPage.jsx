@@ -9,16 +9,19 @@ import {
   Info,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../contexts/LanguageContext';
 import { apiClient } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Alert } from '../components/ui/Alert';
+import { formatDate, formatCurrency, formatNumber } from '../lib/utils';
 import { ConflictBanner } from '../components/meta/ConflictBanner';
 import { MetaAssetManagerModal } from '../components/meta/MetaAssetManagerModal';
 
 export function CampaignsPage() {
   const { userProfile } = useAuth();
+  const { t, language } = useLanguage();
   const isSuperAdmin = userProfile?.role === 'super_admin';
   const isAdmin = userProfile?.role === 'admin';
   const isGlobal = isSuperAdmin || isAdmin;
@@ -47,6 +50,10 @@ export function CampaignsPage() {
 
   const activeRequestSeq = useRef(0);
 
+  const activeClientId = isGlobal ? selectedClientId : userProfile?.clientId;
+  const selectedClientDoc = clients.find(c => (c._id || c.id) === activeClientId);
+  const tenantTimezone = selectedClientDoc?.timezone || 'America/Argentina/Buenos_Aires';
+
   // Sync state when URL params change
   useEffect(() => {
     if (urlClientId && urlClientId !== selectedClientId) {
@@ -54,23 +61,21 @@ export function CampaignsPage() {
     }
   }, [urlClientId, selectedClientId]);
 
-  // Load clients if super_admin / admin
+  // Load clients list for all roles (non-global gets their own client)
   useEffect(() => {
-    if (isGlobal) {
-      apiClient.get('/api/clients')
-        .then((res) => {
-          const clientList = res.clients || [];
-          setClients(clientList);
-          if (!urlClientId && clientList.length > 0) {
-            const defaultId = clientList[0].id || clientList[0]._id;
-            setSelectedClientId(defaultId);
-            setSearchParams({ clientId: defaultId });
-          }
-        })
-        .catch((err) => {
-          console.warn('[CAMPAIGNS] Error fetching clients:', err.message);
-        });
-    }
+    apiClient.get('/api/clients')
+      .then((res) => {
+        const clientList = res.clients || [];
+        setClients(clientList);
+        if (isGlobal && !urlClientId && clientList.length > 0) {
+          const defaultId = clientList[0].id || clientList[0]._id;
+          setSelectedClientId(defaultId);
+          setSearchParams({ clientId: defaultId });
+        }
+      })
+      .catch((err) => {
+        console.warn('[CAMPAIGNS] Error fetching clients:', err.message);
+      });
   }, [isGlobal, urlClientId, setSearchParams]);
 
   // Check Meta connection status
@@ -341,7 +346,7 @@ export function CampaignsPage() {
           <Calendar className="w-3.5 h-3.5 text-brand-text-secondary" />
           <span>
             {lastSyncedAt
-              ? `Última sincronización: ${new Date(lastSyncedAt).toLocaleString('es-AR')}`
+              ? `Última sincronización: ${formatDate(lastSyncedAt, tenantTimezone, language === 'es' ? 'es-AR' : 'en-US')}`
               : 'Sin sincronización registrada'}
           </span>
         </div>
@@ -442,35 +447,35 @@ export function CampaignsPage() {
                       )}
 
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-brand-text-primary">
-                        ${spend.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        {formatCurrency(spend, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US')}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono text-brand-text-primary">
-                        {clicks.toLocaleString('es-AR')}
+                        {formatNumber(clicks, language === 'es' ? 'es-AR' : 'en-US')}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono text-brand-text-primary">
-                        {metaLeads > 0 ? metaLeads.toLocaleString('es-AR') : <span className="text-gray-400 font-normal">—</span>}
+                        {metaLeads > 0 ? formatNumber(metaLeads, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal">—</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono text-brand-text-secondary">
-                        {metaCpl ? `$${metaCpl.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : <span className="text-gray-400 font-normal">—</span>}
+                        {metaCpl ? formatCurrency(metaCpl, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal">—</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-brand-primary">
-                        {crmLeads !== null ? crmLeads.toLocaleString('es-AR') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmLeads !== null ? formatNumber(crmLeads, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-amber-700">
-                        {crmCpl !== null ? `$${crmCpl.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmCpl !== null ? formatCurrency(crmCpl, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-emerald-700">
-                        {crmSales !== null ? crmSales.toLocaleString('es-AR') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmSales !== null ? formatNumber(crmSales, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-800">
-                        {crmCollected !== null ? `$${crmCollected}` : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmCollected !== null ? formatCurrency(crmCollected, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-extrabold text-emerald-700">

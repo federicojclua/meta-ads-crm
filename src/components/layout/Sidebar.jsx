@@ -9,21 +9,23 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Badge } from '../ui/Badge';
 import { cn, formatRole } from '../../lib/utils';
 
 export function Sidebar({ mobileOpen = false, onCloseMobile }) {
   const { userProfile } = useAuth();
+  const { t } = useLanguage();
 
   const navigation = [
-    { name: 'Dashboard', href: '/app', icon: LayoutDashboard, exact: true },
-    { name: 'Revenue & Retorno', href: '/app/revenue', icon: TrendingUp },
+    { name: t('sidebar.dashboard'), href: '/app', icon: LayoutDashboard, exact: true },
+    { name: t('sidebar.revenue'), href: '/app/revenue', icon: TrendingUp },
     ...(userProfile && ['super_admin', 'admin'].includes(userProfile.role)
-      ? [{ name: 'Administración', href: '/app/admin', icon: ShieldCheck }]
+      ? [{ name: t('sidebar.admin'), href: '/app/admin', icon: ShieldCheck }]
       : []),
-    { name: 'Leads & Pipeline', href: '/app/leads', icon: Users },
-    { name: 'Campañas Meta', href: '/app/campaigns', icon: Megaphone },
-    { name: 'Configuración', href: '/app/settings', icon: Settings },
+    { name: t('sidebar.leads'), href: '/app/leads', icon: Users },
+    { name: t('sidebar.campaigns'), href: '/app/campaigns', icon: Megaphone },
+    { name: t('sidebar.settings'), href: '/app/settings', icon: Settings },
   ];
 
   return (

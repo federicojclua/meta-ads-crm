@@ -11,6 +11,7 @@ import {
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../contexts/LanguageContext';
 import { auth, validatePasswordPolicy } from '../lib/firebase';
 import { formatRole } from '../lib/utils';
 
@@ -23,6 +24,8 @@ export function SettingsPage() {
     linkPasswordAccount,
     sendPasswordReset,
   } = useAuth();
+
+  const { language, setLanguage, t } = useLanguage();
 
   const [isLinking, setIsLinking] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -103,6 +106,7 @@ export function SettingsPage() {
         message: '¡Contraseña vinculada exitosamente! Ahora podés iniciar sesión tanto con Google como con correo y contraseña.',
       });
     } catch (err) {
+      console.error('[SETTINGS] Link password error:', err);
       // La contraseña se elimina inmediatamente del estado de React después del envío o cancelación y nunca se persiste ni registra
       setNewPassword('');
       setConfirmPassword('');
@@ -128,20 +132,20 @@ export function SettingsPage() {
   };
 
   const handleSendResetEmail = async () => {
-    if (!firebaseUser?.email) return;
     setActionLoading(true);
     setFeedback(null);
     try {
-      await sendPasswordReset(firebaseUser.email);
+      await sendPasswordReset();
       setResetEmailSent(true);
       setFeedback({
         type: 'success',
-        message: `Se envió un correo de restablecimiento a ${firebaseUser.email}. Verifique su bandeja de entrada.`,
+        message: 'Se ha enviado un correo para restablecer tu contraseña. Verificá tu bandeja de entrada.',
       });
     } catch (err) {
+      console.error('[SETTINGS] Password reset email error:', err);
       setFeedback({
         type: 'error',
-        message: 'Error al enviar el correo de restablecimiento: ' + (err.message || 'Intente más tarde.'),
+        message: err.message || 'Error al enviar el correo de restablecimiento.',
       });
     } finally {
       setActionLoading(false);
@@ -154,7 +158,7 @@ export function SettingsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-brand-border gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-brand-text-primary tracking-tight">
-            Configuración del Sistema
+            {t('settings.title')}
           </h1>
           <p className="text-xs md:text-sm text-brand-text-secondary mt-0.5">
             Gestión de perfil, identidad y seguridad de acceso a Anima MKT CRM.
@@ -185,6 +189,27 @@ export function SettingsPage() {
           <span className="font-medium">{feedback.message}</span>
         </div>
       )}
+
+      {/* Preferencia de Idioma (i18n) */}
+      <div className="bg-white p-6 border border-brand-border rounded-lg shadow-subtle">
+        <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+          <span>{t('settings.language')}</span>
+        </h3>
+        <div className="max-w-xs space-y-2">
+          <label htmlFor="language-selector" className="block text-xs font-semibold text-brand-text-primary">
+            {t('settings.selectLanguage')}
+          </label>
+          <select
+            id="language-selector"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="w-full h-9 px-2.5 text-xs border border-brand-border rounded bg-white text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+          >
+            <option value="es">Español (Argentina)</option>
+            <option value="en">English (United States)</option>
+          </select>
+        </div>
+      </div>
 
       {/* Perfil Autenticado */}
       <div className="bg-white p-6 border border-brand-border rounded-lg shadow-subtle">
