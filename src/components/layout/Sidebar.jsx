@@ -65,7 +65,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
             <button
               onClick={onCloseMobile}
               className="p-1 rounded text-brand-text-secondary hover:text-brand-text-primary lg:hidden"
-              aria-label="Cerrar menú"
+              aria-label={t('sidebar.closeMenu')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -73,7 +73,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Navegación principal">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label={t('sidebar.mainNavigation')}>
           {navigation.map((item) => (
             <NavLink
               key={item.name}
@@ -102,7 +102,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
               {userProfile?.displayName || userProfile?.email?.split('@')[0]}
             </span>
             <Badge variant="primary" className="text-[9px] px-1.5 py-0.5">
-              {formatRole(userProfile?.role)}
+              {formatRole(userProfile?.role, t)}
             </Badge>
           </div>
           <span className="text-[11px] text-brand-text-secondary truncate block" title={userProfile?.email}>

@@ -248,10 +248,10 @@ export function AdminCenterPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-black text-brand-text-primary tracking-tight uppercase flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-brand-primary" />
-            <span>Centro de Control Administrativo</span>
+            <span>{t('admin.title')}</span>
           </h1>
           <p className="text-xs text-brand-text-secondary mt-0.5">
-            Gestión global de empresas, usuarios, divisas, y sincronización operativa multi-tenant.
+            {t('admin.subtitle')}
           </p>
         </div>
 
@@ -265,7 +265,7 @@ export function AdminCenterPage() {
             className="gap-1.5 text-xs shadow-subtle font-bold"
           >
             <Plus className="w-4 h-4" />
-            Nueva Empresa
+            {t('admin.newCompany')}
           </Button>
         )}
 
@@ -276,7 +276,7 @@ export function AdminCenterPage() {
             className="gap-1.5 text-xs shadow-subtle font-bold"
           >
             <Plus className="w-4 h-4" />
-            Autorizar Usuario
+            {t('admin.authorizeUser')}
           </Button>
         )}
       </div>
@@ -291,12 +291,12 @@ export function AdminCenterPage() {
       {/* Tabs navigation */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-brand-border/60 pb-1">
         {[
-          { id: 'clients', label: 'Empresas', icon: Building2 },
-          { id: 'users', label: 'Usuarios & Invitaciones', icon: Users },
-          { id: 'meta_assets', label: 'Activos Meta & Scopes', icon: Tag, globalOnly: true },
-          { id: 'meta_sync', label: 'Salud & Sync Meta', icon: Activity, globalOnly: true },
-          { id: 'exchange_rates', label: 'Tasas de Cambio', icon: TrendingUp, globalOnly: true },
-          { id: 'audit_logs', label: 'Logs de Auditoría', icon: History, superAdminOnly: true },
+          { id: 'clients', label: t('admin.tabs.companies'), icon: Building2 },
+          { id: 'users', label: t('admin.tabs.users'), icon: Users },
+          { id: 'meta_assets', label: t('admin.tabs.assets'), icon: Tag, globalOnly: true },
+          { id: 'meta_sync', label: t('admin.tabs.sync'), icon: Activity, globalOnly: true },
+          { id: 'exchange_rates', label: t('admin.tabs.rates'), icon: TrendingUp, globalOnly: true },
+          { id: 'audit_logs', label: t('admin.tabs.audit'), icon: History, superAdminOnly: true },
         ].map((tab) => {
           if (tab.globalOnly && !isGlobalAdmin) return null;
           if (tab.superAdminOnly && !isSuperAdmin) return null;
@@ -328,7 +328,7 @@ export function AdminCenterPage() {
           <Search className="w-4 h-4 text-brand-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder={activeTab === 'clients' ? 'Buscar empresa o slug...' : 'Buscar usuario o correo...'}
+            placeholder={activeTab === 'clients' ? t('admin.searchClients') : t('admin.searchUsers')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded border border-brand-border bg-white text-xs text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
@@ -440,7 +440,7 @@ export function AdminCenterPage() {
                         <p className="font-bold text-brand-text-primary">{user.displayName || user.email}</p>
                         <p className="text-[10px] text-brand-text-secondary font-mono">{user.email}</p>
                       </td>
-                      <td className="py-3 px-4 font-semibold text-brand-text-primary">{formatRole(user.role)}</td>
+                      <td className="py-3 px-4 font-semibold text-brand-text-primary">{formatRole(user.role, t)}</td>
                       <td className="py-3 px-4 text-brand-text-secondary">{clientName}</td>
                       <td className="py-3 px-4">{statusBadge}</td>
                       <td className="py-3 px-4">

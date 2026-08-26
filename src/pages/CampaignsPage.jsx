@@ -184,10 +184,10 @@ export function CampaignsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-brand-text-primary flex items-center gap-2">
             <Megaphone className="w-7 h-7 text-brand-primary" />
-            Campañas & Meta Ads
+            {t('campaigns.title')}
           </h1>
           <p className="text-sm text-brand-text-secondary mt-1">
-            Rendimiento publicitario oficial, atribución y métricas multimoneda.
+            {t('campaigns.subtitle')}
           </p>
         </div>
 
@@ -200,7 +200,7 @@ export function CampaignsPage() {
               className="flex items-center gap-1.5"
             >
               <Layers className="w-4 h-4 text-brand-primary" />
-              Administrar Activos
+              {t('campaigns.manageAssets')}
             </Button>
           )}
 
@@ -213,7 +213,7 @@ export function CampaignsPage() {
               className="flex items-center gap-1.5"
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar Meta'}
+              {isSyncing ? t('campaigns.syncing') : t('campaigns.syncNow')}
             </Button>
           )}
         </div>
@@ -246,14 +246,14 @@ export function CampaignsPage() {
           {isGlobal && (
             <div className="flex items-center gap-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                Empresa:
+                {t('campaigns.companyLabel')}
               </label>
               <select
                 value={selectedClientId}
                 onChange={handleClientChange}
                 className="text-xs bg-gray-50 border border-brand-border rounded-lg px-2.5 py-1.5 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
               >
-                <option value="" disabled>Seleccione una empresa...</option>
+                <option value="" disabled>{t('campaigns.selectCompanyPlaceholder')}</option>
                 {clients.map((c) => (
                   <option key={c.id || c._id} value={c.id || c._id}>
                     {c.name}
@@ -274,7 +274,7 @@ export function CampaignsPage() {
                   : 'text-brand-text-secondary hover:text-brand-text-primary'
               }`}
             >
-              Resumen Blended
+              {t('campaigns.levelTabs.summary')}
             </button>
             <button
               type="button"
@@ -285,7 +285,7 @@ export function CampaignsPage() {
                   : 'text-brand-text-secondary hover:text-brand-text-primary'
               }`}
             >
-              Por Píxel
+              {t('campaigns.levelTabs.dataset')}
             </button>
             <button
               type="button"
@@ -296,7 +296,7 @@ export function CampaignsPage() {
                   : 'text-brand-text-secondary hover:text-brand-text-primary'
               }`}
             >
-              Campañas
+              {t('campaigns.levelTabs.campaign')}
             </button>
             <button
               type="button"
@@ -307,7 +307,7 @@ export function CampaignsPage() {
                   : 'text-brand-text-secondary hover:text-brand-text-primary'
               }`}
             >
-              AdSets
+              {t('campaigns.levelTabs.adset')}
             </button>
           </div>
 
@@ -317,21 +317,21 @@ export function CampaignsPage() {
             onChange={(e) => setSelectedCurrency(e.target.value)}
             className="text-xs bg-gray-50 border border-brand-border rounded-lg px-2 py-1.5 font-medium text-brand-text-primary"
           >
-            <option value="">Todas las divisas</option>
-            <option value="ARS">ARS (Pesos)</option>
-            <option value="USD">USD (Dólares)</option>
+            <option value="">{t('campaigns.currencyAll')}</option>
+            <option value="ARS">{t('campaigns.currencyArs')}</option>
+            <option value="USD">{t('campaigns.currencyUsd')}</option>
           </select>
 
           {/* Date Range Filters */}
           <div className="flex items-center gap-1 text-xs text-brand-text-secondary">
-            <span>Desde:</span>
+            <span>{t('campaigns.from')}</span>
             <input
               type="date"
               value={dateStart}
               onChange={(e) => setDateStart(e.target.value)}
               className="text-xs bg-gray-50 border border-brand-border rounded-lg px-2 py-1 text-brand-text-primary"
             />
-            <span>Hasta:</span>
+            <span>{t('campaigns.to')}</span>
             <input
               type="date"
               value={dateStop}
@@ -346,8 +346,8 @@ export function CampaignsPage() {
           <Calendar className="w-3.5 h-3.5 text-brand-text-secondary" />
           <span>
             {lastSyncedAt
-              ? `Última sincronización: ${formatDate(lastSyncedAt, tenantTimezone, language === 'es' ? 'es-AR' : 'en-US')}`
-              : 'Sin sincronización registrada'}
+              ? `${t('campaigns.lastSync')} ${formatDate(lastSyncedAt, tenantTimezone, language === 'es' ? 'es-AR' : 'en-US')}`
+              : t('campaigns.noSyncRecorded')}
           </span>
         </div>
       </div>
@@ -367,14 +367,14 @@ export function CampaignsPage() {
       {isLoading ? (
         <div className="p-12 text-center bg-white rounded-xl border border-brand-border">
           <RefreshCw className="w-6 h-6 animate-spin text-brand-primary mx-auto mb-2" />
-          <p className="text-xs font-bold text-brand-text-secondary">Cargando métricas de Meta Ads...</p>
+          <p className="text-xs font-bold text-brand-text-secondary">{t('campaigns.loading')}</p>
         </div>
       ) : insightsData.length === 0 ? (
         <EmptyState
           icon={Megaphone}
-          title="Sin Métricas Publicitarias Sincronizadas"
-          description="No se encontraron registros de inversión para los filtros seleccionados. Ejecute una sincronización o asigne cuentas publicitarias."
-          actionLabel={isSuperAdmin ? 'Administrar Activos' : undefined}
+          title={t('campaigns.emptyTitle')}
+          description={t('campaigns.emptyDesc')}
+          actionLabel={isSuperAdmin ? t('campaigns.manageAssets') : undefined}
           onAction={isSuperAdmin ? () => setIsAssetModalOpen(true) : undefined}
         />
       ) : (
@@ -386,16 +386,16 @@ export function CampaignsPage() {
                   <th className="py-3 px-4">
                     {selectedLevel === 'dataset' ? 'Píxel / Dataset' : selectedLevel === 'adset' ? 'Conjunto de Anuncios' : selectedLevel === 'summary' ? 'Divisa' : 'Campaña'}
                   </th>
-                  {selectedLevel === 'campaign' && <th className="py-3 px-4">Estado</th>}
-                  <th className="py-3 px-4 text-right">Inversión (Meta)</th>
-                  <th className="py-3 px-4 text-right">Clics (Meta)</th>
-                  <th className="py-3 px-4 text-right">Leads (Meta)</th>
-                  <th className="py-3 px-4 text-right">CPL (Meta)</th>
-                  <th className="py-3 px-4 text-right">Leads (CRM)</th>
-                  <th className="py-3 px-4 text-right">CPL (CRM)</th>
-                  <th className="py-3 px-4 text-right">Ventas (CRM)</th>
-                  <th className="py-3 px-4 text-right">Cobrado (CRM)</th>
-                  <th className="py-3 px-4 text-right">ROAS Cobrado</th>
+                  {selectedLevel === 'campaign' && <th className="py-3 px-4">{t('campaigns.tableTh.status')}</th>}
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.metaSpend')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.metaClicks')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.metaLeads')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.metaCpl')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.crmLeads')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.crmCpl')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.crmSales')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.crmCollected')}</th>
+                  <th className="py-3 px-4 text-right">{t('campaigns.tableTh.roasCollected')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-border text-xs">
@@ -422,17 +422,17 @@ export function CampaignsPage() {
                           : row.campaignName}
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] font-mono text-brand-text-secondary">
-                            Moneda: {row.currency}
+                            {t('campaigns.badgeCurrency')} {row.currency}
                           </span>
                           {row.isBlended && (
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
-                              Blended
+                              {t('campaigns.badgeBlended')}
                             </Badge>
                           )}
                           {row.dataRestricted && (
                             <Badge variant="warning" className="text-[9px] px-1.5 py-0 flex items-center gap-1">
                               <ShieldAlert className="w-2.5 h-2.5" />
-                              Campaña Mixta Aislada
+                              {t('campaigns.badgeMixedCampaign')}
                             </Badge>
                           )}
                         </div>
@@ -463,23 +463,23 @@ export function CampaignsPage() {
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-brand-primary">
-                        {crmLeads !== null ? formatNumber(crmLeads, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmLeads !== null ? formatNumber(crmLeads, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">{t('campaigns.noAttribution')}</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-amber-700">
-                        {crmCpl !== null ? formatCurrency(crmCpl, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmCpl !== null ? formatCurrency(crmCpl, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">{t('campaigns.noAttribution')}</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-emerald-700">
-                        {crmSales !== null ? formatNumber(crmSales, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmSales !== null ? formatNumber(crmSales, language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">{t('campaigns.noAttribution')}</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-800">
-                        {crmCollected !== null ? formatCurrency(crmCollected, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {crmCollected !== null ? formatCurrency(crmCollected, selectedCurrency || 'ARS', language === 'es' ? 'es-AR' : 'en-US') : <span className="text-gray-400 font-normal text-[10px]">{t('campaigns.noAttribution')}</span>}
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-mono font-extrabold text-emerald-700">
-                        {roas !== null ? `${roas}x` : <span className="text-gray-400 font-normal text-[10px]">Sin atribución</span>}
+                        {roas !== null ? `${roas}x` : <span className="text-gray-400 font-normal text-[10px]">{t('campaigns.noAttribution')}</span>}
                       </td>
                     </tr>
                   );

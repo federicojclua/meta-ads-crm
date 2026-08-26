@@ -115,7 +115,7 @@ export function RevenueDashboardPage() {
     const cId = isGlobal ? selectedClientId : userProfile.clientId;
     if (!cId) {
       setIsLoading(false);
-      setError({ type: 'client_required', message: 'Por favor, seleccione una empresa cliente para visualizar las métricas.' });
+      setError({ type: 'client_required', message: t('revenue.clientRequired') });
       return;
     }
 
@@ -147,16 +147,16 @@ export function RevenueDashboardPage() {
 
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          setError({ type: 'unauthorized', message: 'Sesión no válida o expirada. Por favor, vuelva a ingresar.' });
+          setError({ type: 'unauthorized', message: t('revenue.unauthorized') });
         } else if (err.status === 403) {
-          setError({ type: 'forbidden', message: 'No tienes autorización para acceder a los datos financieros de esta empresa.' });
+          setError({ type: 'forbidden', message: t('revenue.forbidden') });
         } else if (err.status === 404) {
-          setError({ type: 'not_found', message: 'Empresa no encontrada o inactiva.' });
+          setError({ type: 'not_found', message: t('revenue.notFound') });
         } else {
-          setError({ type: 'server_error', message: err.message });
+          setError({ type: 'server_error', message: err.message || t('revenue.serverError') });
         }
       } else {
-        setError({ type: 'network_error', message: 'Error de conexión. Verifique su red.' });
+        setError({ type: 'network_error', message: t('revenue.networkError') });
       }
       setReportData(null);
     } finally {
@@ -290,21 +290,21 @@ export function RevenueDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-brand-border/60 print:border-none">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-brand-text-primary tracking-tight uppercase">
-            Revenue & Performance Dashboard
+            {t('revenue.title')}
           </h1>
           <p className="text-xs md:text-sm text-brand-text-secondary mt-0.5">
-            Analítica de retorno de inversión, inversión publicitaria en Meta y cohortes comerciales.
+            {t('revenue.subtitle')}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Button size="sm" variant="secondary" onClick={handleCsvExport} className="h-9 gap-1.5 text-xs font-semibold">
             <Download className="w-3.5 h-3.5" />
-            <span>Exportar CSV</span>
+            <span>{t('common.exportCsv')}</span>
           </Button>
           <Button size="sm" variant="secondary" onClick={handlePrintPdf} className="h-9 gap-1.5 text-xs font-semibold">
             <FileText className="w-3.5 h-3.5" />
-            <span>Exportar PDF</span>
+            <span>{t('common.exportPdf')}</span>
           </Button>
         </div>
       </div>
@@ -314,13 +314,13 @@ export function RevenueDashboardPage() {
         {/* Client Selection */}
         {isGlobal && (
           <div className="flex flex-col gap-1 w-full sm:w-44">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Empresa</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('common.company')}</label>
             <select
               value={selectedClientId}
               onChange={(e) => updateFilters({ clientId: e.target.value })}
               className="h-9 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
             >
-              <option value="">Seleccione una Empresa</option>
+              <option value="">{t('common.selectCompany')}</option>
               {clients.map(c => <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>)}
             </select>
           </div>
@@ -328,7 +328,7 @@ export function RevenueDashboardPage() {
 
         {/* Date presets / pickers */}
         <div className="flex flex-col gap-1 w-full sm:w-36">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Inicio</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('revenue.startDate')}</label>
           <input
             type="date"
             value={startDate}
@@ -337,7 +337,7 @@ export function RevenueDashboardPage() {
           />
         </div>
         <div className="flex flex-col gap-1 w-full sm:w-36">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Fin</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('revenue.endDate')}</label>
           <input
             type="date"
             value={endDate}
@@ -348,13 +348,13 @@ export function RevenueDashboardPage() {
 
         {/* Meta Campaign selector */}
         <div className="flex flex-col gap-1 w-full sm:w-44">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Campaña Meta</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('revenue.campana')}</label>
           <select
             value={selectedCampaignId}
             onChange={(e) => updateFilters({ campaignId: e.target.value })}
             className="h-9 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
           >
-            <option value="">Todas las Campañas</option>
+            <option value="">{t('revenue.allCampaigns')}</option>
             {campaigns.map(c => <option key={c.campaignId} value={c.campaignId}>{c.campaignName}</option>)}
           </select>
         </div>
@@ -362,13 +362,13 @@ export function RevenueDashboardPage() {
         {/* Salesperson selector */}
         {!isSalesperson && (
           <div className="flex flex-col gap-1 w-full sm:w-40">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Vendedor</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('revenue.vendedor')}</label>
             <select
               value={selectedSalespersonId}
               onChange={(e) => updateFilters({ salespersonId: e.target.value })}
               className="h-9 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
             >
-              <option value="">Todos los Vendedores</option>
+              <option value="">{t('revenue.allSalespeople')}</option>
               {salespeople.map(s => <option key={s._id || s.id} value={s._id || s.id}>{s.displayName || s.email}</option>)}
             </select>
           </div>
@@ -376,21 +376,21 @@ export function RevenueDashboardPage() {
 
         {/* Granularity */}
         <div className="flex flex-col gap-1 w-24">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Granularidad</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('revenue.granularity')}</label>
           <select
             value={granularity}
             onChange={(e) => updateFilters({ granularity: e.target.value })}
             className="h-9 px-2 text-xs rounded border border-brand-border bg-white text-brand-text-primary focus:outline-none"
           >
-            <option value="daily">Diario</option>
-            <option value="weekly">Semanal</option>
-            <option value="monthly">Mensual</option>
+            <option value="daily">{t('revenue.daily')}</option>
+            <option value="weekly">{t('revenue.weekly')}</option>
+            <option value="monthly">{t('revenue.monthly')}</option>
           </select>
         </div>
 
         {/* Currency mode */}
         <div className="flex flex-col gap-1 w-32">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">Moneda Normalizada</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">{t('revenue.currencyMode')}</label>
           <select
             value={currencyMode}
             onChange={(e) => updateFilters({ currency: e.target.value })}
@@ -409,7 +409,7 @@ export function RevenueDashboardPage() {
           className="h-9 gap-1 text-xs"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Restablecer</span>
+          <span>{t('revenue.resetFilters')}</span>
         </Button>
       </div>
 
@@ -445,7 +445,7 @@ export function RevenueDashboardPage() {
         <Alert variant="warning" className="flex items-center gap-2 border-amber-300 bg-amber-50 text-amber-800">
           <Info className="w-4 h-4 text-amber-700" />
           <span>
-            <strong>Advertencia:</strong> Faltan tasas de cambio históricas (`exchange_rates`) para algunas fechas del rango seleccionado. Los consolidados normalizados pueden figurar incompletos o nulos. Configure las tasas correspondientes en la administración.
+            <strong>{t('common.warning')}:</strong> {t('revenue.exchangeRateWarning')}
           </span>
         </Alert>
       )}
@@ -455,7 +455,7 @@ export function RevenueDashboardPage() {
         <div className="bg-white border border-brand-border rounded-lg p-10 flex flex-col items-center justify-center">
           <div className="w-8 h-8 border-2 border-brand-border border-t-brand-primary rounded-full animate-spin mb-3"></div>
           <p className="text-xs font-semibold text-brand-text-secondary uppercase tracking-widest animate-pulse">
-            Procesando métricas financieras...
+            {t('revenue.processingMetrics')}
           </p>
         </div>
       ) : reportData && (
@@ -528,9 +528,9 @@ export function RevenueDashboardPage() {
                 {renderLineChart(reportData?.timeSeries)}
               </div>
               <div className="flex justify-center gap-4 text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#B91C1C] rounded"></span>Inversión</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#15803D] rounded"></span>Ingresos</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#F4C430] rounded"></span>Leads (x10)</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#B91C1C] rounded"></span>{t('revenue.chartSpend')}</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#15803D] rounded"></span>{t('revenue.chartRevenue')}</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#F4C430] rounded"></span>{t('revenue.chartLeads')}</span>
               </div>
             </div>
 
@@ -597,28 +597,28 @@ export function RevenueDashboardPage() {
           <div className="bg-white border border-brand-border rounded-lg p-5 shadow-subtle space-y-4">
             <h3 className="text-xs font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
               <Megaphone className="w-4 h-4 text-brand-primary" />
-              <span>Desglose por Campañas y Conjuntos de Anuncios</span>
+              <span>{t('revenue.breakdownTitle')}</span>
             </h3>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-brand-border text-brand-text-secondary font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-2.5 px-3">Campaña / Ad Set</th>
-                    <th className="py-2.5 px-2 text-right">Inversión</th>
-                    <th className="py-2.5 px-2 text-right">Clicks</th>
-                    <th className="py-2.5 px-2 text-right">Leads CRM</th>
-                    <th className="py-2.5 px-2 text-right">CPL</th>
-                    <th className="py-2.5 px-2 text-right">Ventas</th>
-                    <th className="py-2.5 px-2 text-right">Cobros</th>
-                    <th className="py-2.5 px-3 text-right">ROAS</th>
+                    <th className="py-2.5 px-3">{t('revenue.thCampaignAdSet')}</th>
+                    <th className="py-2.5 px-2 text-right">{t('revenue.thSpend')}</th>
+                    <th className="py-2.5 px-2 text-right">{t('revenue.thClicks')}</th>
+                    <th className="py-2.5 px-2 text-right">{t('revenue.thLeadsCrm')}</th>
+                    <th className="py-2.5 px-2 text-right">{t('revenue.thCpl')}</th>
+                    <th className="py-2.5 px-2 text-right">{t('revenue.thSales')}</th>
+                    <th className="py-2.5 px-2 text-right">{t('revenue.thCollections')}</th>
+                    <th className="py-2.5 px-3 text-right">{t('revenue.thRoas')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reportData?.campaignsTable?.length === 0 ? (
                     <tr>
                       <td colSpan="8" className="py-4 text-center text-brand-text-secondary italic">
-                        Sin datos de campañas registrados para este rango.
+                        {t('revenue.noCampaignData')}
                       </td>
                     </tr>
                   ) : reportData?.campaignsTable?.map((c) => (

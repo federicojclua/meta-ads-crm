@@ -405,10 +405,10 @@ export function LeadsPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-brand-border">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-brand-text-primary tracking-tight">
-            Gestión de Leads & Pipeline Comercial
+            {t('leads.title')}
           </h1>
           <p className="text-xs md:text-sm text-brand-text-secondary mt-0.5">
-            Administración del ciclo comercial, captura de prospectos y control de cierres.
+            {t('leads.subtitle')}
           </p>
         </div>
 
@@ -421,7 +421,7 @@ export function LeadsPage() {
               className="text-xs gap-1.5"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Importar CSV</span>
+              <span>{t('leads.importCsv')}</span>
             </Button>
           )}
 
@@ -435,7 +435,7 @@ export function LeadsPage() {
             className="text-xs gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Nuevo Prospecto</span>
+            <span>{t('leads.newLead')}</span>
           </Button>
         </div>
       </div>
@@ -474,7 +474,7 @@ export function LeadsPage() {
             <Search className="w-4 h-4 text-brand-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Buscar por nombre, correo electrónico o teléfono..."
+              placeholder={t('leads.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-9 pl-9 pr-3 text-xs rounded-md border border-brand-border bg-white text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
@@ -505,10 +505,10 @@ export function LeadsPage() {
               onChange={(e) => setSelectedStage(e.target.value)}
               className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
             >
-              <option value="all">Todas las Etapas</option>
+              <option value="all">{t('leads.allStages')}</option>
               {LEAD_STAGES.map((stg) => (
                 <option key={stg} value={stg}>
-                  {LEAD_STAGE_LABELS[stg]}
+                  {t(`leads.stages.${stg}`)}
                 </option>
               ))}
             </select>
@@ -519,12 +519,12 @@ export function LeadsPage() {
                 onChange={(e) => setSelectedSalesperson(e.target.value)}
                 className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
               >
-                <option value="all">Todos los Vendedores</option>
+                <option value="all">{t('leads.allSalespeople')}</option>
                 {salespeople.map((sp) => {
                   const spId = sp.id || sp._id;
                   return (
                     <option key={spId} value={spId}>
-                      {sp.displayName || sp.email}{sp.status === 'invited' ? ' (Pendiente de activación)' : ''}
+                      {sp.displayName || sp.email}{sp.status === 'invited' ? ` (${t('admin.users.pendingActivation')})` : ''}
                     </option>
                   );
                 })}
@@ -536,8 +536,8 @@ export function LeadsPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="h-9 px-2.5 text-xs rounded border border-brand-border bg-white text-brand-text-primary font-medium focus:outline-none focus:ring-1 focus:ring-brand-primary"
             >
-              <option value="active">Activos</option>
-              <option value="archived">Archivados</option>
+              <option value="active">{t('leads.activeOnly')}</option>
+              <option value="archived">{t('leads.archivedOnly')}</option>
             </select>
 
             {/* View Mode Toggle */}
@@ -548,10 +548,10 @@ export function LeadsPage() {
                 className={`p-1.5 rounded text-xs flex items-center gap-1 font-semibold transition-colors ${
                   viewMode === 'kanban' ? 'bg-white shadow-subtle text-brand-primary' : 'text-brand-text-secondary hover:text-brand-text-primary'
                 }`}
-                title="Vista Tablero Kanban"
+                title={t('leads.kanban')}
               >
                 <Kanban className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Kanban</span>
+                <span className="hidden sm:inline">{t('leads.kanban')}</span>
               </button>
               <button
                 type="button"
@@ -559,10 +559,10 @@ export function LeadsPage() {
                 className={`p-1.5 rounded text-xs flex items-center gap-1 font-semibold transition-colors ${
                   viewMode === 'table' ? 'bg-white shadow-subtle text-brand-primary' : 'text-brand-text-secondary hover:text-brand-text-primary'
                 }`}
-                title="Vista Tabla"
+                title={t('leads.table')}
               >
                 <TableIcon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Tabla</span>
+                <span className="hidden sm:inline">{t('leads.table')}</span>
               </button>
             </div>
           </div>
@@ -614,7 +614,7 @@ export function LeadsPage() {
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-brand-border/60">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase text-brand-text-primary">
-                      {LEAD_STAGE_LABELS[stg]}
+                      {t(`leads.stages.${stg}`)}
                     </span>
                     <span className="px-1.5 py-0.5 rounded-full bg-white border border-brand-border text-[10px] font-bold font-mono text-brand-text-primary">
                       {columnLeads.length}
@@ -678,7 +678,7 @@ export function LeadsPage() {
                           disabled={stgIdx === 0}
                           onClick={() => handleStageChange(lead.id, LEAD_STAGES[stgIdx - 1])}
                           className="p-1 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Retroceder etapa"
+                          title={t('leads.prevStage')}
                         >
                           <ChevronLeft className="w-3.5 h-3.5" />
                         </button>
@@ -688,7 +688,7 @@ export function LeadsPage() {
                           onClick={() => openLeadDetail(lead)}
                           className="px-2 py-0.5 text-[10px] rounded bg-gray-100 hover:bg-gray-200 text-brand-text-primary font-semibold"
                         >
-                          Ver Detalle
+                          {t('leads.viewDetail')}
                         </button>
 
                         <button
@@ -696,7 +696,7 @@ export function LeadsPage() {
                           disabled={stgIdx === LEAD_STAGES.length - 1}
                           onClick={() => handleStageChange(lead.id, LEAD_STAGES[stgIdx + 1])}
                           className="p-1 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Avanzar etapa"
+                          title={t('leads.nextStage')}
                         >
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
@@ -714,14 +714,14 @@ export function LeadsPage() {
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#F7F6F2] border-b border-brand-border text-[11px] font-bold text-brand-text-secondary uppercase tracking-wider">
               <tr>
-                <th className="p-3">Nombre</th>
-                <th className="p-3">Contacto</th>
-                <th className="p-3">Etapa</th>
-                <th className="p-3">Vendedor</th>
-                <th className="p-3">Valor Estimado</th>
+                <th className="p-3">{t('leads.tableTh.lead')}</th>
+                <th className="p-3">{t('leads.tableTh.contact')}</th>
+                <th className="p-3">{t('leads.tableTh.stage')}</th>
+                <th className="p-3">{t('leads.tableTh.salesperson')}</th>
+                <th className="p-3">{t('leads.tableTh.value')}</th>
                 <th className="p-3">Origen</th>
-                <th className="p-3">Fecha Captura</th>
-                <th className="p-3 text-right">Acciones</th>
+                <th className="p-3">{t('common.date')}</th>
+                <th className="p-3 text-right">{t('leads.tableTh.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border/60">
