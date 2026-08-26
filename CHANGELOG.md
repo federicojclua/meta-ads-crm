@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Dashboard Multiempresa Hotfix (2026-08-26)
+- **Bypass del Control de Inquilinos en Vista Global**: Se corrigió la compuerta inicial en `api-dashboard.js` para interceptar explícitamente los literales serializados `"undefined"`, `"null"`, `"all"`, y vacíos. Para administradores globales, se saltea la verificación y obtención de empresa individual, evitando fallos 404 erróneos y permitiendo acceder limpiamente al panel unificado de "Todas las Empresas".
+- **Soporte de Espacios en Identificadores**: Se actualizó la expresión regular sintáctica para soportar espacios (`/^[a-zA-Z0-9\s-_]+$/`), permitiendo slugs heredados de semillas previas.
+- **Trazabilidad y Control de Excepciones**: Se agregaron logs de diagnóstico detallados (`DASHBOARD_DIAGNOSTIC`) en la entrada del handler y se estructuró la captura de excepciones de base de datos para responder de forma consistente con HTTP `500` en lugar de enmascararse como `404`.
+
 ### Fixed — Dashboard Multiempresa Hotfix (2026-08-25)
 - **Soporte de Slugs e Identificadores tipo String en Dashboard**: Se flexibilizó la validación inicial de `clientId`/`clientScope` en `api-dashboard.js` para admitir cualquier identificador alfanumérico limpio con guiones y guiones bajos (`/^[a-zA-Z0-9-_]+$/`), posibilitando el uso de slugs (como `"perfumeria-marion"`) y evitando respuestas 400 prematuras.
 - **Búsqueda Robusta Multiformato**: Se introdujo el helper `findClient` para buscar empresas en la base de datos de manera secuencial (por ObjectId, string `_id` o `slug`), normalizando `targetClientId` al tipo nativo del `_id` persistido.

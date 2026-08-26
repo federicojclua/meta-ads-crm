@@ -935,4 +935,92 @@ describe('Backend Dashboard API (api-dashboard)', () => {
     const body = JSON.parse(res.body);
     expect(body.kpis.totalLeadsCount).toBe(5);
   });
+
+  it('25. Vista global de super_admin con clientId como string literal "undefined" devuelve 200 y es tratada como global', async () => {
+    const mockAdminUser = {
+      _id: new ObjectId(),
+      email: 'admin@animamkt.com',
+      role: 'super_admin',
+      status: 'active',
+    };
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockAdminUser,
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    const activeCompanyId = new ObjectId();
+    const activeClients = [
+      { _id: activeCompanyId, name: 'Empresa Activa', status: 'active' },
+    ];
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce(activeClients),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(10);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: 'undefined' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.totalLeadsCount).toBe(10);
+  });
+
+  it('26. Vista global de super_admin con clientId como string literal "null" devuelve 200 y es tratada como global', async () => {
+    const mockAdminUser = {
+      _id: new ObjectId(),
+      email: 'admin@animamkt.com',
+      role: 'super_admin',
+      status: 'active',
+    };
+
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockAdminUser,
+      db: mockDb,
+      clientScope: null,
+      isGlobal: true,
+    });
+
+    const activeCompanyId = new ObjectId();
+    const activeClients = [
+      { _id: activeCompanyId, name: 'Empresa Activa', status: 'active' },
+    ];
+
+    mockClientsCollection.find = vi.fn().mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce(activeClients),
+    });
+
+    mockLeadsCollection.countDocuments.mockResolvedValue(15);
+    mockSalesCollection.find.mockReturnValueOnce({
+      toArray: vi.fn().mockResolvedValueOnce([]),
+    });
+    mockUsersCollection.find.mockReturnValueOnce({
+      project: vi.fn().mockReturnValueOnce({ toArray: vi.fn().mockResolvedValueOnce([]) }),
+    });
+
+    const res = await dashboardHandler({
+      httpMethod: 'GET',
+      path: '/api/dashboard/stats',
+      queryStringParameters: { clientId: 'null' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.kpis.totalLeadsCount).toBe(15);
+  });
 });

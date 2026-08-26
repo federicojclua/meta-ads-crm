@@ -22,6 +22,15 @@ export async function handler(event) {
   }
 
   const { user, db, clientScope, isGlobal } = auth;
+  const params = event.queryStringParameters || {};
+  console.log('[DASHBOARD_DIAGNOSTIC] Event details:', {
+    httpMethod: event.httpMethod,
+    queryStringParameters: event.queryStringParameters,
+    clientScope,
+    isGlobal,
+    userRole: user?.role
+  });
+
   const isSalesperson = user.role === 'salesperson';
   const leadsCollection = db.collection('leads');
   const salesCollection = db.collection('sales');
@@ -34,7 +43,6 @@ export async function handler(event) {
   }
 
   try {
-    const params = event.queryStringParameters || {};
     let targetClientId = null;
     let clientDoc = null;
 
@@ -58,23 +66,50 @@ export async function handler(event) {
 
     if (!isGlobal) {
       isRequestingAll = false;
-      if (!clientScope || !/^[a-zA-Z0-9-_]+$/.test(clientScope)) {
+      if (!clientScope ||
+          clientScope === 'undefined' ||
+          clientScope === 'null' ||
+          !/^[a-zA-Z0-9\s-_]+$/.test(clientScope)) {
         return errorResponse(400, 'Identificador de empresa malformado en la sesión.', 'INVALID_CLIENT_ID');
       }
-      clientDoc = await findClient(clientScope, clientsCollection);
+
+      try {
+        clientDoc = await findClient(clientScope, clientsCollection);
+      } catch (dbErr) {
+        console.error('[DASHBOARD_DIAGNOSTIC] Database error in findClient for clientScope:', dbErr);
+        return errorResponse(500, 'Error de base de datos al buscar la empresa de la sesión.', 'DATABASE_ERROR');
+      }
+
       const clientStatus = clientDoc?.status || 'active';
       if (!clientDoc || clientStatus !== 'active') {
         return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
       }
       targetClientId = clientDoc._id;
-    } else if (params.clientId && params.clientId.trim() !== '') {
-      const trimmedId = params.clientId.trim();
-      if (trimmedId.toLowerCase() !== 'all') {
+    } else {
+      let clientParam = params.clientId;
+      if (clientParam) {
+        clientParam = clientParam.trim();
+      }
+
+      const isParamEmptyOrGlobal = !clientParam ||
+                                   clientParam === '' ||
+                                   clientParam.toLowerCase() === 'all' ||
+                                   clientParam.toLowerCase() === 'undefined' ||
+                                   clientParam.toLowerCase() === 'null';
+
+      if (!isParamEmptyOrGlobal) {
         isRequestingAll = false;
-        if (!/^[a-zA-Z0-9-_]+$/.test(trimmedId)) {
+        if (!/^[a-zA-Z0-9\s-_]+$/.test(clientParam)) {
           return errorResponse(400, 'Identificador de empresa malformado.', 'INVALID_CLIENT_ID');
         }
-        clientDoc = await findClient(trimmedId, clientsCollection);
+
+        try {
+          clientDoc = await findClient(clientParam, clientsCollection);
+        } catch (dbErr) {
+          console.error('[DASHBOARD_DIAGNOSTIC] Database error in findClient for clientParam:', dbErr);
+          return errorResponse(500, 'Error de base de datos al buscar la empresa especificada.', 'DATABASE_ERROR');
+        }
+
         const clientStatus = clientDoc?.status || 'active';
         if (!clientDoc || clientStatus !== 'active') {
           return errorResponse(404, 'La empresa especificada no existe o está inactiva.', 'CLIENT_NOT_FOUND');
