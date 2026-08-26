@@ -23,9 +23,23 @@ export async function handler(event) {
 
   const { user, db, clientScope, isGlobal } = auth;
   const params = event.queryStringParameters || {};
-  console.log('[DASHBOARD_DIAGNOSTIC] Event details:', {
-    httpMethod: event.httpMethod,
-    queryStringParameters: event.queryStringParameters,
+  const rawClientId = (params.clientId !== undefined && params.clientId !== null)
+    ? String(params.clientId).trim()
+    : (params.clientid !== undefined && params.clientid !== null)
+      ? String(params.clientid).trim()
+      : '';
+
+  const cleanIdLower = rawClientId.toLowerCase();
+  const isBypass = !rawClientId ||
+                   cleanIdLower === '' ||
+                   cleanIdLower === 'all' ||
+                   cleanIdLower === 'undefined' ||
+                   cleanIdLower === 'null';
+
+  console.log('[DASHBOARD_DIAGNOSTIC]', {
+    receivedRaw: params.clientId,
+    parsed: rawClientId,
+    isBypass,
     clientScope,
     isGlobal,
     userRole: user?.role
@@ -86,27 +100,16 @@ export async function handler(event) {
       }
       targetClientId = clientDoc._id;
     } else {
-      let clientParam = params.clientId;
-      if (clientParam) {
-        clientParam = clientParam.trim();
-      }
-
-      const isParamEmptyOrGlobal = !clientParam ||
-                                   clientParam === '' ||
-                                   clientParam.toLowerCase() === 'all' ||
-                                   clientParam.toLowerCase() === 'undefined' ||
-                                   clientParam.toLowerCase() === 'null';
-
-      if (!isParamEmptyOrGlobal) {
+      if (!isBypass) {
         isRequestingAll = false;
-        if (!/^[a-zA-Z0-9\s-_]+$/.test(clientParam)) {
+        if (!/^[a-zA-Z0-9\s-_]+$/.test(rawClientId)) {
           return errorResponse(400, 'Identificador de empresa malformado.', 'INVALID_CLIENT_ID');
         }
 
         try {
-          clientDoc = await findClient(clientParam, clientsCollection);
+          clientDoc = await findClient(rawClientId, clientsCollection);
         } catch (dbErr) {
-          console.error('[DASHBOARD_DIAGNOSTIC] Database error in findClient for clientParam:', dbErr);
+          console.error('[DASHBOARD_DIAGNOSTIC] Database error in findClient for rawClientId:', dbErr);
           return errorResponse(500, 'Error de base de datos al buscar la empresa especificada.', 'DATABASE_ERROR');
         }
 
