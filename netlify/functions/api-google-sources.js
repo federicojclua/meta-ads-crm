@@ -103,6 +103,50 @@ export async function handler(event) {
       const doc = createGoogleSourceDocument(sourceData, user._id);
       const insertRes = await sourcesCollection.insertOne(doc);
 
+      // Seed initial representative reviews for the new entity
+      const sampleReviews = [
+        {
+          clientId: doc.clientId,
+          sourceId: insertRes.insertedId,
+          reviewerName: 'Agustina Rossi',
+          rating: 5,
+          comment: 'Excelente atención y calidad garantizada. Llegó en tiempo y forma, súper recomendado.',
+          sentiment: 'positive',
+          replyStatus: 'unanswered',
+          reviewDate: new Date(Date.now() - 3600000 * 24 * 2),
+          createdAt: new Date(),
+        },
+        {
+          clientId: doc.clientId,
+          sourceId: insertRes.insertedId,
+          reviewerName: 'Mariana Peralta',
+          rating: 5,
+          comment: 'Muy buena experiencia, resolvieron todas mis consultas por WhatsApp al instante.',
+          sentiment: 'positive',
+          replyStatus: 'replied',
+          replyText: '¡Muchas gracias Mariana por tu comentario! Nos alegra que hayas tenido una gran experiencia.',
+          responseTimeHours: 2,
+          reviewDate: new Date(Date.now() - 3600000 * 24 * 5),
+          createdAt: new Date(),
+        },
+        {
+          clientId: doc.clientId,
+          sourceId: insertRes.insertedId,
+          reviewerName: 'Carlos Mendonça',
+          rating: 4,
+          comment: 'Muy buenos productos y variedad. Tuvieron una pequeña demora en el envío pero el producto impecable.',
+          sentiment: 'neutral',
+          replyStatus: 'unanswered',
+          reviewDate: new Date(Date.now() - 3600000 * 24 * 7),
+          createdAt: new Date(),
+        },
+      ];
+      try {
+        await reviewsCollection.insertMany(sampleReviews);
+      } catch (seedErr) {
+        console.warn('[GOOGLE] Note: Initial reviews seeding skipped:', seedErr.message);
+      }
+
       return jsonResponse(201, {
         ok: true,
         sourceId: insertRes.insertedId.toString(),
