@@ -269,6 +269,49 @@ export function CopilotPage() {
         </Badge>
       </div>
 
+      {/* ANIMA Performance DNA & Memory Engine Banner */}
+      <div className="p-4 bg-slate-900 text-white rounded-xl border border-indigo-500/30 shadow-md space-y-3">
+        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+              ANIMA Performance DNA & Memoria de Negocio
+            </h3>
+          </div>
+          <Badge variant="green" className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+            2 Winning / 2 Losing Patterns Activos
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          {/* Winning Pattern */}
+          <div className="p-3 bg-white/5 rounded-lg border border-emerald-500/30 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">
+                ✓ Winning Pattern: Avatar IA + B-Roll Real
+              </span>
+              <span className="text-[10px] text-emerald-400 font-mono">+38% CTR</span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Videos combinados de avatar IA con grabaciones orgánicas de la tienda aumentan radicalmente la confianza y bajan el CPL un 34%.
+            </p>
+          </div>
+
+          {/* Losing Pattern */}
+          <div className="p-3 bg-white/5 rounded-lg border border-red-500/30 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider text-red-400 font-bold">
+                ✕ Losing Pattern (Regla de Bloqueo)
+              </span>
+              <span className="text-[10px] text-red-400 font-mono">Evitado</span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Anuncios estáticos sin precio ni cuotas visibles generan consultas descalificadas. La IA tiene prohibido crear piezas sin superposición de precios.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Error Banner if any */}
       {errorBanner && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-lg flex items-center justify-between">

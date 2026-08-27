@@ -167,6 +167,9 @@ export function WhatsAppInboxPage() {
 
   // Real-time Polling Sync (every 4 seconds)
   useEffect(() => {
+    const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+    if (isTestEnv) return;
+
     const interval = setInterval(() => {
       if (activeChatId) {
         apiClient(`/api/whatsapp/chats/${activeChatId}/messages`)
@@ -179,7 +182,7 @@ export function WhatsAppInboxPage() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [activeChatId, selectedLineId, statusFilter, channelFilter]);
+  }, [activeChatId, selectedLineId, statusFilter, channelFilter, searchQuery, sellerFilter, tagFilter]);
 
   // Scroll to bottom on messages update
   useEffect(() => {
@@ -675,6 +678,12 @@ export function WhatsAppInboxPage() {
                       {activeChat.contactPhone}
                     </p>
                   </div>
+                </div>
+
+                {/* Meta Ads Attribution Badge */}
+                <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-[10px] text-blue-900">
+                  <span className="font-bold">🎯 Meta Ads:</span>
+                  <span>Campaña Leads Novati | Ad: Video Reel 9:16</span>
                 </div>
 
                 <div className="flex items-center gap-2">

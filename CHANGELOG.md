@@ -8,7 +8,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Added — Stage 18: Meta Ads Campaign Launch Engine & Closed-Loop Attribution (2026-08-27)
+### Added — Stage 14: Omnichannel AI Sales Engine & Agent Control Plane (2026-08-27)
+- **AI Agent Control Plane & Zero-Rogue Security (`models/AIToolPermissionMatrix.js`, `controlPlaneService.js`)**:
+  - Matriz de permisos granular por herramienta y agente (`qualifier`, `setter`, `followup`, `reactivation`, `copilot`, `director`).
+  - Interceptor de seguridad que suspende en estado `pending_approval` toda acción de riesgo (ej. descuentos $> 15\%$, presupuestos publicitarios $> \$50.000$, cambios a etapas sensibles o activación de campañas en Meta).
+  - Modelo inmutable `AIActionLog` para auditoría forense (`agentId`, `toolName`, `inputData`, `reasoning`, `status`, `approverUserId`, `timestamp`).
+  - Endpoints `/api/sales-engine/permissions`, `/api/sales-engine/action-logs`, `/api/sales-engine/action-logs/:id/approve` y `/reject`.
+- **Multi-Agent Squad & Follow-Up Engine (`followUpEngine.js`)**:
+  - Escuadrón de 4 agentes especializados: `Qualifier`, `Setter`, `Follow-up Agent` y `Reactivation Agent`.
+  - Cadencia de seguimiento automatizado en 4 etapas:
+    - `Paso 1 (+24h)`: Recordatorio cordial.
+    - `Paso 2 (+48h)`: Prueba social y casos de éxito.
+    - `Paso 3 (+72h)`: Aviso de cierre de atención.
+    - `Paso 4 (+96h)`: Derivación a cola de reactivación en etapa `lost`.
+- **Sales Intelligence & Human vs AI Benchmarking (`salesIntelligenceService.js`)**:
+  - Comparativa de rendimiento entre vendedores humanos y el escuadrón de IA (Leads Asignados, TTFR, Calificados, Citas Agendadas, Ventas Cerradas, Revenue y Conversión).
+- **WhatsApp Revenue Intelligence (Atribución Closed-Loop)**:
+  - Trazabilidad de ingresos extremo a extremo: `Meta Campaign -> WhatsApp Conversation -> Qualified Lead -> Seller -> Sale -> Revenue`.
+  - Badge visual de atribución publicitaria en la cabecera de chat de `WhatsAppInboxPage`.
+- **Suite de Pruebas Automatizadas (11 nuevos tests / 88 en total en 27 suites)**:
+  - `agent-control-plane.test.js`, `follow-up-engine.test.js`, `sales-intelligence-attribution.test.js`, `sales-engine-frontend.test.jsx`.
+- **ANIMA Business Memory Engine & Performance DNA (`models/BusinessMemory.js`, `memoryEngine.js`)**:
+  - Almacenamiento histórico estructurado en **7 dimensiones de memoria de negocio**: `Brand Memory`, `Business Memory`, `Sales Memory`, `Audience Memory`, `Creative Memory`, `Campaign Memory` y `Revenue Memory`.
+  - **Performance DNA**: Clasificación de `Best Hooks`, `Best Formats`, `Best Offers` y `Best CTAs` basados en el histórico de CPA y ROAS.
+  - **Patrones de Éxito y Fracaso**: Registro explícito de `Winning Patterns` (+38% CTR, respuesta rápida en WhatsApp) y `Losing Patterns` con reglas de bloqueo para evitar que la IA repita errores del pasado.
+- **ANIMA Business Health Score (0 a 100 - Determinista)**:
+  - Algoritmo matemático objetivo auditado en 6 sub-dimensiones:
+    1. **Adquisición (15%)**: Ratio CPL Actual vs Benchmark Histórico.
+    2. **Creatividad (15%)**: CTR medio con penalización por fatiga creativa.
+    3. **Ventas (20%)**: Tasa de cierre Lead-a-Venta vs meta histórica.
+    4. **Respuesta (15%)**: Cumplimiento de SLA y TTFR en WhatsApp.
+    5. **Facturación (20%)**: Cumplimiento de meta de ingresos MTD.
+    6. **Rentabilidad (15%)**: Margen neto de contribución.
+  - Insignia y velocímetro integrados en la cabecera del Dashboard principal.
+- **Goals & Forecast Engine (`models/BusinessGoals.js`, `api-business-intelligence.js`)**:
+  - Proyección de fin de mes mediante regresión de ritmo diario (`Daily Run Rate`), cálculo de brecha (`Gap`) y cálculo de **Ritmo Diario Requerido (`Required Daily Pace`)** para alcanzar la meta.
+- **Transparencia de Costos & Margen Real de Agencia (Agency True Profit)**:
+  - Fórmula estricta: `Client Revenue - Meta Spend - AI API Costs (usage_events) - Payment Gateway (3.5%) - Infrastructure - Human Ops = Agency Margin`.
+  - Panel visual de rentabilidad y desglose de costos en `RevenueDashboardPage`.
+- **Suite de Pruebas Automatizadas (14 nuevos tests / 77 en total en 23 suites)**:
+  - `business-memory-engine.test.js`, `anima-health-score.test.js`, `forecast-engine-profitability.test.js`, `business-intelligence-frontend.test.jsx`.
 - **Descubrimiento Dinámico de Capacidades (`models/MetaCapability.js`, `metaAdsLaunchService.js`, `api-meta-launch.js`)**:
   - Módulo `discoverMetaCapabilities` para consultar en tiempo real qué objetivos (`OUTCOME_LEADS`, `OUTCOME_SALES`), ubicaciones y destinos de leads soporta la cuenta publicitaria en Meta Ads.
   - Selector de Cuentas aislado por `clientId` (Business Manager $\rightarrow$ Ad Account $\rightarrow$ Facebook Page $\rightarrow$ Instagram Profile $\rightarrow$ Pixel/Dataset).

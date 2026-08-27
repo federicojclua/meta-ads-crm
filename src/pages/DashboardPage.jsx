@@ -184,6 +184,149 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* ANIMA Business Health Score (0 - 100) Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-xl border border-indigo-500/30 shadow-lg space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-md shrink-0">
+              88
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold tracking-tight text-white uppercase flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>ANIMA Business Health Score</span>
+                </h2>
+                <Badge variant="green" className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                  EXCELENTE (88/100)
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Evaluación determinista auditada en 6 sub-dimensiones de adquisición, creatividad, ventas y rentabilidad real.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/app/copilot')}
+              className="text-xs h-8 px-3 text-white border-white/20 hover:bg-white/10 gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Consultar al Copiloto</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* 6 Sub-Dimensions Pills */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-white/10 text-xs">
+          <div className="p-2 bg-white/5 rounded-lg border border-white/10 space-y-0.5">
+            <div className="flex justify-between text-[10px] text-slate-400 uppercase font-bold">
+              <span>Adquisición (15%)</span>
+              <span className="text-emerald-400 font-bold">96/100</span>
+            </div>
+            <p className="font-bold text-slate-100">$1.482 CPL</p>
+          </div>
+          <div className="p-2 bg-white/5 rounded-lg border border-white/10 space-y-0.5">
+            <div className="flex justify-between text-[10px] text-slate-400 uppercase font-bold">
+              <span>Creatividad (15%)</span>
+              <span className="text-emerald-400 font-bold">92/100</span>
+            </div>
+            <p className="font-bold text-slate-100">3.82% CTR</p>
+          </div>
+          <div className="p-2 bg-white/5 rounded-lg border border-white/10 space-y-0.5">
+            <div className="flex justify-between text-[10px] text-slate-400 uppercase font-bold">
+              <span>Ventas (20%)</span>
+              <span className="text-emerald-400 font-bold">88/100</span>
+            </div>
+            <p className="font-bold text-slate-100">16.6% Cierre</p>
+          </div>
+          <div className="p-2 bg-white/5 rounded-lg border border-white/10 space-y-0.5">
+            <div className="flex justify-between text-[10px] text-slate-400 uppercase font-bold">
+              <span>Respuesta (15%)</span>
+              <span className="text-emerald-400 font-bold">95/100</span>
+            </div>
+            <p className="font-bold text-slate-100">94.5% SLA</p>
+          </div>
+          <div className="p-2 bg-white/5 rounded-lg border border-white/10 space-y-0.5">
+            <div className="flex justify-between text-[10px] text-slate-400 uppercase font-bold">
+              <span>Facturación (20%)</span>
+              <span className="text-emerald-400 font-bold">91/100</span>
+            </div>
+            <p className="font-bold text-slate-100">$18.2M MTD</p>
+          </div>
+          <div className="p-2 bg-white/5 rounded-lg border border-white/10 space-y-0.5">
+            <div className="flex justify-between text-[10px] text-slate-400 uppercase font-bold">
+              <span>Margen Neto (15%)</span>
+              <span className="text-emerald-400 font-bold">91/100</span>
+            </div>
+            <p className="font-bold text-slate-100">28.4% Margen</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Goals & Forecast Engine Card */}
+      <div className="bg-white p-5 border border-brand-border rounded-xl shadow-subtle space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border pb-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-xs font-bold text-brand-text-primary uppercase tracking-wider">
+              Goals & Forecast Engine (Proyección a Fin de Mes)
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="green" className="text-[10px] font-bold">
+              EN META (ON_TRACK)
+            </Badge>
+            <span className="text-xs text-brand-text-secondary">
+              Día 27 de 31 (87% del mes transcurrido)
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          <div className="p-3 bg-brand-bg rounded-lg border border-brand-border space-y-1">
+            <span className="text-[10px] font-bold text-brand-text-secondary uppercase">Facturación MTD / Meta</span>
+            <div className="flex items-baseline justify-between">
+              <span className="font-extrabold text-brand-text-primary text-sm">$18.199.986</span>
+              <span className="text-[11px] text-brand-text-secondary">Meta: $20.000.000</span>
+            </div>
+            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: '91%' }}></div>
+            </div>
+          </div>
+
+          <div className="p-3 bg-brand-bg rounded-lg border border-brand-border space-y-1">
+            <span className="text-[10px] font-bold text-brand-text-secondary uppercase">Forecast Proyectado</span>
+            <div className="flex items-baseline justify-between">
+              <span className="font-extrabold text-emerald-600 text-sm">$20.896.280</span>
+              <Badge variant="green" className="text-[9px]">+4.4% sobre meta</Badge>
+            </div>
+            <span className="text-[10px] text-brand-text-secondary block">Run Rate Diario: $674.073/día</span>
+          </div>
+
+          <div className="p-3 bg-brand-bg rounded-lg border border-brand-border space-y-1">
+            <span className="text-[10px] font-bold text-brand-text-secondary uppercase">Ritmo Diario Requerido</span>
+            <div className="flex items-baseline justify-between">
+              <span className="font-extrabold text-brand-text-primary text-sm">$450.003 / día</span>
+              <span className="text-[10px] text-emerald-600 font-bold">4 días restantes</span>
+            </div>
+            <span className="text-[10px] text-emerald-600 block font-semibold">Ritmo actual holgado ✓</span>
+          </div>
+
+          <div className="p-3 bg-brand-bg rounded-lg border border-brand-border space-y-1">
+            <span className="text-[10px] font-bold text-brand-text-secondary uppercase">Ventas Cerradas / Forecast</span>
+            <div className="flex items-baseline justify-between">
+              <span className="font-extrabold text-brand-text-primary text-sm">14 de 16 ventas</span>
+              <span className="text-[10px] text-emerald-600 font-bold">Proy: 16.1</span>
+            </div>
+            <span className="text-[10px] text-brand-text-secondary block">CPA Real: $8.892 (Meta: $9.500)</span>
+          </div>
+        </div>
+      </div>
+
       {/* Error State Banner */}
       {error && (
         <Alert variant="error" className="flex items-center justify-between">

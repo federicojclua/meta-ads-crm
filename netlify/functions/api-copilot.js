@@ -37,6 +37,21 @@ export async function handler(event) {
     if (segments.length === 1 && segments[0] === 'suggestions' && method === 'GET') {
       const suggestions = [
         {
+          id: 'anima_score',
+          category: 'ANIMA Health Score',
+          query: '¿Cuál es el ANIMA Business Health Score actual y qué dimensiones requieren atención?',
+        },
+        {
+          id: 'forecast',
+          category: 'Metas & Forecast',
+          query: '¿Cuál es el pronóstico de facturación a fin de mes y el ritmo diario requerido para cumplir la meta?',
+        },
+        {
+          id: 'memory_dna',
+          category: 'Performance DNA & Patrones',
+          query: '¿Cuáles son los Winning Patterns (patrones de éxito) y Losing Patterns registrados en la memoria histórica?',
+        },
+        {
           id: 'overspend',
           category: 'Eficiencia de Inversión',
           query: '¿Hay sobreinversión en Meta Ads frente a los ingresos cobrados este mes?',
@@ -52,18 +67,29 @@ export async function handler(event) {
           query: '¿Cuál es el CPL promedio y la tasa de cierre a ventas ganadas?',
         },
         {
-          id: 'aging',
-          category: 'Cobranzas y Aging',
-          query: '¿Cómo está el saldo pendiente de cobro y las facturas vencidas a más de 30 días?',
-        },
-        {
-          id: 'diagnostics',
-          category: 'Diagnóstico Integral',
-          query: '¿Qué acciones prioritarias tenemos según las reseñas de Google y presencia en redes?',
+          id: 'agency_margin',
+          category: 'Rentabilidad Real de Agencia',
+          query: '¿Cuál es el margen real de agencia deduciendo costos de IA, infraestructura y pasarelas de pago?',
         },
       ];
 
       return jsonResponse(200, { ok: true, suggestions });
+    }
+
+    // ----------------------------------------------------
+    // GET /api/copilot/memory-dna
+    // ----------------------------------------------------
+    if (segments.length === 1 && segments[0] === 'memory-dna' && method === 'GET') {
+      const memoryCollection = db.collection('business_memories');
+      const targetClientId = isGlobal ? clientScope : clientScope;
+      const tenantFilter = targetClientId ? { clientId: new ObjectId(targetClientId) } : {};
+      const doc = await memoryCollection.findOne(tenantFilter);
+      return jsonResponse(200, {
+        ok: true,
+        performanceDna: doc?.performanceDna || null,
+        winningPatterns: doc?.winningPatterns || [],
+        losingPatterns: doc?.losingPatterns || [],
+      });
     }
 
     // ----------------------------------------------------
