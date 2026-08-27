@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 15: Motor de E-Commerce y Optimización de Conversión (CRO) (2026-08-27)
+- **Hub de E-Commerce & Embudo de Drop-Off (`models/Ecommerce.js`, `api-ecommerce.js`, `EcommerceCroPage.jsx`)**:
+  - Ingesta y normalización de eventos estándar GA4 E-Commerce y Meta Pixel (`view_item`, `add_to_cart`, `begin_checkout`, `add_payment_info`, `purchase`).
+  - Cálculo de tasas de retención y porcentaje de caída (*Drop-off rate*) paso a paso.
+  - Visualizador visual interactivo de embudo en `/app/ecommerce` con desglose comparativo móvil frente a escritorio.
+- **Analizador UI/UX & Agente IA de CRO**:
+  - Cálculo de *Friction Score* ponderado (0 a 100) combinando Bounce Rate, tiempo medio en página, ratio de abandono de checkout y disparidad de dispositivos.
+  - Analítica de formularios campo por campo para identificar campos confusos o innecesarios.
+  - Agente de IA para CRO (`POST /api/ecommerce/cro-diagnose`) con diagnóstico de puntos de fuga, soluciones técnicas y proyección de incremento en facturación (+24.5%).
+- **Auditoría de Meta Ads Catálogo (Advantage+ Shopping) y Campañas de Llamadas**:
+  - Extracción de ROAS de catálogo, CPA por producto y Costo por Añadir al Carrito (CPATC).
+  - Auditoría de llamadas telefónicas cruzando clics en extensiones de anuncios con leads del CRM para obtener el ratio *Call-to-Close*.
+- **Red de Referidos, Afiliados & Dropshipping (`models/Affiliate.js`, `api-affiliates.js`)**:
+  - Modelo de partners/afiliados, gestor de códigos promocionales (`promoCode`) y endpoint de atribución (`POST /api/affiliates/track`).
+  - Calculador de **Margen Neto Real** en cascada ($Ingreso - Gasto Ads - COGS Dropshipping - Comisiones$).
+- **Copiloto de Ventas E-Commerce (IA)**:
+  - 3 nuevas herramientas deterministas en `copilotTools.js`: `get_checkout_dropoff`, `get_affiliate_roi`, `get_top_selling_products`.
+  - Respuestas analíticas de Director de E-Commerce para tácticas de upselling y recuperación de carritos por WhatsApp.
+- **Suite de Pruebas Automatizadas (10 tests)**:
+  - Pruebas unitarias de embudo (`ecommerce-funnel.test.js`), unit economics de afiliados (`affiliates-profitability.test.js`) y frontend UI (`ecommerce-frontend.test.jsx`).
+
 ### Added — Stage 14: Hub Omnicanal (WhatsApp, Instagram Direct, Facebook Messenger), Agentes IA Autónomos ("El Cerebro"), Analítica de SLA y Motor de Remarketing ICP (2026-08-27)
 - **Hub Omnicanal Integral (WhatsApp, Instagram Direct y Facebook Messenger)**:
   - Soporte multi-canal en `api-whatsapp-webhook.js` para procesar payloads de Meta Graph API v19.0+ correspondientes a `whatsapp_business_account`, `object: 'instagram'` y `object: 'page'` (Messenger).

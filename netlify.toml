@@ -247,6 +247,30 @@
   force = true
 
 [[redirects]]
+  from = "/api/ecommerce"
+  to = "/.netlify/functions/api-ecommerce"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ecommerce/*"
+  to = "/.netlify/functions/api-ecommerce"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/affiliates"
+  to = "/.netlify/functions/api-affiliates"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/affiliates/*"
+  to = "/.netlify/functions/api-affiliates"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

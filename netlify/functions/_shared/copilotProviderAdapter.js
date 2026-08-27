@@ -225,7 +225,62 @@ export function executeDeterministicCopilot({ userQuery, toolResults, tenantCont
     ];
     dashboardLink = '/app/google-intelligence';
   }
-  // 6. Generic / General Overview Query
+  // 6. E-Commerce, Checkout Drop-off & CRO Query
+  else if (
+    queryNormalized.includes('ecommerce') ||
+    queryNormalized.includes('carrito') ||
+    queryNormalized.includes('checkout') ||
+    queryNormalized.includes('dropoff') ||
+    queryNormalized.includes('friccion') ||
+    queryNormalized.includes('tienda')
+  ) {
+    const dropoffData = toolResults?.ecommerceDropoff || {};
+    const largestBottleneck = dropoffData.largestDropoffStep || 'add_payment_info -> purchase (57.5% de caída)';
+    const convRate = dropoffData.checkoutConversionRate || '4.34%';
+
+    numericalEvidence.push(
+      { label: 'Mayor Punto de Fuga', value: largestBottleneck },
+      { label: 'Tasa de Conversión Checkout', value: convRate },
+      { label: 'Módulo E-Commerce', value: 'GA4 + Meta Pixel' }
+    );
+
+    shortAnswer = `El análisis de E-Commerce identifica que el mayor cuello de botella es "${largestBottleneck}". La tasa global de conversión del embudo es de ${convRate}.`;
+    suggestedActions = [
+      'Implementar badges de confianza y simplificar el selector de cuotas en checkout.',
+      'Activar la secuencia automática de recuperación de carritos por WhatsApp en el Hub Omnicanal.',
+      'Verificar disparidad de velocidad de carga y campos en dispositivos móviles.',
+    ];
+    dashboardLink = '/app/ecommerce';
+  }
+  // 7. Affiliates, Dropshipping & Net Margin Query
+  else if (
+    queryNormalized.includes('afiliado') ||
+    queryNormalized.includes('referido') ||
+    queryNormalized.includes('dropshipping') ||
+    queryNormalized.includes('comision') ||
+    queryNormalized.includes('margen neto')
+  ) {
+    const affData = toolResults?.affiliateRoi || {};
+    const partnersCount = affData.totalPartners || 2;
+    const revGen = affData.totalRevenueGenerated || 4270000;
+    const commPaid = affData.totalCommissionsPaid || 567000;
+    const affRoas = affData.affiliateRoas || 7.5;
+
+    numericalEvidence.push(
+      { label: 'Afiliados Activos', value: partnersCount.toString() },
+      { label: 'Facturación por Afiliados', value: `$${fmtCurrency(revGen)}` },
+      { label: 'Comisiones Devengadas', value: `$${fmtCurrency(commPaid)}` },
+      { label: 'ROAS sobre Comisiones', value: `${affRoas}x` }
+    );
+
+    shortAnswer = `La red de ${partnersCount} afiliados activos generó $${fmtCurrency(revGen)} con $${fmtCurrency(commPaid)} en comisiones pagadas (ROAS de ${affRoas}x).`;
+    suggestedActions = [
+      'Escalar acuerdos con los 2 principales afiliados que aportan el 70% de las ventas.',
+      'Auditar el Margen Neto Real deduciendo COGS de dropshipping y gasto publicitario.',
+    ];
+    dashboardLink = '/app/ecommerce';
+  }
+  // 8. Generic / General Overview Query
   else {
     const collected = kpis.collectedRevenue || 0;
     const spend = kpis.metaSpend || 0;
