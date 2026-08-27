@@ -271,6 +271,42 @@
   force = true
 
 [[redirects]]
+  from = "/api/creative-profile"
+  to = "/.netlify/functions/api-creative-profile"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/creative-profile/*"
+  to = "/.netlify/functions/api-creative-profile"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/products"
+  to = "/.netlify/functions/api-products"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/products/*"
+  to = "/.netlify/functions/api-products"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/creative-campaigns"
+  to = "/.netlify/functions/api-creative-campaigns"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/creative-campaigns/*"
+  to = "/.netlify/functions/api-creative-campaigns"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

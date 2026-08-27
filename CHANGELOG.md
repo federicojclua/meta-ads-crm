@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 16: AI Campaign Creative Engine (Sistema Operativo Creativo con Memoria de Marca) (2026-08-27)
+- **Brand DNA & Memoria Creativa (`models/CreativeProfile.js`, `api-creative-profile.js`)**:
+  - Entidad `CreativeProfile` con aislamiento multi-tenant por `clientId` para almacenar Logos oficiales, Tipografías, Paleta de Colores, Rubro/Vertical, Tono de Voz y Restricciones Negativas (*Forbidden Elements*).
+  - Carga inteligente de Logos con Gemini Vision (`POST /api/creative-profile/analyze-logo`) sugiriendo paleta de colores y nivel de contraste AAA.
+- **Catálogo de Productos & Assets Protegidos (`models/Product.js`, `api-products.js`)**:
+  - Entidad `Product` con fotografías reales en PNG transparente, precios, cuotas fijas estructuradas y especificaciones.
+- **Director de Arte Computacional & Estratega Gemini (`aiDirectorProvider.js`)**:
+  - Generación de Brief Estratégico y 3 Propuestas Conceptuales diferenciadas (Concept A: Hero Protagonista, Concept B: Catálogo de Ofertas, Concept C: Storytelling).
+  - Especificación de Diseño en JSON (`LayoutSpec`) con coordenadas precisas, dimensiones y jerarquía visual.
+- **Motor de Composición Programática Zero-Hallucination (`programmaticRenderer.js`, `imageGenProvider.js`)**:
+  - Separación estricta: fondos y texturas generados por IA, mientras que fotos reales, logotipos vectoriales, precios con separadores de miles y cuotas se ensamblan mediante SVG/Canvas de alta resolución.
+  - Adaptación responsiva automática para formatos `1:1` (Feed), `9:16` (Story/Reels) y `1.91:1` (Banner horizontal).
+- **Editor Visual, Quality Score & Memoria de Campañas (`CreativeStudioPage.jsx`, `api-creative-campaigns.js`)**:
+  - Evaluación multidimensional de *Creative Quality Score* (0 a 100).
+  - Editor interactivo para modificar titulares, precios y llamados a la acción (CTA).
+  - Galería de campañas con funciones de "Reutilizar Campaña", "Crear Versión 2", "Mejorar con IA" y exportación en SVG.
+- **Suite de Pruebas Automatizadas (9 tests)**:
+  - Tests de Director de IA (`creative-engine-director.test.js`), Pipeline de Renderizado (`creative-rendering-pipeline.test.js`) y Frontend UI (`creative-studio-frontend.test.jsx`).
+
 ### Added — Stage 15: Motor de E-Commerce y Optimización de Conversión (CRO) (2026-08-27)
 - **Hub de E-Commerce & Embudo de Drop-Off (`models/Ecommerce.js`, `api-ecommerce.js`, `EcommerceCroPage.jsx`)**:
   - Ingesta y normalización de eventos estándar GA4 E-Commerce y Meta Pixel (`view_item`, `add_to_cart`, `begin_checkout`, `add_payment_info`, `purchase`).
