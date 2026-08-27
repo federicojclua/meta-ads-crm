@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   KeyRound,
@@ -8,6 +8,8 @@ import {
   EyeOff,
   Lock,
   Sparkles,
+  Bot,
+  Save,
 } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -15,6 +17,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { auth, validatePasswordPolicy } from '../lib/firebase';
 import { formatRole } from '../lib/utils';
+import { apiClient } from '../lib/api';
 
 export function SettingsPage() {
   const {
@@ -37,9 +40,63 @@ export function SettingsPage() {
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: string }
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
-  const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
+  const [passwordsMatch, setPasswordsMatch] = useState(false);
   const isPasswordValidLength = newPassword.length >= 6;
-  const canSubmit = isPasswordValidLength && passwordsMatch && !actionLoading;
+  const canSubmit = isPasswordValidLength && newPassword === confirmPassword && !actionLoading;
+
+  // AI Brain & Knowledge Base State
+  const [brain, setBrain] = useState({
+    industryAndTone: '',
+    knowledgeBase: '',
+    qualificationRules: '',
+    autoQualifyEnabled: true,
+    autoSetterEnabled: true,
+  });
+  const [brainLoading, setBrainLoading] = useState(false);
+  const [brainSaving, setBrainSaving] = useState(false);
+  const [brainFeedback, setBrainFeedback] = useState(null);
+
+  useEffect(() => {
+    const fetchBrain = async () => {
+      setBrainLoading(true);
+      try {
+        const res = await apiClient('/api/whatsapp/brain');
+        if (res?.brain) {
+          setBrain({
+            industryAndTone: res.brain.industryAndTone || '',
+            knowledgeBase: res.brain.knowledgeBase || '',
+            qualificationRules: res.brain.qualificationRules || '',
+            autoQualifyEnabled: Boolean(res.brain.autoQualifyEnabled),
+            autoSetterEnabled: Boolean(res.brain.autoSetterEnabled),
+          });
+        }
+      } catch (err) {
+        console.warn('[SETTINGS] Error fetching brain:', err.message);
+      } finally {
+        setBrainLoading(false);
+      }
+    };
+    fetchBrain();
+  }, [userProfile?.clientId]);
+
+  const handleSaveBrain = async (e) => {
+    e.preventDefault();
+    setBrainSaving(true);
+    setBrainFeedback(null);
+    try {
+      const res = await apiClient('/api/whatsapp/brain', {
+        method: 'PUT',
+        body: JSON.stringify(brain),
+      });
+      if (res?.ok) {
+        setBrainFeedback({ type: 'success', message: '¡Cerebro Empresarial y Base de Conocimiento actualizados exitosamente!' });
+      }
+    } catch (err) {
+      setBrainFeedback({ type: 'error', message: err.message || 'Error guardando el Cerebro IA.' });
+    } finally {
+      setBrainSaving(false);
+    }
+  };
 
   const handleLinkPassword = async (e) => {
     e.preventDefault();
@@ -471,66 +528,133 @@ export function SettingsPage() {
         )}
       </div>
 
-      {/* Equipo IA (Agentes Autónomos para WhatsApp Inbox) */}
+      {/* Equipo IA (Cerebro Empresarial & Base de Conocimiento) */}
       <div className="bg-white p-6 border border-brand-border rounded-lg shadow-subtle space-y-6">
         <div>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-600" />
-              <span>Equipo IA (Agentes Autónomos de WhatsApp)</span>
+              <span>Cerebro Empresarial & Base de Conocimiento (Equipo IA)</span>
             </h3>
             <Badge variant="primary" className="text-[10px]">
-              Etapa 14 Ready
+              Etapa 14 Activa
             </Badge>
           </div>
           <p className="text-xs text-brand-text-secondary mt-1">
-            Configuración y activación de agentes inteligentes para intervenir y calificar prospectos en el Inbox de WhatsApp.
+            Configuración de la personalidad, base de respuestas y reglas de calificación para los agentes autónomos del Hub Omnicanal (WhatsApp, Instagram, Messenger).
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Calificador */}
-          <div className="p-4 border border-brand-border rounded-lg bg-slate-50/70 space-y-3">
-            <div className="flex items-center justify-between">
+        {brainFeedback && (
+          <div
+            className={`p-3 rounded-lg text-xs flex items-center gap-2 ${
+              brainFeedback.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}
+          >
+            {brainFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            )}
+            <span>{brainFeedback.message}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSaveBrain} className="space-y-4 text-xs">
+          {/* Rubro y Tono */}
+          <div>
+            <label className="block font-bold text-brand-text-primary mb-1">
+              1. Rubro y Personalidad del Bot (Tono de Voz)
+            </label>
+            <input
+              type="text"
+              value={brain.industryAndTone}
+              onChange={(e) => setBrain({ ...brain, industryAndTone: e.target.value })}
+              placeholder="Ej: Agencia de Marketing Digital. Tono: Amable, consultivo y orientado a resultados."
+              className="w-full px-3 py-2 text-xs border border-brand-border rounded-lg bg-slate-50 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+            />
+          </div>
+
+          {/* Base de Conocimiento */}
+          <div>
+            <label className="block font-bold text-brand-text-primary mb-1">
+              2. Base de Conocimiento (Servicios, Precios de Referencia, FAQs y Políticas)
+            </label>
+            <textarea
+              value={brain.knowledgeBase}
+              onChange={(e) => setBrain({ ...brain, knowledgeBase: e.target.value })}
+              placeholder="Describí tus servicios, rangos de precios, metodologías, horarios y preguntas frecuentes..."
+              rows={4}
+              className="w-full p-2.5 text-xs border border-brand-border rounded-lg bg-slate-50 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+            />
+          </div>
+
+          {/* Reglas de Calificación */}
+          <div>
+            <label className="block font-bold text-brand-text-primary mb-1">
+              3. Reglas de Calificación Automática (Criterios para mover el lead a CALIFICADO)
+            </label>
+            <textarea
+              value={brain.qualificationRules}
+              onChange={(e) => setBrain({ ...brain, qualificationRules: e.target.value })}
+              placeholder="Ej: Extraer presupuesto mensual disponible, rubro exacto y correo electrónico."
+              rows={3}
+              className="w-full p-2.5 text-xs border border-brand-border rounded-lg bg-slate-50 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 focus:bg-white"
+            />
+          </div>
+
+          {/* Toggles de Agentes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <label className="p-3.5 border border-brand-border rounded-lg bg-slate-50/70 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 transition-colors">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
                   🎯
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-brand-text-primary">Calificador de Prospectos</h4>
-                  <p className="text-[11px] text-brand-text-secondary">Evalúa presupuesto y necesidad</p>
+                  <h4 className="text-xs font-bold text-brand-text-primary">Agente Calificador de Prospectos</h4>
+                  <p className="text-[11px] text-brand-text-secondary">Interviene leads nuevos y los califica</p>
                 </div>
               </div>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                Listo
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Detecta el interés del prospecto en las primeras interacciones y actualiza automáticamente su etapa a "CALIFICADO" en el Kanban.
-            </p>
-          </div>
+              <input
+                type="checkbox"
+                checked={brain.autoQualifyEnabled}
+                onChange={(e) => setBrain({ ...brain, autoQualifyEnabled: e.target.checked })}
+                className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500 cursor-pointer"
+              />
+            </label>
 
-          {/* Setter */}
-          <div className="p-4 border border-brand-border rounded-lg bg-slate-50/70 space-y-3">
-            <div className="flex items-center justify-between">
+            <label className="p-3.5 border border-brand-border rounded-lg bg-slate-50/70 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 transition-colors">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
                   📅
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-brand-text-primary">Setter de Citas</h4>
-                  <p className="text-[11px] text-brand-text-secondary">Coordina reuniones y llamadas</p>
+                  <h4 className="text-xs font-bold text-brand-text-primary">Agente Setter de Citas</h4>
+                  <p className="text-[11px] text-brand-text-secondary">Sugiere horarios para videollamadas</p>
                 </div>
               </div>
-              <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
-                Listo
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Propone horarios y disponibilidad del equipo comercial cuando el prospecto solicita una demostración o reunión.
-            </p>
+              <input
+                type="checkbox"
+                checked={brain.autoSetterEnabled}
+                onChange={(e) => setBrain({ ...brain, autoSetterEnabled: e.target.checked })}
+                className="w-4 h-4 text-indigo-600 rounded-sm focus:ring-indigo-500 cursor-pointer"
+              />
+            </label>
           </div>
-        </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="submit"
+              disabled={brainSaving || brainLoading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{brainSaving ? 'Guardando Cerebro...' : 'Guardar Cerebro Empresarial'}</span>
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

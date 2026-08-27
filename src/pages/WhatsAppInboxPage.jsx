@@ -57,6 +57,7 @@ export function WhatsAppInboxPage() {
   const [activeChatId, setActiveChatId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'unread', 'archived'
+  const [channelFilter, setChannelFilter] = useState('all'); // 'all', 'whatsapp', 'instagram', 'facebook'
   const [sellerFilter, setSellerFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState('all');
   const [isLoadingChats, setIsLoadingChats] = useState(true);
@@ -66,6 +67,7 @@ export function WhatsAppInboxPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isTogglingBot, setIsTogglingBot] = useState(false);
 
   // CRM Lead Context State
   const [leadNotes, setLeadNotes] = useState('');
@@ -81,9 +83,6 @@ export function WhatsAppInboxPage() {
       const res = await apiClient('/api/whatsapp/lines');
       if (res?.lines) {
         setLines(res.lines);
-        if (selectedLineId === 'all' && res.lines.length > 0) {
-          // Keep 'all' or default
-        }
       }
     } catch (err) {
       console.warn('[WA_INBOX] Error fetching lines:', err.message);
@@ -99,6 +98,9 @@ export function WhatsAppInboxPage() {
       }
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
+      }
+      if (channelFilter !== 'all') {
+        params.append('channel', channelFilter);
       }
       if (searchQuery.trim()) {
         params.append('search', searchQuery.trim());
@@ -149,7 +151,7 @@ export function WhatsAppInboxPage() {
 
   useEffect(() => {
     fetchChats();
-  }, [selectedLineId, statusFilter, searchQuery, sellerFilter, tagFilter]);
+  }, [selectedLineId, statusFilter, channelFilter, searchQuery, sellerFilter, tagFilter]);
 
   useEffect(() => {
     if (activeChatId) {
@@ -167,19 +169,17 @@ export function WhatsAppInboxPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (activeChatId) {
-        // Fetch new messages silently
         apiClient(`/api/whatsapp/chats/${activeChatId}/messages`)
           .then((res) => {
             if (res?.messages) setMessages(res.messages);
           })
           .catch(() => {});
       }
-      // Refresh chat list snippet counts
       fetchChats();
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [activeChatId, selectedLineId, statusFilter]);
+  }, [activeChatId, selectedLineId, statusFilter, channelFilter]);
 
   // Scroll to bottom on messages update
   useEffect(() => {
@@ -237,7 +237,7 @@ export function WhatsAppInboxPage() {
         throw new Error(res?.error || 'Error al enviar mensaje');
       }
     } catch (err) {
-      setErrorBanner(err.message || 'No se pudo enviar el mensaje a WhatsApp.');
+      setErrorBanner(err.message || 'No se pudo enviar el mensaje.');
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setIsSending(false);
@@ -285,6 +285,26 @@ export function WhatsAppInboxPage() {
       console.warn('[WA_INBOX] Error updating lead stage:', err.message);
     } finally {
       setIsUpdatingLead(false);
+    }
+  };
+
+  // Handle Toggle Bot (Hand-Off)
+  const handleToggleBot = async () => {
+    if (!activeChatId || isTogglingBot) return;
+    setIsTogglingBot(true);
+    try {
+      const res = await apiClient(`/api/whatsapp/chats/${activeChatId}/toggle-bot`, {
+        method: 'POST',
+      });
+      if (res?.ok) {
+        setChats((prev) =>
+          prev.map((c) => (c.id === activeChatId ? { ...c, isBotMuted: res.isBotMuted } : c))
+        );
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error toggling bot:', err.message);
+    } finally {
+      setIsTogglingBot(false);
     }
   };
 
@@ -366,7 +386,7 @@ export function WhatsAppInboxPage() {
                       selectedLineId === 'all' ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'hover:bg-slate-100'
                     }`}
                   >
-                    <span>Todas las líneas</span>
+                    <span>Todos los canales</span>
                     {selectedLineId === 'all' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
                   </button>
 
@@ -403,7 +423,7 @@ export function WhatsAppInboxPage() {
                     className="w-full text-left px-2.5 py-1.5 rounded-md text-emerald-700 hover:bg-emerald-50 font-medium flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Agregar otro número</span>
+                    <span>Agregar otro número / canal</span>
                   </button>
 
                   <button
@@ -469,12 +489,23 @@ export function WhatsAppInboxPage() {
               </button>
             </div>
 
-            {/* Secondary Filters: Tags & Sellers */}
-            <div className="flex items-center gap-2 text-[11px]">
+            {/* Secondary Filters: Channel, Tags & Sellers */}
+            <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+              <select
+                value={channelFilter}
+                onChange={(e) => setChannelFilter(e.target.value)}
+                className="bg-white border border-brand-border rounded-md px-1.5 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="all">Canal: Todos</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="instagram">Instagram</option>
+                <option value="facebook">Messenger</option>
+              </select>
+
               <select
                 value={tagFilter}
                 onChange={(e) => setTagFilter(e.target.value)}
-                className="w-1/2 bg-white border border-brand-border rounded-md px-2 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                className="bg-white border border-brand-border rounded-md px-1.5 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="all">Etiquetas: Todas</option>
                 {allTags.map((tag) => (
@@ -487,7 +518,7 @@ export function WhatsAppInboxPage() {
               <select
                 value={sellerFilter}
                 onChange={(e) => setSellerFilter(e.target.value)}
-                className="w-1/2 bg-white border border-brand-border rounded-md px-2 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                className="bg-white border border-brand-border rounded-md px-1.5 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="all">Vendedor: Todos</option>
                 {isGlobal && <option value="me">Asignados a mí</option>}
@@ -505,7 +536,7 @@ export function WhatsAppInboxPage() {
               <div className="p-8 text-center text-xs text-brand-text-secondary space-y-2">
                 <MessageSquare className="w-8 h-8 mx-auto text-brand-border" />
                 <p className="font-medium">No se encontraron conversaciones</p>
-                <p className="text-[11px] text-slate-400">Los mensajes entrantes de WhatsApp aparecerán aquí automáticamente.</p>
+                <p className="text-[11px] text-slate-400">Los mensajes de WhatsApp, Instagram y Facebook aparecerán aquí.</p>
               </div>
             ) : (
               chats.map((chat) => {
@@ -513,6 +544,9 @@ export function WhatsAppInboxPage() {
                 const initials = (chat.contactName || chat.contactPhone || 'W')
                   .substring(0, 2)
                   .toUpperCase();
+
+                const isInstagram = chat.channel === 'instagram';
+                const isFacebook = chat.channel === 'facebook';
 
                 return (
                   <button
@@ -523,8 +557,16 @@ export function WhatsAppInboxPage() {
                       isSelected ? 'bg-emerald-50/70 border-l-4 border-emerald-600' : 'hover:bg-slate-100/80 bg-white'
                     }`}
                   >
-                    {/* Contact Avatar */}
-                    <div className="w-10 h-10 rounded-full bg-emerald-600/10 text-emerald-700 font-bold flex items-center justify-center text-xs shrink-0 border border-emerald-200">
+                    {/* Contact Avatar with Channel Accent */}
+                    <div
+                      className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-xs shrink-0 border ${
+                        isInstagram
+                          ? 'bg-pink-100 text-pink-700 border-pink-200'
+                          : isFacebook
+                          ? 'bg-blue-100 text-blue-700 border-blue-200'
+                          : 'bg-emerald-600/10 text-emerald-700 border-emerald-200'
+                      }`}
+                    >
                       {initials}
                     </div>
 
@@ -556,16 +598,34 @@ export function WhatsAppInboxPage() {
                         </p>
                       </div>
 
-                      {/* Tag & Line Badges */}
-                      <div className="flex items-center gap-1.5 mt-2">
+                      {/* Tag, Channel & Line Badges */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        {/* Channel Badge */}
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                            isInstagram
+                              ? 'bg-pink-100 text-pink-700'
+                              : isFacebook
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {chat.channel || 'WA'}
+                        </span>
+
                         {chat.lineDisplayNumber && (
-                          <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-sm font-medium">
+                          <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-sm font-medium truncate max-w-[110px]">
                             {chat.lineDisplayNumber}
                           </span>
                         )}
                         {chat.lead?.stage && (
                           <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-sm font-bold uppercase">
                             {chat.lead.stage}
+                          </span>
+                        )}
+                        {chat.isBotMuted && (
+                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-sm font-semibold">
+                            Humano
                           </span>
                         )}
                         {chat.unreadCount > 0 && (
@@ -591,13 +651,26 @@ export function WhatsAppInboxPage() {
               {/* Chat Header */}
               <div className="h-14 px-4 bg-white border-b border-brand-border flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600/10 text-emerald-700 font-bold flex items-center justify-center text-xs">
+                  <div
+                    className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs ${
+                      activeChat.channel === 'instagram'
+                        ? 'bg-pink-100 text-pink-700'
+                        : activeChat.channel === 'facebook'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-emerald-600/10 text-emerald-700'
+                    }`}
+                  >
                     {(activeChat.contactName || activeChat.contactPhone).substring(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <h2 className="text-xs font-bold text-brand-text-primary leading-none">
-                      {activeChat.contactName}
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xs font-bold text-brand-text-primary leading-none">
+                        {activeChat.contactName}
+                      </h2>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase bg-slate-100 text-slate-700">
+                        {activeChat.channel || 'whatsapp'}
+                      </span>
+                    </div>
                     <p className="text-[11px] text-brand-text-secondary font-mono mt-0.5">
                       {activeChat.contactPhone}
                     </p>
@@ -605,6 +678,22 @@ export function WhatsAppInboxPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Bot Takeover / Hand-off Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleToggleBot}
+                    disabled={isTogglingBot}
+                    className={`text-xs h-8 px-2.5 ${
+                      activeChat.isBotMuted
+                        ? 'border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100'
+                        : 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1" />
+                    <span>{activeChat.isBotMuted ? 'Bot Silenciado (Pase Humano)' : 'Bot Calificador Activo'}</span>
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"

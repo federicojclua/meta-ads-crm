@@ -223,6 +223,30 @@
   force = true
 
 [[redirects]]
+  from = "/api/team/sla"
+  to = "/.netlify/functions/api-team-sla"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/team/sla/*"
+  to = "/.netlify/functions/api-team-sla"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/audiences/export"
+  to = "/.netlify/functions/api-audiences-export"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/audiences/export/*"
+  to = "/.netlify/functions/api-audiences-export"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

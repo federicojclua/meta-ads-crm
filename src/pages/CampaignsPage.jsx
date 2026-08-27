@@ -7,6 +7,7 @@ import {
   Calendar,
   ShieldAlert,
   Info,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -191,7 +192,33 @@ export function CampaignsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                const token = await auth.currentUser?.getIdToken();
+                const url = `/api/audiences/export?stage=all${selectedClientId ? `&clientId=${selectedClientId}` : ''}`;
+                const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                const blob = await res.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `meta_custom_audiences_${new Date().toISOString().slice(0, 10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              } catch (err) {
+                console.warn('[CAMPAIGNS] Error exporting audience:', err.message);
+              }
+            }}
+            className="flex items-center gap-1.5 text-xs text-brand-text-primary"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>Exportar Audiencias Meta</span>
+          </Button>
+
           {isSuperAdmin && (
             <Button
               variant="outline"

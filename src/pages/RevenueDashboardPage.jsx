@@ -662,8 +662,155 @@ export function RevenueDashboardPage() {
               </table>
             </div>
           </div>
+
+          {/* Subetapa 14.3: Analítica de Equipo & SLA de Vendedores */}
+          <TeamSlaSection />
         </>
       )}
+    </div>
+  );
+}
+
+function TeamSlaSection() {
+  const [slaData, setSlaData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiClient('/api/team/sla')
+      .then((res) => {
+        if (res?.ok) setSlaData(res);
+      })
+      .catch((err) => console.warn('[TEAM_SLA] Error:', err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white border border-brand-border rounded-lg p-6 shadow-subtle text-xs text-brand-text-secondary text-center">
+        Cargando analíticas de rendimiento del equipo comercial...
+      </div>
+    );
+  }
+
+  if (!slaData) return null;
+
+  const { summary, leakedLeads, teamMetrics } = slaData;
+
+  return (
+    <div className="bg-white border border-brand-border rounded-lg p-6 shadow-subtle space-y-6">
+      <div className="flex items-center justify-between border-b border-brand-border pb-4">
+        <div>
+          <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
+            <span>Rendimiento del Equipo Comercial & Auditoría de SLA</span>
+          </h3>
+          <p className="text-xs text-brand-text-secondary mt-0.5">
+            Métricas de velocidad de respuesta (TTFR), tasa de conversión por vendedor y alerta de leads calificados en fuga.
+          </p>
+        </div>
+        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+          SLA en Vivo
+        </span>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-3.5 bg-slate-50 border border-brand-border rounded-lg">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary block">
+            Tiempo de Primera Respuesta (TTFR)
+          </span>
+          <span className="text-lg font-black text-brand-text-primary mt-1 block">
+            {summary.avgTtfrMinutes} min
+          </span>
+          <span className="text-[10px] text-slate-500">Promedio de atención inicial</span>
+        </div>
+
+        <div className="p-3.5 bg-slate-50 border border-brand-border rounded-lg">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary block">
+            Leads Calificados Totales
+          </span>
+          <span className="text-lg font-black text-emerald-700 mt-1 block">
+            {summary.totalQualified}
+          </span>
+          <span className="text-[10px] text-slate-500">Listos para cierre comercial</span>
+        </div>
+
+        <div className={`p-3.5 border rounded-lg ${leakedLeads.length > 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-brand-border'}`}>
+          <span className={`text-[10px] font-bold uppercase tracking-wider block ${leakedLeads.length > 0 ? 'text-red-700' : 'text-brand-text-secondary'}`}>
+            Fuga de Leads Calificados (&gt;12h)
+          </span>
+          <span className={`text-lg font-black mt-1 block ${leakedLeads.length > 0 ? 'text-red-700' : 'text-brand-text-primary'}`}>
+            {summary.leakedLeadsTotal}
+          </span>
+          <span className="text-[10px] text-slate-500">Sin respuesta humana en más de 12 horas</span>
+        </div>
+      </div>
+
+      {/* Alerta Roja de Fuga */}
+      {leakedLeads.length > 0 && (
+        <div className="bg-red-50/80 border border-red-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between text-xs font-bold text-red-800">
+            <span>⚠️ ALERTA ROJA: Leads calificados esperando respuesta</span>
+            <span className="text-[11px] bg-red-200 text-red-900 px-2 py-0.5 rounded-full font-mono">
+              {leakedLeads.length} casos urgentes
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+            {leakedLeads.map((item, idx) => (
+              <div key={idx} className="bg-white border border-red-100 p-2.5 rounded-md flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-brand-text-primary">{item.contactName}</p>
+                  <p className="text-[11px] text-slate-500 font-mono">{item.contactPhone}</p>
+                  <p className="text-[10px] text-slate-400 truncate max-w-xs mt-0.5">"{item.lastMessageSnippet}"</p>
+                </div>
+                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200 shrink-0 ml-2">
+                  hace {item.hoursWithoutResponse}h
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tabla de Rendimiento por Vendedor */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-brand-border text-brand-text-secondary font-bold uppercase tracking-wider text-[10px]">
+              <th className="py-2.5 px-3">Vendedor / Ejecutivo</th>
+              <th className="py-2.5 px-2 text-right">Leads Asignados</th>
+              <th className="py-2.5 px-2 text-right">Leads Ganados</th>
+              <th className="py-2.5 px-2 text-right">Conversión (%)</th>
+              <th className="py-2.5 px-2 text-right">TTFR Medio</th>
+              <th className="py-2.5 px-3 text-right">Leads en Fuga</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teamMetrics.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="py-4 text-center text-brand-text-secondary italic">
+                  No hay datos de vendedores registrados aún.
+                </td>
+              </tr>
+            ) : (
+              teamMetrics.map((v) => (
+                <tr key={v.userId} className="border-b border-brand-border/40 hover:bg-gray-50/50">
+                  <td className="py-2.5 px-3 font-semibold text-brand-text-primary">
+                    <p>{v.name}</p>
+                    <p className="text-[10px] text-slate-400 font-normal">{v.email}</p>
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono">{v.assignedCount}</td>
+                  <td className="py-2.5 px-2 text-right font-mono font-bold text-emerald-700">{v.wonCount}</td>
+                  <td className="py-2.5 px-2 text-right font-mono font-bold">{v.conversionRate}%</td>
+                  <td className="py-2.5 px-2 text-right font-mono">{v.ttfrMinutes} min</td>
+                  <td className={`py-2.5 px-3 text-right font-mono font-bold ${v.leakedLeadsCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                    {v.leakedLeadsCount}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

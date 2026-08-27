@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 14: Hub Omnicanal (WhatsApp, Instagram Direct, Facebook Messenger), Agentes IA Autónomos ("El Cerebro"), Analítica de SLA y Motor de Remarketing ICP (2026-08-27)
+- **Hub Omnicanal Integral (WhatsApp, Instagram Direct y Facebook Messenger)**:
+  - Soporte multi-canal en `api-whatsapp-webhook.js` para procesar payloads de Meta Graph API v19.0+ correspondientes a `whatsapp_business_account`, `object: 'instagram'` y `object: 'page'` (Messenger).
+  - Normalización unificada de contactos, hilos de chat y creación automática de leads con origen discriminado (`source: 'whatsapp' | 'instagram' | 'facebook'`).
+  - Badges distintivos por canal en tarjetas de chat del Inbox (WA verde, IG rosa/violeta, FB azul) y selector de filtrado por canal.
+- **"El Cerebro Empresarial" y Base de Conocimiento Multi-Tenant (`models/AiBrain.js`, `api-whatsapp.js`, `SettingsPage.jsx`)**:
+  - Colección `ai_brain` en MongoDB Atlas con aislamiento por `clientId`.
+  - Panel interactivo en `/app/settings` ("Equipo IA") para configurar Rubro y Tono de Voz, Base de Conocimiento (Servicios, Precios, FAQs y Políticas), y Reglas de Calificación de Prospectos.
+  - Endpoints `GET /api/whatsapp/brain` y `PUT /api/whatsapp/brain` para persistencia en tiempo real.
+- **Agentes Autónomos Calificador y Setter con Hand-off Humano (`agentEngine.js`)**:
+  - Motor de evaluación contextual que analiza mensajes entrantes en leads nuevos (`stage: 'new'`).
+  - Respuestas fundamentadas en la base de conocimiento y promoción automática de prospectos a etapa `qualified` (`CALIFICADO`) en el pipeline comercial cuando se detecta presupuesto/interés concreto.
+  - Detección de frustración o consultas complejas con silenciado automático del bot (`isBotMuted: true`), registro de actividad `bot_handoff` y botón de control manual en la cabecera del chat.
+- **Analizador Conversacional y Rendimiento de SLA (`api-team-sla.js`, `RevenueDashboardPage.jsx`)**:
+  - Cálculo de Tiempo de Primera Respuesta (TTFR), tasa de conversión de leads ganados (`won`) por vendedor y métricas globales del equipo comercial.
+  - **Alerta Roja de Fuga de Leads**: Detección y notificación urgente de prospectos calificados con más de 12 horas sin respuesta de un agente humano.
+  - Sección interactiva en el Dashboard de Revenue (`RevenueDashboardPage.jsx`).
+- **Motor de Remarketing y Perfil de Cliente Ideal (ICP) (`api-audiences-export.js`, `CampaignsPage.jsx`)**:
+  - Exportador directo de audiencias personalizadas para Meta Ads en formato CSV canónico (`email,phone,fn,ln,country,value`) con teléfonos E.164.
+  - Botón "Exportar Audiencias Meta" en `/app/campaigns` para descargar prospectos ganados, perdidos o estancados.
+- **Suite de Pruebas Automatizadas**:
+  - Agregadas 3 nuevas suites (`agent-brain.test.js`, `omnichannel-webhook.test.js`, `team-sla.test.js`) con validación al 100% de webhook omnicanal, motor de IA, cálculo de SLA y exportación de audiencias CSV.
+
 ### Added — Stage 13: Bandeja de Entrada Omnicanal (Inbox) de WhatsApp Cloud API con Tiempo Real y Pipeline Comercial (2026-08-27)
 - **Bandeja de Entrada Omnicanal Clon UX/UI "MB Suite" (`WhatsAppInboxPage.jsx`)**:
   - **Panel Izquierdo (Lista de Chats)**: Dropdown verde de selección de líneas activas (`+54 9 11...`) con opciones de "+ Agregar otro número" y "Gestionar plantillas"; buscador en tiempo real por nombre o teléfono; filtros rápidos ("Todos", "No leídos" con badge contador, "Archivados"); filtros secundarios por Vendedor y Etiquetas; lista interactiva de tarjetas con avatar, nombre, teléfono, checks de lectura (`✓`/`✓✓` en azul/gris), preview de mensaje y badge de línea/pipeline.

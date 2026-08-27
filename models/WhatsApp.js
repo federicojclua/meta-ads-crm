@@ -1,3 +1,4 @@
+export const CHANNELS = ['whatsapp', 'instagram', 'facebook'];
 export const WA_LINE_STATUSES = ['active', 'disconnected', 'pending_verification'];
 export const WA_CHAT_STATUSES = ['active', 'archived'];
 export const WA_MESSAGE_DIRECTIONS = ['inbound', 'outbound'];
@@ -17,7 +18,7 @@ export function normalizePhoneNumber(phone) {
 }
 
 /**
- * Validates a WhatsApp Line document.
+ * Validates a WhatsApp/Omnichannel Line document.
  * @param {Object} data
  * @returns {{ isValid: boolean, errors: string[] }}
  */
@@ -25,19 +26,23 @@ export function validateWaLine(data) {
   const errors = [];
 
   if (!data.clientId) {
-    errors.push('El campo clientId es obligatorio para vincular la línea de WhatsApp.');
+    errors.push('El campo clientId es obligatorio para vincular la línea.');
   }
 
   if (!data.phoneNumberId || typeof data.phoneNumberId !== 'string' || data.phoneNumberId.trim().length === 0) {
-    errors.push('El Phone Number ID de Meta Cloud API es obligatorio.');
+    errors.push('El ID del canal / Phone Number ID de Meta Cloud API es obligatorio.');
   }
 
   if (!data.displayPhoneNumber || typeof data.displayPhoneNumber !== 'string' || data.displayPhoneNumber.trim().length === 0) {
-    errors.push('El número de teléfono visible (displayPhoneNumber) es obligatorio.');
+    errors.push('El número o identificador visible es obligatorio.');
   }
 
   if (data.status && !WA_LINE_STATUSES.includes(data.status)) {
     errors.push(`Estado de línea inválido. Debe ser uno de: ${WA_LINE_STATUSES.join(', ')}`);
+  }
+
+  if (data.channel && !CHANNELS.includes(data.channel)) {
+    errors.push(`Canal inválido. Debe ser uno de: ${CHANNELS.join(', ')}`);
   }
 
   return {
@@ -61,6 +66,7 @@ export function sanitizeWaLine(doc) {
     wabaId: doc.wabaId || null,
     displayPhoneNumber: doc.displayPhoneNumber,
     name: doc.name || doc.displayPhoneNumber,
+    channel: doc.channel || 'whatsapp',
     status: doc.status || 'active',
     qualityRating: doc.qualityRating || 'GREEN',
     isDefault: Boolean(doc.isDefault),
@@ -70,7 +76,7 @@ export function sanitizeWaLine(doc) {
 }
 
 /**
- * Validates a WhatsApp Chat thread.
+ * Validates a Chat thread.
  * @param {Object} data
  * @returns {{ isValid: boolean, errors: string[] }}
  */
@@ -82,11 +88,15 @@ export function validateWaChat(data) {
   }
 
   if (!data.contactPhone || typeof data.contactPhone !== 'string' || data.contactPhone.trim().length === 0) {
-    errors.push('El teléfono del contacto es obligatorio.');
+    errors.push('El teléfono o identificador del contacto es obligatorio.');
   }
 
   if (data.status && !WA_CHAT_STATUSES.includes(data.status)) {
     errors.push(`Estado del chat inválido. Debe ser uno de: ${WA_CHAT_STATUSES.join(', ')}`);
+  }
+
+  if (data.channel && !CHANNELS.includes(data.channel)) {
+    errors.push(`Canal del chat inválido. Debe ser uno de: ${CHANNELS.join(', ')}`);
   }
 
   return {
@@ -96,7 +106,7 @@ export function validateWaChat(data) {
 }
 
 /**
- * Sanitizes a WhatsApp Chat document for API output.
+ * Sanitizes a Chat document for API output.
  * @param {Object} doc
  * @returns {Object}
  */
@@ -108,9 +118,12 @@ export function sanitizeWaChat(doc) {
     clientId: doc.clientId?.toString() || doc.clientId,
     lineId: doc.lineId?.toString() || doc.lineId,
     lineDisplayNumber: doc.lineDisplayNumber || null,
+    channel: doc.channel || 'whatsapp',
     contactPhone: doc.contactPhone,
     contactName: doc.contactName || doc.contactPhone,
     unreadCount: Number(doc.unreadCount) || 0,
+    isBotMuted: Boolean(doc.isBotMuted),
+    botLastIntervenedAt: doc.botLastIntervenedAt || null,
     lastMessage: doc.lastMessage ? {
       text: doc.lastMessage.text || '',
       type: doc.lastMessage.type || 'text',
@@ -145,7 +158,7 @@ export function sanitizeWaChat(doc) {
 }
 
 /**
- * Validates a WhatsApp Message.
+ * Validates a Message.
  * @param {Object} data
  * @returns {{ isValid: boolean, errors: string[] }}
  */
@@ -179,7 +192,7 @@ export function validateWaMessage(data) {
 }
 
 /**
- * Sanitizes a WhatsApp Message document for API output.
+ * Sanitizes a Message document for API output.
  * @param {Object} doc
  * @returns {Object}
  */
@@ -191,6 +204,7 @@ export function sanitizeWaMessage(doc) {
     clientId: doc.clientId?.toString() || doc.clientId,
     chatId: doc.chatId?.toString() || doc.chatId,
     wamid: doc.wamid || null,
+    channel: doc.channel || 'whatsapp',
     direction: doc.direction || 'inbound',
     type: doc.type || 'text',
     text: doc.text || '',

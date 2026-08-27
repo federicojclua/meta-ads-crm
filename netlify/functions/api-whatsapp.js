@@ -534,7 +534,120 @@ export async function handler(event) {
       });
     }
 
-    return errorResponse(404, 'Ruta de WhatsApp no encontrada.', 'NOT_FOUND');
+    // ----------------------------------------------------
+    // ROUTE 6: /api/whatsapp/chats/:chatId/toggle-bot (POST)
+    // ----------------------------------------------------
+    if (segments[0] === 'chats' && segments[2] === 'toggle-bot' && method === 'POST') {
+      const chatIdRaw = segments[1];
+      if (!ObjectId.isValid(chatIdRaw)) {
+        return errorResponse(400, 'ID de chat inválido.', 'INVALID_CHAT_ID');
+      }
+
+      const chatId = new ObjectId(chatIdRaw);
+      const chatQuery = buildTenantFilter({ _id: chatId });
+      const chat = await chatsCollection.findOne(chatQuery);
+
+      if (!chat) {
+        return errorResponse(404, 'Chat no encontrado.', 'CHAT_NOT_FOUND');
+      }
+
+      const newMutedState = !Boolean(chat.isBotMuted);
+      await chatsCollection.updateOne(
+        { _id: chatId },
+        { $set: { isBotMuted: newMutedState, updatedAt: now } }
+      );
+
+      return jsonResponse(200, {
+        ok: true,
+        isBotMuted: newMutedState,
+        message: newMutedState ? 'Bot IA silenciado para este chat.' : 'Bot IA reactivado para este chat.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // ROUTE 7: /api/whatsapp/brain (GET, PUT)
+    // ----------------------------------------------------
+    if (segments[0] === 'brain') {
+      const brainCollection = db.collection('ai_brain');
+      const targetClientId = isGlobal
+        ? ((event.queryStringParameters || {}).clientId || clientScope)
+        : clientScope;
+
+      if (!targetClientId) {
+        return errorResponse(400, 'clientId es requerido para acceder al Cerebro IA.', 'CLIENT_ID_REQUIRED');
+      }
+
+      const clientIdObj = ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId;
+
+      if (method === 'GET') {
+        let brain = await brainCollection.findOne({ clientId: clientIdObj });
+        if (!brain) {
+          const defaultBrainDoc = {
+            clientId: clientIdObj,
+            industryAndTone: 'Agencia de Marketing Digital y Publicidad. Personalidad: Amable, consultiva y orientada a resultados.',
+            knowledgeBase: 'Servicios: Meta Ads, Google Ads, SEO Local y Analítica de Ventas.\nPresupuesto base: $150.000 ARS/mes.',
+            qualificationRules: 'Extraer objetivo de negocio, presupuesto disponible y teléfono/email de contacto.',
+            autoQualifyEnabled: true,
+            autoSetterEnabled: true,
+            createdAt: now,
+            updatedAt: now,
+          };
+          const ins = await brainCollection.insertOne(defaultBrainDoc);
+          brain = { _id: ins.insertedId, ...defaultBrainDoc };
+        }
+
+        return jsonResponse(200, {
+          ok: true,
+          brain: {
+            id: brain._id?.toString(),
+            clientId: brain.clientId?.toString(),
+            industryAndTone: brain.industryAndTone,
+            knowledgeBase: brain.knowledgeBase,
+            qualificationRules: brain.qualificationRules,
+            autoQualifyEnabled: Boolean(brain.autoQualifyEnabled),
+            autoSetterEnabled: Boolean(brain.autoSetterEnabled),
+            idealCustomerProfile: brain.idealCustomerProfile || null,
+            updatedAt: brain.updatedAt,
+          },
+        });
+      }
+
+      if (method === 'PUT') {
+        let body = {};
+        try {
+          body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body || {};
+        } catch {
+          return errorResponse(400, 'Payload JSON inválido.', 'INVALID_JSON');
+        }
+
+        const updateData = {
+          industryAndTone: (body.industryAndTone || '').trim(),
+          knowledgeBase: (body.knowledgeBase || '').trim(),
+          qualificationRules: (body.qualificationRules || '').trim(),
+          autoQualifyEnabled: body.autoQualifyEnabled !== undefined ? Boolean(body.autoQualifyEnabled) : true,
+          autoSetterEnabled: body.autoSetterEnabled !== undefined ? Boolean(body.autoSetterEnabled) : true,
+          updatedAt: now,
+        };
+
+        await brainCollection.updateOne(
+          { clientId: clientIdObj },
+          { $set: updateData },
+          { upsert: true }
+        );
+
+        const updatedBrain = await brainCollection.findOne({ clientId: clientIdObj });
+        return jsonResponse(200, {
+          ok: true,
+          brain: {
+            id: updatedBrain._id?.toString(),
+            clientId: updatedBrain.clientId?.toString(),
+            ...updateData,
+          },
+        });
+      }
+    }
+
+    return errorResponse(404, 'Ruta de WhatsApp/Omnicanal no encontrada.', 'NOT_FOUND');
   } catch (err) {
     console.error('[API_WHATSAPP_ERROR]', err);
     return errorResponse(500, 'Error interno procesando solicitud de WhatsApp.', 'INTERNAL_SERVER_ERROR');
