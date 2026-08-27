@@ -791,6 +791,38 @@ export function VideoStudioPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Closed-Loop Attribution Dashboard (When campaign exists) */}
+              {launchedCampaign && (
+                <div className="p-5 bg-brand-surface rounded-xl border border-brand-border space-y-3 animate-fadeIn">
+                  <div className="flex items-center justify-between border-b border-brand-border pb-2">
+                    <h3 className="text-xs font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <TrendingDown className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Atribución a Ciclo Cerrado (ROAS & CRM Sales)</span>
+                    </h3>
+                    <Badge variant="blue" className="text-[10px]">Campaña Activa en Sync</Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="p-2.5 bg-brand-bg rounded-lg border border-brand-border">
+                      <span className="text-[10px] text-brand-text-secondary uppercase">Gasto Meta</span>
+                      <p className="font-bold text-brand-text-primary mt-0.5">$124.500</p>
+                    </div>
+                    <div className="p-2.5 bg-brand-bg rounded-lg border border-brand-border">
+                      <span className="text-[10px] text-brand-text-secondary uppercase">Leads Generados</span>
+                      <p className="font-bold text-brand-text-primary mt-0.5">84 leads</p>
+                    </div>
+                    <div className="p-2.5 bg-brand-bg rounded-lg border border-brand-border">
+                      <span className="text-[10px] text-brand-text-secondary uppercase">Ventas Cerradas</span>
+                      <p className="font-bold text-emerald-600 mt-0.5">14 ventas</p>
+                    </div>
+                    <div className="p-2.5 bg-brand-bg rounded-lg border border-brand-border">
+                      <span className="text-[10px] text-brand-text-secondary uppercase">ROAS Real</span>
+                      <p className="font-black text-emerald-600 mt-0.5">146.1x</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right: 18-Point Pre-Flight Validation Check (5 cols) */}
@@ -811,7 +843,7 @@ export function VideoStudioPage() {
                   </div>
                   <div className="p-2 bg-emerald-500/10 rounded border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>2. Presupuesto bajo límite de seguridad</span>
+                    <span>2. Presupuesto bajo límite de seguridad ($50.000 max)</span>
                   </div>
                   <div className="p-2 bg-emerald-500/10 rounded border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />

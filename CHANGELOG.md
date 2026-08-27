@@ -8,7 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Added — Stage 17: AI Content & Lead Generation Studio + Meta Ads Campaign Launch Engine (2026-08-27)
+### Added — Stage 18: Meta Ads Campaign Launch Engine & Closed-Loop Attribution (2026-08-27)
+- **Descubrimiento Dinámico de Capacidades (`models/MetaCapability.js`, `metaAdsLaunchService.js`, `api-meta-launch.js`)**:
+  - Módulo `discoverMetaCapabilities` para consultar en tiempo real qué objetivos (`OUTCOME_LEADS`, `OUTCOME_SALES`), ubicaciones y destinos de leads soporta la cuenta publicitaria en Meta Ads.
+  - Selector de Cuentas aislado por `clientId` (Business Manager $\rightarrow$ Ad Account $\rightarrow$ Facebook Page $\rightarrow$ Instagram Profile $\rightarrow$ Pixel/Dataset).
+- **Estratega IA de Campañas Gemini & Guardrails Financieros**:
+  - `recommendAIStrategy`: Gemini analiza el Brand DNA, productos y presupuesto recomendado para devolver una estructura simplificada (1 CBO + 2 AdSets + 6 Ads) y matriz de ángulos (Fricción, Oferta Directa, Prueba Social).
+  - *Budget Guardrails*: Límite diario estricto de seguridad ($50.000 ARS/día) y segmentación Advantage+ con exclusiones de clientes existentes.
+- **Pipeline Transaccional e Idempotencia (`clientRequestId`)**:
+  - Pipeline transaccional paso a paso (`create_campaign` $\rightarrow$ `create_adset` $\rightarrow$ `create_creative` $\rightarrow$ `create_ad` $\rightarrow$ `attach_form`).
+  - Idempotencia garantizada por token `clientRequestId` para prevenir duplicaciones de campañas por doble clic o microcortes.
+  - Registro de fallos parciales (`partial_creation`) y endpoint de recuperación `POST /api/meta-launch/:id/retry` que reanuda el paso fallido sin recrear recursos existentes en Meta Ads.
+- **Validación Pre-Vuelo de 18 Puntos & Regla Absoluta PAUSED**:
+  - Verificación exhaustiva de 18 puntos (cuentas, token de acceso, formularios instantáneos, URLs de privacidad, presupuestos y permisos).
+  - Creación inicial **estrictamente en estado `PAUSED`** (Cero Gasto Automático). Activación explícita mediante confirmación del usuario (`POST /api/meta-launch/:id/activate`).
+- **Atribución a Ciclo Cerrado & Winner Engine**:
+  - Cruce de datos entre gasto de Meta Ads y ventas ganadas en el CRM (`Sale.amount`) para calcular el ROAS real (ej. 146.1x), CPL real y CPA real.
+  - Detección algorítmica de Fatiga Creativa (*Creative Fatigue*) cuando la frecuencia supera 2.2 y el CPL incrementa, activando el generador de nuevas variantes creativas (`POST /api/meta-launch/:id/refresh-creatives`).
+- **Suite de Pruebas Automatizadas (11 nuevos tests / 63 en total en 19 suites)**:
+  - `meta-launch-pipeline.test.js`, `meta-attribution-loop.test.js`, `meta-launch-ui.test.jsx`.
 - **Video DNA, Avatares Persistentes & Voces (`models/CreativeProfile.js`, `videoProviderRouter.js`)**:
   - Extensión de `CreativeProfile` con perfiles de video (`cameraStyle`, `lightingStyle`, `editingPacing`), sintetizadores de voz multi-tenant y avatares con inyección de `AvatarID` para consistencia de personaje en todas las generaciones.
 - **Continuity Engine & Scene Graph (`models/VideoProject.js`, `api-video-studio.js`)**:

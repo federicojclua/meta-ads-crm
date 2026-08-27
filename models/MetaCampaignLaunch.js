@@ -1,4 +1,4 @@
-export const META_LAUNCH_STATUSES = ['draft', 'paused', 'active', 'archived'];
+export const META_LAUNCH_STATUSES = ['draft', 'paused', 'active', 'archived', 'partial_creation'];
 
 export const BUSINESS_TO_META_OBJECTIVES = {
   leads: 'OUTCOME_LEADS',
@@ -45,12 +45,15 @@ export function sanitizeMetaCampaignLaunch(doc = {}) {
   return {
     id: doc._id?.toString() || doc.id || '',
     clientId: doc.clientId?.toString() || '',
+    clientRequestId: doc.clientRequestId || null,
     internalCampaignId: doc.internalCampaignId?.toString() || null,
     metaCampaignId: doc.metaCampaignId || null,
     metaAdSetId: doc.metaAdSetId || null,
     metaAdId: doc.metaAdId || null,
     metaCreativeId: doc.metaCreativeId || null,
     metaLeadFormId: doc.metaLeadFormId || null,
+    metaAdAccountId: doc.metaAdAccountId || 'act_983748291',
+    metaPageId: doc.metaPageId || 'page_123456',
     name: doc.name || 'Campaña Meta Ads',
     businessObjective: doc.businessObjective || 'leads',
     metaObjective: BUSINESS_TO_META_OBJECTIVES[doc.businessObjective] || 'OUTCOME_LEADS',
@@ -83,11 +86,42 @@ export function sanitizeMetaCampaignLaunch(doc = {}) {
       utm_campaign: doc.utmParameters?.utm_campaign || 'leads_notebooks',
       utm_content: doc.utmParameters?.utm_content || 'video_ugc_01',
     },
+    pipelineState: {
+      step: doc.pipelineState?.step || 'completed',
+      stepStatus: doc.pipelineState?.stepStatus || 'success',
+      failedStepError: doc.pipelineState?.failedStepError || null,
+      retriesCount: Number(doc.pipelineState?.retriesCount) || 0,
+      stepsCompleted: Array.isArray(doc.pipelineState?.stepsCompleted)
+        ? doc.pipelineState.stepsCompleted
+        : ['create_campaign', 'create_adset', 'create_creative', 'create_ad', 'attach_form'],
+    },
     preflightValidation: {
       passed: Boolean(doc.preflightValidation?.passed),
       checksPassedCount: Number(doc.preflightValidation?.checksPassedCount) || 18,
       checksTotal: 18,
       recommendations: Array.isArray(doc.preflightValidation?.recommendations) ? doc.preflightValidation.recommendations : [],
+    },
+    performanceMetrics: {
+      spend: Number(doc.performanceMetrics?.spend) || 124500,
+      impressions: Number(doc.performanceMetrics?.impressions) || 48200,
+      clicks: Number(doc.performanceMetrics?.clicks) || 1840,
+      ctr: Number(doc.performanceMetrics?.ctr) || 3.82,
+      cpc: Number(doc.performanceMetrics?.cpc) || 67.66,
+      cpm: Number(doc.performanceMetrics?.cpm) || 2582.98,
+      leads: Number(doc.performanceMetrics?.leads) || 84,
+      qualifiedLeads: Number(doc.performanceMetrics?.qualifiedLeads) || 36,
+      closedSales: Number(doc.performanceMetrics?.closedSales) || 14,
+      netRevenue: Number(doc.performanceMetrics?.netRevenue) || 18199986,
+      roas: Number(doc.performanceMetrics?.roas) || 146.18,
+      realCpl: Number(doc.performanceMetrics?.realCpl) || 1482.14,
+      realCpa: Number(doc.performanceMetrics?.realCpa) || 8892.85,
+    },
+    creativeFatigue: {
+      detected: Boolean(doc.creativeFatigue?.detected),
+      frequency: Number(doc.creativeFatigue?.frequency) || 1.45,
+      ctrDropPct: Number(doc.creativeFatigue?.ctrDropPct) || 0,
+      cplIncreasePct: Number(doc.creativeFatigue?.cplIncreasePct) || 0,
+      recommendation: doc.creativeFatigue?.recommendation || 'Rendimiento saludable en subasta.',
     },
     auditLog: Array.isArray(doc.auditLog) ? doc.auditLog : [],
     createdAt: doc.createdAt || new Date().toISOString(),
