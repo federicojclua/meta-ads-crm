@@ -8,6 +8,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 13: Bandeja de Entrada Omnicanal (Inbox) de WhatsApp Cloud API con Tiempo Real y Pipeline Comercial (2026-08-27)
+- **Bandeja de Entrada Omnicanal Clon UX/UI "MB Suite" (`WhatsAppInboxPage.jsx`)**:
+  - **Panel Izquierdo (Lista de Chats)**: Dropdown verde de selección de líneas activas (`+54 9 11...`) con opciones de "+ Agregar otro número" y "Gestionar plantillas"; buscador en tiempo real por nombre o teléfono; filtros rápidos ("Todos", "No leídos" con badge contador, "Archivados"); filtros secundarios por Vendedor y Etiquetas; lista interactiva de tarjetas con avatar, nombre, teléfono, checks de lectura (`✓`/`✓✓` en azul/gris), preview de mensaje y badge de línea/pipeline.
+  - **Panel Central (Conversación Activa)**: Cabecera con datos del contacto, indicador de estado y botones de acción rápida; ventana de conversación con burbujas WhatsApp (esmeralda saliente y neutro entrante), timestamps, checks de entrega y auto-scroll; input bar con textarea multilínea (Enter para enviar) y botón de envío.
+  - **Panel Derecho (Contexto Comercial CRM)**: Ficha de datos del lead, selector interactivo de Etapa en el Pipeline Kanban (`NUEVO`, `CONTACTADO`, `CALIFICADO`, `GANADO`, `PERDIDO`), etiquetas asociadas, editor de notas internas rápidas y botón directo a la ficha del CRM.
+- **Infraestructura de Webhook Meta WhatsApp Cloud API (`api-whatsapp-webhook.js`)**:
+  - Endpoint `GET`: Handshake y verificación criptográfica de Meta (`hub.mode`, `hub.verify_token`, `hub.challenge`).
+  - Endpoint `POST`: Ingesta y normalización de eventos de mensajes entrantes y actualizaciones de estado (`sent`, `delivered`, `read`).
+  - **Regla 1 de Sinergia con el Pipeline**: Creación automática e inmediata de un Lead en etapa `new` (`NUEVO`) en la colección `leads` cuando un número nuevo envía un mensaje, vinculando el prospecto y registrando la actividad en el CRM.
+  - Respuesta instantánea HTTP 200 `{ status: 'EVENT_RECEIVED' }` para evitar bucles de reintento en los servidores de Meta.
+- **Motor de Mensajería & Endpoints Serverless (`api-whatsapp.js`)**:
+  - `GET /api/whatsapp/lines`: Consulta de líneas conectadas por empresa (`clientId`).
+  - `POST /api/whatsapp/lines`: Conexión y registro de nuevas líneas telefónicas (`phoneNumberId`, `wabaId`, `displayPhoneNumber`).
+  - `GET /api/whatsapp/chats`: Consulta de hilos con filtrado por línea, término de búsqueda, vendedor, etiquetas y estado.
+  - `GET /api/whatsapp/chats/:chatId/messages`: Historial paginado de mensajes y reseteo automático del contador de no leídos (`unreadCount: 0`).
+  - `POST /api/whatsapp/send`: Despacho de mensajes salientes a la API oficial de Meta Graph (`v19.0+`) o simulación en sandbox, persistencia de mensaje y registro de actividad en el Lead.
+  - `PATCH /api/whatsapp/chats/:chatId`: Actualización de estado del chat, etiquetas, asignación de vendedor y sincronización bidireccional con la etapa del Lead en el Kanban.
+- **Modelos de Datos y Normalización E.164 (`models/WhatsApp.js`)**:
+  - Colecciones `wa_lines`, `wa_chats` y `wa_messages` con validadores y sanitizadores de esquemas.
+  - Normalizador canónico `normalizePhoneNumber` que garantiza formato internacional estándar con `+` (ej: `+5491144556677`).
+- **Preparación para Etapa 14 (Equipo IA en `SettingsPage.jsx`)**:
+  - Añadida sección "Equipo IA" en Ajustes con tarjetas y toggles para el "Agente Calificador de Prospectos" y "Agente Setter de Citas".
+- **Internacionalización Completa (i18n)**:
+  - Diccionarios bilingües en español (`es`) e inglés (`en`) para todas las cadenas de texto del Inbox en `LanguageContext.jsx`.
+- **Suite de Pruebas Automatizadas (41 suites, 316 tests)**:
+  - Agregadas 16 pruebas unitarias, de webhook, de validación multi-tenant y de frontend (`whatsapp-webhook.test.js`, `whatsapp-security.test.js`, `whatsapp-backend.test.js`, `whatsapp-frontend.test.jsx`) con 100% de éxito en todo el proyecto.
+
 ### Added — Stage 11: Copiloto de Revenue Intelligence con IA (2026-08-27)
 - **Asistente Estratégico de Solo Lectura & Control Humano**: Diseñado e implementado el Copiloto de Revenue Intelligence como un asistente analítico estrictamente consultivo (sin permisos de escritura en campañas ni en base de datos), conservando siempre la supervisión y control del usuario.
 - **Aislamiento Multi-Tenant Estricto (Threat Model)**: Aislamiento forzado donde el `clientId` es extraído exclusivamente de la sesión verificada en backend (Firebase Auth). Si el usuario es administrador global, la empresa seleccionada se valida rigurosamente; si es cliente/inquilino, queda encapsulado a su propio `clientScope`. Cero inyección de queries MongoDB dinámicas.

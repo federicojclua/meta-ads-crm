@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   Lock,
+  Sparkles,
 } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -468,6 +469,68 @@ export function SettingsPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Equipo IA (Agentes Autónomos para WhatsApp Inbox) */}
+      <div className="bg-white p-6 border border-brand-border rounded-lg shadow-subtle space-y-6">
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <span>Equipo IA (Agentes Autónomos de WhatsApp)</span>
+            </h3>
+            <Badge variant="primary" className="text-[10px]">
+              Etapa 14 Ready
+            </Badge>
+          </div>
+          <p className="text-xs text-brand-text-secondary mt-1">
+            Configuración y activación de agentes inteligentes para intervenir y calificar prospectos en el Inbox de WhatsApp.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Calificador */}
+          <div className="p-4 border border-brand-border rounded-lg bg-slate-50/70 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                  🎯
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-brand-text-primary">Calificador de Prospectos</h4>
+                  <p className="text-[11px] text-brand-text-secondary">Evalúa presupuesto y necesidad</p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                Listo
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Detecta el interés del prospecto en las primeras interacciones y actualiza automáticamente su etapa a "CALIFICADO" en el Kanban.
+            </p>
+          </div>
+
+          {/* Setter */}
+          <div className="p-4 border border-brand-border rounded-lg bg-slate-50/70 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                  📅
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-brand-text-primary">Setter de Citas</h4>
+                  <p className="text-[11px] text-brand-text-secondary">Coordina reuniones y llamadas</p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
+                Listo
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Propone horarios y disponibilidad del equipo comercial cuando el prospecto solicita una demostración o reunión.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

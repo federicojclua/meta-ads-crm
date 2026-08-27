@@ -10,6 +10,7 @@ import {
   Sparkles,
   Globe,
   Bot,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -26,6 +27,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
     ...(userProfile && ['super_admin', 'admin'].includes(userProfile.role)
       ? [{ name: t('sidebar.admin'), href: '/app/admin', icon: ShieldCheck }]
       : []),
+    { name: t('sidebar.whatsappInbox'), href: '/app/whatsapp', icon: MessageSquare },
     { name: t('sidebar.leads'), href: '/app/leads', icon: Users },
     { name: t('sidebar.campaigns'), href: '/app/campaigns', icon: Megaphone },
     { name: t('sidebar.socialAnalyzer'), href: '/app/social-analyzer', icon: Sparkles },
