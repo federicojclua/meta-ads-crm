@@ -36,6 +36,7 @@ export function createGoogleSourceDocument(data, createdByUserId) {
     phone: data.phone?.trim() || '',
     category: data.category?.trim() || 'General',
     city: data.city?.trim() || '',
+    isProspectingMode: Boolean(data.isProspectingMode),
     
     // Connected Google Services Identifiers (Authorized)
     googleBusinessProfile: {

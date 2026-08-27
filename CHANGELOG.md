@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added — Stage 9: Google Intelligence, SEO Local, Reseñas y Competencia (2026-08-27)
+- **Modo Prospección (Sin Credenciales Administrativas)**: Agregado switch en modal de vinculación y bandera `isProspectingMode` en `GoogleSource` para evaluar y auditar clientes potenciales usando únicamente sus métricas públicas de Google Places antes de firmar contrato.
+- **Prompt Maestro de Radiografía de Lead & Closer de Ventas**: Generador de diagnósticos para prospección comercial con 1-clic de copiado estructurado en: 1) Matriz de Esfuerzo vs. Recompensa (ALTO/MEDIO/BAJO), 2) Puntos Ciegos / La Herida (3 vulnerabilidades críticas), y 3) Ángulo de Venta / El Cierre (guion exacto de 2 párrafos para WhatsApp o reuniones) con integración a Kommo CRM.
+- **Prompt Maestro para Estrategia SEO/SEM (Anima MKT Digital)**: Botón interactivo de copiado pre-cargado con métricas consolidadas y plan táctico de 3 tareas técnicas y 3 acciones comerciales para seguimiento en pipeline.
 - **Modelos de Datos y Aislamiento Multi-Tenant**: Creadas colecciones `google_sources`, `google_reviews`, `google_snapshots`, `google_competitors` y `google_analyses` con validación estricta de esquemas y aislamiento por `clientId`.
 - **Motor Matemático Determinista (`googleMetrics.js`)**: Cálculo puro de calificación promedio, distribución de estrellas (1-5), tasa de respuesta, tiempo medio de respuesta en horas, CTR orgánico medio, posición media en Search Console, detección de consultas de alto alcance/bajo CTR y radar competitivo local.
 - **Redactor Asistido de Respuestas a Reseñas con IA (`googleAi.js`)**: Generación de respuestas empáticas y educadas en modo **borrador editable** con protección anti-prompt injection (nunca auto-publicadas a Google).
@@ -16,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Endpoints Serverless con Rate Limiting (10 req/min)**: Implementados `api-google-sources.js`, `api-google-reviews.js`, `api-google-snapshots.js`, `api-google-competitors.js` y `api-google-ai.js` con purga segura en cascada al desconectar entidades.
 - **Interfaz Interactiva y Accesible (`GoogleIntelligencePage.jsx`)**: Vista multi-pestaña (Visión General, Ficha & Reseñas, SEO & Search Console, Tráfico & Ads, Radar Competitivo, Diagnóstico IA) con selector de empresas, redactor de respuestas y advertencias de atribución explícitas.
 - **Internacionalización Completa (i18n)**: Diccionarios bilingües en español (`es`) e inglés (`en`) para todos los componentes y métricas de Google Intelligence.
-- **Suite de Pruebas Automatizadas (32 suites, 277 tests)**: Agregadas 13 pruebas unitarias e integradas (`google-metrics.test.js`, `google-ai.test.js`, `google-backend.test.js` y `google-frontend.test.jsx`) con 100% de éxito en toda la suite.
+- **Suite de Pruebas Automatizadas (32 suites, 280 tests)**: Agregadas 16 pruebas unitarias e integradas (`google-metrics.test.js`, `google-ai.test.js`, `google-backend.test.js` y `google-frontend.test.jsx`) con 100% de éxito en toda la suite.
 
 ### Fixed — Stage 8 Social Analyzer Empty State & Auth Guard Hotfix (2026-08-27)
 - **Protección de Carga de Autenticación en `SocialAnalyzerPage.jsx`**: Incorporada la bandera `authLoading` en los efectos de carga inicial para evitar disparar peticiones prematuras a `/api/social/sources` antes de que el token de Firebase y el `userProfile` estén listos.

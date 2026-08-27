@@ -61,6 +61,7 @@ export async function handler(event) {
         phone: s.phone || '',
         category: s.category || 'General',
         city: s.city || '',
+        isProspectingMode: Boolean(s.isProspectingMode),
         googleBusinessProfile: s.googleBusinessProfile || {},
         searchConsole: s.searchConsole || {},
         googleAnalytics4: s.googleAnalytics4 || {},

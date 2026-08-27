@@ -244,4 +244,37 @@ describe('Stage 9 — Google Intelligence Multi-Tenant Backend APIs', () => {
     expect(body.analysis).toBeDefined();
     expect(body.analysis.aiReport.overallScore).toBeGreaterThanOrEqual(50);
   });
+
+  it('5. POST /api/google/sources guarda entidad en Modo Prospección sin requerir credenciales administrativas', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockClientUser,
+      db: mockDb,
+      clientScope: mockTenant1Id,
+      isGlobal: false,
+    });
+
+    const newId = new ObjectId('65df66666666666666666666');
+    mockSourcesCollection.insertOne.mockResolvedValueOnce({ insertedId: newId });
+
+    const event = {
+      httpMethod: 'POST',
+      path: '/api/google/sources',
+      body: JSON.stringify({
+        businessName: 'Grupo Novati SRL',
+        city: 'San Miguel de Tucumán',
+        category: 'Informática y Posnet',
+        isProspectingMode: true,
+      }),
+      headers: { authorization: 'Bearer mock-token' },
+    };
+
+    const res = await sourcesHandler(event);
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(body.source.isProspectingMode).toBe(true);
+    expect(body.source.businessName).toBe('Grupo Novati SRL');
+  });
 });

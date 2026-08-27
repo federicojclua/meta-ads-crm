@@ -69,6 +69,9 @@ export function GoogleIntelligencePage() {
     address: '',
     city: '',
     category: 'General',
+    isProspectingMode: false,
+    rating: 4.0,
+    userRatingsTotal: 10,
     locationId: '',
     siteUrl: '',
     ga4PropertyId: '',
@@ -313,6 +316,34 @@ Plan de Acción Táctico: Entrégame 3 tareas técnicas de desarrollo web y 3 ac
     setTimeout(() => setCopiedPrompt(false), 3000);
   };
 
+  // Copy Lead Radiography & Sales Closing Prompt (Prospecting Mode)
+  const handleCopyProspectPrompt = () => {
+    const text = `Actúa como un Director de Estrategia Digital y Closer de Ventas. Estamos evaluando a un prospecto para sumarlo como cliente. Solo tenemos acceso a su información pública de Google Places, no tenemos acceso a sus analíticas internas.
+
+Aquí están los datos públicos del prospecto:
+- Nombre: ${selectedSource?.businessName || 'Prospecto'}
+- Rubro: ${selectedSource?.category || 'General'}
+- Ciudad: ${selectedSource?.city || 'No especificada'}
+- Rating Promedio: ${repMetrics.averageRating || selectedSource?.googleBusinessProfile?.rating || 4.0} estrellas
+- Volumen de Reseñas: ${reviews.length || selectedSource?.googleBusinessProfile?.userRatingsTotal || 10} reseñas
+- Sitio Web: ${selectedSource?.websiteUrl || 'Sin sitio web / No especificado'}
+
+Necesito que analices este prospecto y me entregues un reporte brutalmente honesto dividido en estas 3 secciones:
+
+1. Matriz de Esfuerzo vs. Recompensa: Clasifica el desafío técnico de este cliente como ALTO, MEDIO o BAJO. ¿Está su reputación tan dañada que costará meses arreglarla, o es un diamante en bruto que solo necesita optimización SEO básica?
+
+2. Diagnóstico de Puntos Ciegos (La Herida): Enumera 3 vulnerabilidades críticas que tiene este negocio frente a su competencia por no estar gestionando su ficha ni midiendo su tráfico (ej: pérdida de conversiones locales, tráfico ciego, mala reputación no atendida).
+
+3. Ángulo de Venta (El Cierre): Dame el guion exacto de 2 párrafos para enviarle por WhatsApp o decirle en una reunión. El mensaje debe presionar sobre su punto débil de manera profesional y posicionar una auditoría de SEO Local y configuración de embudos como la única solución urgente.`;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+    setCopiedPrompt(true);
+    setSuccessMessage(t('googleIntelligence.aiStrategy.prospectPromptCopied'));
+    setTimeout(() => setCopiedPrompt(false), 3000);
+  };
+
   // Connect Google Form Submit
   const handleConnectSubmit = async (e) => {
     e.preventDefault();
@@ -326,20 +357,21 @@ Plan de Acción Táctico: Entrégame 3 tareas técnicas de desarrollo web y 3 ac
         address: connectForm.address,
         city: connectForm.city,
         category: connectForm.category,
+        isProspectingMode: !!connectForm.isProspectingMode,
         googleBusinessProfile: {
-          locationId: connectForm.locationId,
-          verified: !!connectForm.locationId,
-          rating: 4.8,
-          userRatingsTotal: 1,
+          locationId: connectForm.isProspectingMode ? '' : connectForm.locationId,
+          verified: !connectForm.isProspectingMode && !!connectForm.locationId,
+          rating: Number(connectForm.rating) || 4.8,
+          userRatingsTotal: Number(connectForm.userRatingsTotal) || 1,
         },
         searchConsole: {
-          siteUrl: connectForm.siteUrl,
+          siteUrl: connectForm.isProspectingMode ? '' : connectForm.siteUrl,
         },
         googleAnalytics4: {
-          propertyId: connectForm.ga4PropertyId,
+          propertyId: connectForm.isProspectingMode ? '' : connectForm.ga4PropertyId,
         },
         googleAds: {
-          customerId: connectForm.googleAdsCustomerId,
+          customerId: connectForm.isProspectingMode ? '' : connectForm.googleAdsCustomerId,
         },
       };
 
@@ -1260,6 +1292,57 @@ Plan de Acción Táctico: Entrégame 3 tareas técnicas de desarrollo web y 3 ac
                     </div>
                   </div>
 
+                  {/* Lead Radiography & Sales Closer Prompt Card (Prospecting / Closer) */}
+                  <div className="bg-gradient-to-r from-amber-500/5 via-amber-50 to-amber-500/5 border border-amber-300 rounded-xl p-5 shadow-2xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Flame className="w-5 h-5 text-amber-600" />
+                          <h3 className="text-sm font-bold text-brand-text-primary">
+                            {t('googleIntelligence.aiStrategy.prospectPromptTitle')}
+                          </h3>
+                          <Badge variant="warning">{t('googleIntelligence.aiStrategy.prospectBadge')}</Badge>
+                        </div>
+                        <p className="text-xs text-brand-text-secondary mt-1 max-w-2xl leading-relaxed">
+                          {t('googleIntelligence.aiStrategy.prospectPromptDesc')}
+                        </p>
+                      </div>
+
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleCopyProspectPrompt}
+                        className="flex items-center gap-1.5 shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        {copiedPrompt ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4 text-white" />}
+                        {copiedPrompt ? '¡Copiado!' : t('googleIntelligence.aiStrategy.copyProspectPrompt')}
+                      </Button>
+                    </div>
+
+                    {/* Radiography Prompt Preview */}
+                    <div className="bg-white p-3.5 rounded-lg border border-amber-200 text-[11px] font-mono text-brand-text-secondary leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+{`"Actúa como un Director de Estrategia Digital y Closer de Ventas. Estamos evaluando a un prospecto para sumarlo como cliente. Solo tenemos acceso a su información pública de Google Places, no tenemos acceso a sus analíticas internas.
+
+Aquí están los datos públicos del prospecto:
+- Nombre: ${selectedSource?.businessName || '[Nombre]'}
+- Rubro: ${selectedSource?.category || '[Rubro]'}
+- Ciudad: ${selectedSource?.city || '[Ciudad]'}
+- Rating Promedio: ${repMetrics.averageRating || selectedSource?.googleBusinessProfile?.rating || 4.0} estrellas
+- Volumen de Reseñas: ${reviews.length || selectedSource?.googleBusinessProfile?.userRatingsTotal || 10} reseñas
+- Sitio Web: ${selectedSource?.websiteUrl || '[Sitio Web]'}
+
+Necesito que analices este prospecto y me entregues un reporte brutalmente honesto dividido en estas 3 secciones:
+1. Matriz de Esfuerzo vs. Recompensa (ALTO / MEDIO / BAJO).
+2. Diagnóstico de Puntos Ciegos - La Herida (3 vulnerabilidades críticas).
+3. Ángulo de Venta - El Cierre (Guion exacto de 2 párrafos para WhatsApp o reunión comercial)."`}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] text-amber-900 font-medium">
+                      <span className="font-bold text-amber-700">Flujo Comercial:</span>
+                      <span>Cargar prospecto sin credenciales → Obtener Radiografía de Lead → Enviar guion de cierre → Crear lead en Kommo CRM.</span>
+                    </div>
+                  </div>
+
                   {/* Legal Disclaimer */}
                   <div className="p-3 bg-brand-bg rounded-lg border border-brand-border text-[11px] text-brand-text-secondary text-center">
                     {aiReport?.disclaimer}
@@ -1321,31 +1404,80 @@ Plan de Acción Táctico: Entrégame 3 tareas técnicas de desarrollo web y 3 ac
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-brand-text-primary block mb-1">
-                {t('googleIntelligence.modals.locationId')}
+            {/* Prospecting Mode Toggle Switch */}
+            <div className="p-3 bg-brand-bg rounded-lg border border-brand-border space-y-1">
+              <label className="flex items-center gap-2 text-xs font-bold text-brand-text-primary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={connectForm.isProspectingMode}
+                  onChange={(e) => setConnectForm({ ...connectForm, isProspectingMode: e.target.checked })}
+                  className="w-4 h-4 text-brand-primary rounded border-brand-border focus:ring-brand-primary"
+                />
+                {t('googleIntelligence.modals.prospectToggle')}
               </label>
-              <input
-                type="text"
-                value={connectForm.locationId}
-                onChange={(e) => setConnectForm({ ...connectForm, locationId: e.target.value })}
-                className="w-full text-xs p-2 rounded-lg border border-brand-border"
-                placeholder="Ej: locations/1234567890"
-              />
+              <p className="text-[11px] text-brand-text-secondary pl-6">
+                {t('googleIntelligence.modals.prospectToggleDesc')}
+              </p>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-brand-text-primary block mb-1">
-                {t('googleIntelligence.modals.siteUrl')}
-              </label>
-              <input
-                type="text"
-                value={connectForm.siteUrl}
-                onChange={(e) => setConnectForm({ ...connectForm, siteUrl: e.target.value })}
-                className="w-full text-xs p-2 rounded-lg border border-brand-border"
-                placeholder="https://ejemplo.com"
-              />
-            </div>
+            {connectForm.isProspectingMode ? (
+              <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 rounded-lg border border-amber-200">
+                <div>
+                  <label className="text-xs font-bold text-amber-900 block mb-1">
+                    Rating Google Maps (1.0 - 5.0)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    max="5"
+                    value={connectForm.rating}
+                    onChange={(e) => setConnectForm({ ...connectForm, rating: Number(e.target.value) })}
+                    className="w-full text-xs p-2 rounded-lg border border-brand-border bg-white font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-amber-900 block mb-1">
+                    Volumen de Reseñas
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={connectForm.userRatingsTotal}
+                    onChange={(e) => setConnectForm({ ...connectForm, userRatingsTotal: Number(e.target.value) })}
+                    className="w-full text-xs p-2 rounded-lg border border-brand-border bg-white font-bold"
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-bold text-brand-text-primary block mb-1">
+                    {t('googleIntelligence.modals.locationId')}
+                  </label>
+                  <input
+                    type="text"
+                    value={connectForm.locationId}
+                    onChange={(e) => setConnectForm({ ...connectForm, locationId: e.target.value })}
+                    className="w-full text-xs p-2 rounded-lg border border-brand-border"
+                    placeholder="Ej: locations/1234567890"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-brand-text-primary block mb-1">
+                    {t('googleIntelligence.modals.siteUrl')}
+                  </label>
+                  <input
+                    type="text"
+                    value={connectForm.siteUrl}
+                    onChange={(e) => setConnectForm({ ...connectForm, siteUrl: e.target.value })}
+                    className="w-full text-xs p-2 rounded-lg border border-brand-border"
+                    placeholder="https://ejemplo.com"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setIsConnectModalOpen(false)}>

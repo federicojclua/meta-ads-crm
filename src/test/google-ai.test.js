@@ -4,6 +4,7 @@ import {
   generateDeterministicFallbackGoogleReport,
   generateReviewReplyDraft,
   buildMasterSeoSemPrompt,
+  buildLeadAuditProspectPrompt,
 } from '../../netlify/functions/_shared/googleAi.js';
 
 describe('Stage 9 — Google Intelligence AI & Strategic Schema Tests', () => {
@@ -95,5 +96,25 @@ describe('Stage 9 — Google Intelligence AI & Strategic Schema Tests', () => {
     expect(prompt).toContain('Plan de Acción Táctico:');
     expect(prompt).toContain('Perfumería Marion');
     expect(prompt).toContain('4.9★');
+  });
+
+  it('5. buildLeadAuditProspectPrompt genera el prompt de radiografía de prospecto para closer de ventas', () => {
+    const prompt = buildLeadAuditProspectPrompt({
+      businessName: 'Grupo Novati SRL',
+      category: 'Venta de informática y posnet',
+      city: 'San Miguel de Tucumán',
+      rating: 3.2,
+      userRatingsTotal: 14,
+      websiteUrl: 'https://novati.com.ar',
+    });
+
+    expect(prompt).toContain('Director de Estrategia Digital y Closer de Ventas');
+    expect(prompt).toContain('Grupo Novati SRL');
+    expect(prompt).toContain('San Miguel de Tucumán');
+    expect(prompt).toContain('3.2 estrellas');
+    expect(prompt).toContain('14 reseñas');
+    expect(prompt).toContain('1. Matriz de Esfuerzo vs. Recompensa');
+    expect(prompt).toContain('2. Diagnóstico de Puntos Ciegos');
+    expect(prompt).toContain('3. Ángulo de Venta');
   });
 });

@@ -234,6 +234,36 @@ Plan de Acción Táctico: Entrégame 3 tareas técnicas de desarrollo web y 3 ac
 }
 
 /**
+ * Builds the Prospect Lead Radiography & Sales Closing Prompt for Anima MKT.
+ */
+export function buildLeadAuditProspectPrompt({
+  businessName = 'Prospecto',
+  category = 'General',
+  city = 'No especificada',
+  rating = 4.0,
+  userRatingsTotal = 10,
+  websiteUrl = 'No especificado',
+} = {}) {
+  return `Actúa como un Director de Estrategia Digital y Closer de Ventas. Estamos evaluando a un prospecto para sumarlo como cliente. Solo tenemos acceso a su información pública de Google Places, no tenemos acceso a sus analíticas internas.
+
+Aquí están los datos públicos del prospecto:
+- Nombre: ${businessName}
+- Rubro: ${category}
+- Ciudad: ${city}
+- Rating Promedio: ${rating} estrellas
+- Volumen de Reseñas: ${userRatingsTotal} reseñas
+- Sitio Web: ${websiteUrl || 'Sin sitio web / No especificado'}
+
+Necesito que analices este prospecto y me entregues un reporte brutalmente honesto dividido en estas 3 secciones:
+
+1. Matriz de Esfuerzo vs. Recompensa: Clasifica el desafío técnico de este cliente como ALTO, MEDIO o BAJO. ¿Está su reputación tan dañada que costará meses arreglarla, o es un diamante en bruto que solo necesita optimización SEO básica?
+
+2. Diagnóstico de Puntos Ciegos (La Herida): Enumera 3 vulnerabilidades críticas que tiene este negocio frente a su competencia por no estar gestionando su ficha ni midiendo su tráfico (ej: pérdida de conversiones locales, tráfico ciego, mala reputación no atendida).
+
+3. Ángulo de Venta (El Cierre): Dame el guion exacto de 2 párrafos para enviarle por WhatsApp o decirle en una reunión. El mensaje debe presionar sobre su punto débil de manera profesional y posicionar una auditoría de SEO Local y configuración de embudos como la única solución urgente.`;
+}
+
+/**
  * Drafts an empathetic, professional reply to a customer review.
  * NEVER AUTO-PUBLISHES: strictly returns a draft text for operator review.
  */
