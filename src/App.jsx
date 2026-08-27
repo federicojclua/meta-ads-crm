@@ -14,6 +14,7 @@ const AdminCenterPage = lazy(() => import('./pages/AdminCenterPage').then(m => (
 const LeadsPage = lazy(() => import('./pages/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const CampaignsPage = lazy(() => import('./pages/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const SocialAnalyzerPage = lazy(() => import('./pages/SocialAnalyzerPage').then(m => ({ default: m.SocialAnalyzerPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 const RevenueDashboardPage = lazy(() => import('./pages/RevenueDashboardPage').then(m => ({ default: m.RevenueDashboardPage })));
 
@@ -52,6 +53,7 @@ export function App() {
           <Route path="clients" element={<Navigate to="/app/admin" replace />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="social-analyzer" element={<SocialAnalyzerPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
