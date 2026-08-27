@@ -1,4 +1,3 @@
-
 export const SUPPORTED_INDUSTRIES = [
   'restaurant',
   'electronics',
@@ -55,6 +54,71 @@ export const DEFAULT_CREATIVE_PROFILE = {
     preferredComposition: 'product_hero',
     brandPersonality: ['moderna', 'tecnológica', 'confiable', 'ágil'],
   },
+  videoDna: {
+    cameraStyle: 'cinematic_dolly',
+    lightingStyle: 'studio_soft',
+    editingPacing: 'dynamic_fast',
+    motionStyle: 'slow_push_in',
+    musicStyle: 'electronic_modern',
+  },
+  voiceProfiles: [
+    {
+      id: 'voice_martina_01',
+      name: 'Martina (Comercial / Cercana)',
+      provider: 'elevenlabs',
+      voiceId: '21m00Tcm4TlvDq8ikWAM',
+      language: 'es-AR',
+      gender: 'female',
+      tone: 'confident_friendly',
+      speed: 1.0,
+      pitch: 1.0,
+      isDefault: true,
+    },
+    {
+      id: 'voice_lucas_02',
+      name: 'Lucas (Institucional / Enérgico)',
+      provider: 'google_tts',
+      voiceId: 'es-AR-Standard-C',
+      language: 'es-AR',
+      gender: 'male',
+      tone: 'authoritative_energetic',
+      speed: 1.05,
+      pitch: 0.95,
+      isDefault: false,
+    },
+  ],
+  avatarProfiles: [
+    {
+      id: 'avatar_martina',
+      name: 'Martina (Asesora Comercial)',
+      role: 'Sales Presenter & Lead Closer',
+      gender: 'female',
+      style: 'modern_friendly',
+      appearanceRules: 'Mujer profesional 28-35 años, cabello castaño recogido, saco azul marino de marca.',
+      clothing: 'business_casual_navy',
+      background: 'brand_tech_studio',
+      voiceId: 'voice_martina_01',
+      referenceImages: [
+        'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+      ],
+      isDefault: true,
+    },
+    {
+      id: 'avatar_lucas',
+      name: 'Lucas (Especialista Técnico)',
+      role: 'Product Demo Host',
+      gender: 'male',
+      style: 'tech_expert',
+      appearanceRules: 'Hombre joven 25-32 años, camisa oxford gris, anteojos de diseño moderno.',
+      clothing: 'smart_casual_gray',
+      background: 'modern_workspace',
+      voiceId: 'voice_lucas_02',
+      referenceImages: [
+        'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&auto=format&fit=crop&q=80',
+      ],
+      isDefault: false,
+    },
+  ],
   forbiddenElements: [
     'No alterar las dimensiones o colores del logo',
     'No utilizar tipografías infantiles o decorativas excesivas',
@@ -127,6 +191,19 @@ export function sanitizeCreativeProfile(doc = {}) {
         ? doc.brandDna.brandPersonality
         : DEFAULT_CREATIVE_PROFILE.brandDna.brandPersonality,
     },
+    videoDna: {
+      cameraStyle: doc.videoDna?.cameraStyle || DEFAULT_CREATIVE_PROFILE.videoDna.cameraStyle,
+      lightingStyle: doc.videoDna?.lightingStyle || DEFAULT_CREATIVE_PROFILE.videoDna.lightingStyle,
+      editingPacing: doc.videoDna?.editingPacing || DEFAULT_CREATIVE_PROFILE.videoDna.editingPacing,
+      motionStyle: doc.videoDna?.motionStyle || DEFAULT_CREATIVE_PROFILE.videoDna.motionStyle,
+      musicStyle: doc.videoDna?.musicStyle || DEFAULT_CREATIVE_PROFILE.videoDna.musicStyle,
+    },
+    voiceProfiles: Array.isArray(doc.voiceProfiles) && doc.voiceProfiles.length > 0
+      ? doc.voiceProfiles
+      : DEFAULT_CREATIVE_PROFILE.voiceProfiles,
+    avatarProfiles: Array.isArray(doc.avatarProfiles) && doc.avatarProfiles.length > 0
+      ? doc.avatarProfiles
+      : DEFAULT_CREATIVE_PROFILE.avatarProfiles,
     forbiddenElements: Array.isArray(doc.forbiddenElements) && doc.forbiddenElements.length > 0
       ? doc.forbiddenElements
       : DEFAULT_CREATIVE_PROFILE.forbiddenElements,

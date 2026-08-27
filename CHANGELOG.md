@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 17: AI Content & Lead Generation Studio + Meta Ads Campaign Launch Engine (2026-08-27)
+- **Video DNA, Avatares Persistentes & Voces (`models/CreativeProfile.js`, `videoProviderRouter.js`)**:
+  - Extensión de `CreativeProfile` con perfiles de video (`cameraStyle`, `lightingStyle`, `editingPacing`), sintetizadores de voz multi-tenant y avatares con inyección de `AvatarID` para consistencia de personaje en todas las generaciones.
+- **Continuity Engine & Scene Graph (`models/VideoProject.js`, `api-video-studio.js`)**:
+  - Modelo `VideoProject` con array de escenas (`Hook`, `Problem`, `Solution`, `CTA`) y almacenamiento de `ContinuityPack`.
+  - Lógica "Next Scene Intelligence": inyección automática del `last_frame` de la escena previa como `first_frame` en la siguiente escena para eliminar saltos visuales.
+  - Generador de Storyboard Direct-Response con Gemini (Hook -> Problem -> Proof -> CTA) con estimación de reducción de CPL.
+- **Mixed Media Timeline & Editor (`src/pages/VideoStudioPage.jsx`)**:
+  - Línea de tiempo visual interactiva que permite intercalar video orgánico grabado con celular (B-roll real) con avatares IA, locuciones y overlays programáticos.
+  - Reproductor con visualizador de zonas seguras (*Safe Zones*) para Reels/TikTok y badges de precio sin alucinaciones de texto.
+- **Meta Ads Campaign Launch Engine & Safety Guardrails (`models/MetaCampaignLaunch.js`, `metaAdsLaunchService.js`, `api-meta-launch.js`)**:
+  - Wizard de orquestación de campañas Meta Ads conectado directamente al CRM.
+  - **Regla Innegociable de Seguridad**: Creación estricta de campañas en estado **`PAUSED`** (o `DRAFT`) con límites de presupuesto (*Budget Guardrails* de máximo $50.000/día).
+  - Pre-Flight Check automatizado de **18 puntos de validación** (cuenta publicitaria, permisos, página, Instagram, formularios, presupuesto y audiencias).
+  - Activación explícita mediante confirmación del usuario (`POST /api/meta-launch/:id/activate`).
+- **Lead Winner Mode & Observabilidad de Costos (`models/AIUsage.js`)**:
+  - Detector de patrones ganadores de anuncios (-34.8% CPL) para retroalimentar la generación de nuevas familias creativas.
+  - Medidor de consumo de créditos de IA por inquilino con ruteo de costo (`Veo 3.1 Lite`, `Veo 3.1 Fast`, `Veo 3.1 Pro`).
+- **Suite de Pruebas Automatizadas (9 nuevos tests / 52 en total)**:
+  - `video-continuity-engine.test.js`, `meta-launch-engine.test.js` y `video-studio-frontend.test.jsx`.
+
 ### Added — Stage 16: AI Campaign Creative Engine (Sistema Operativo Creativo con Memoria de Marca) (2026-08-27)
 - **Brand DNA & Memoria Creativa (`models/CreativeProfile.js`, `api-creative-profile.js`)**:
   - Entidad `CreativeProfile` con aislamiento multi-tenant por `clientId` para almacenar Logos oficiales, Tipografías, Paleta de Colores, Rubro/Vertical, Tono de Voz y Restricciones Negativas (*Forbidden Elements*).

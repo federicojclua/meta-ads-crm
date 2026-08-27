@@ -13,6 +13,7 @@ import {
   MessageSquare,
   ShoppingCart,
   Wand2,
+  Clapperboard,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -32,6 +33,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
     { name: t('sidebar.whatsappInbox'), href: '/app/whatsapp', icon: MessageSquare },
     { name: t('sidebar.ecommerceCro') || 'E-Commerce & CRO', href: '/app/ecommerce', icon: ShoppingCart },
     { name: t('sidebar.creativeStudio') || 'Creative Studio (IA)', href: '/app/creative-studio', icon: Wand2 },
+    { name: t('sidebar.videoStudio') || 'Video & Leads Studio', href: '/app/video-studio', icon: Clapperboard },
     { name: t('sidebar.leads'), href: '/app/leads', icon: Users },
     { name: t('sidebar.campaigns'), href: '/app/campaigns', icon: Megaphone },
     { name: t('sidebar.socialAnalyzer'), href: '/app/social-analyzer', icon: Sparkles },

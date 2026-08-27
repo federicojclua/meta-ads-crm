@@ -307,6 +307,30 @@
   force = true
 
 [[redirects]]
+  from = "/api/video-studio"
+  to = "/.netlify/functions/api-video-studio"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/video-studio/*"
+  to = "/.netlify/functions/api-video-studio"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/meta-launch"
+  to = "/.netlify/functions/api-meta-launch"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/meta-launch/*"
+  to = "/.netlify/functions/api-meta-launch"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
