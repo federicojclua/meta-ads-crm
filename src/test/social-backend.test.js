@@ -111,6 +111,58 @@ describe('Stage 8 — Backend Social APIs & Multi-Tenant Isolation Tests', () =>
     expect(queryPassed).toHaveProperty('$or');
   });
 
+  it('1b. GET /api/social/sources devuelve 200 con sources: [] cuando no hay perfiles creados', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: mockClientUser,
+      db: mockDb,
+      clientScope: mockTenant1Id,
+      isGlobal: false,
+    });
+
+    mockSourcesCollection.find.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        toArray: vi.fn().mockResolvedValue([]),
+      }),
+    });
+
+    const event = {
+      httpMethod: 'GET',
+      path: '/api/social/sources',
+      headers: { authorization: 'Bearer mock-token' },
+    };
+
+    const res = await sourcesHandler(event);
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.sources).toEqual([]);
+  });
+
+  it('1c. GET /api/social/sources para usuario no global sin empresa asignada devuelve 200 con sources: [] en lugar de error', async () => {
+    vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({
+      authorized: true,
+      user: { ...mockClientUser, clientId: null },
+      db: mockDb,
+      clientScope: null,
+      isGlobal: false,
+    });
+
+    const event = {
+      httpMethod: 'GET',
+      path: '/api/social/sources',
+      headers: { authorization: 'Bearer mock-token' },
+    };
+
+    const res = await sourcesHandler(event);
+    const body = JSON.parse(res.body);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.sources).toEqual([]);
+  });
+
   // 2. Multi-Tenant Cross-Access Prevention on Deletion
   it('2. DELETE /api/social/sources/:id rechaza con HTTP 403 si un cliente intenta eliminar una fuente de otra empresa', async () => {
     vi.spyOn(PermissionsModule, 'verifyAuthorizedUser').mockResolvedValueOnce({

@@ -153,8 +153,13 @@ export async function handler(event) {
         query.sourceId = new ObjectId(params.sourceId);
       }
 
-      const targetClientId = isGlobal ? (params.clientId || null) : clientScope;
-      if (targetClientId && targetClientId !== 'all') {
+      const rawClientId = params.clientId;
+      const cleanClientId = (rawClientId && rawClientId !== 'undefined' && rawClientId !== 'null' && rawClientId !== 'all')
+        ? rawClientId.trim()
+        : null;
+
+      const targetClientId = isGlobal ? cleanClientId : clientScope;
+      if (targetClientId) {
         const clientQuery = ObjectId.isValid(targetClientId)
           ? { $or: [{ clientId: new ObjectId(targetClientId) }, { clientId: targetClientId }] }
           : { clientId: targetClientId };
@@ -167,18 +172,18 @@ export async function handler(event) {
         .limit(20)
         .toArray();
 
-      const sanitized = analyses.map(a => ({
-        id: a._id.toString(),
-        clientId: a.clientId.toString(),
-        sourceId: a.sourceId.toString(),
-        snapshotId: a.snapshotId.toString(),
-        platform: a.platform,
-        accountUsername: a.accountUsername,
-        deterministicMetrics: a.deterministicMetrics,
-        aiReport: a.aiReport,
-        aiProvider: a.aiProvider,
-        aiModel: a.aiModel,
-        createdAt: a.createdAt,
+      const sanitized = (analyses || []).map(a => ({
+        id: a._id ? a._id.toString() : '',
+        clientId: a.clientId ? a.clientId.toString() : '',
+        sourceId: a.sourceId ? a.sourceId.toString() : '',
+        snapshotId: a.snapshotId ? a.snapshotId.toString() : '',
+        platform: a.platform || 'instagram',
+        accountUsername: a.accountUsername || '',
+        deterministicMetrics: a.deterministicMetrics || {},
+        aiReport: a.aiReport || null,
+        aiProvider: a.aiProvider || '',
+        aiModel: a.aiModel || '',
+        createdAt: a.createdAt || null,
       }));
 
       return jsonResponse(200, { ok: true, analyses: sanitized });

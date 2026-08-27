@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Stage 8 Social Analyzer Empty State & Auth Guard Hotfix (2026-08-27)
+- **Protección de Carga de Autenticación en `SocialAnalyzerPage.jsx`**: Incorporada la bandera `authLoading` en los efectos de carga inicial para evitar disparar peticiones prematuras a `/api/social/sources` antes de que el token de Firebase y el `userProfile` estén listos.
+- **Manejo Seguro de Inquilinos Vacíos en `api-social-sources.js`**: Si un inquilino no posee perfiles sociales aún o no cuenta con empresa asignada, el endpoint retorna código HTTP 200 con `{ ok: true, sources: [] }` en lugar de responder con un error 403 `TENANT_SCOPE_MISSING`.
+- **Eliminación de Banners de Error Falsos Positivos**: El banner rojo de alerta solo se activa ante fallos reales de red o servidor, asegurando que ante una colección vacía la interfaz renderice fluidamente el `EmptyState` amigable invitando a vincular el perfil social.
+- **Sanitización de Consultas en Backend**: Agregada verificación de valores inválidos (`'undefined'`, `'null'`, `'all'`) y optional chaining defensivo en propiedades de `SocialSource` y `SocialAnalysis`.
+
 ### Added — Stage 8: Analizador de Clientes de Facebook & Instagram con IA (2026-08-27)
 - **Modelos de Datos y Aislamiento Multi-Tenant**: Implementadas colecciones `social_sources`, `social_snapshots` y `social_analyses` con validación exhaustiva de esquemas, soporte para perfiles de Instagram/Facebook y aislamiento estricto por `clientId`.
 - **Motor Matemático Determinista (`socialMetrics.js`)**: Cálculo puro de cadencia semanal/mensual, días promedio entre posts, distribución porcentual de formatos (Reels, Carruseles, Fotos), Tasa de Engagement sobre Alcance real (`rates.engagementRateOverReach`), Proxy sobre Seguidores (`rates.engagementRateOverFollowers`), e Índice de Regularidad/Consistencia (0-100).

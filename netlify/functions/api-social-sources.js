@@ -28,14 +28,20 @@ export async function handler(event) {
     // ----------------------------------------------------
     if (segments.length === 0 && method === 'GET') {
       const params = event.queryStringParameters || {};
-      let targetClientId = isGlobal ? (params.clientId || null) : clientScope;
+      const rawClientId = params.clientId;
+      const cleanClientId = (rawClientId && rawClientId !== 'undefined' && rawClientId !== 'null' && rawClientId !== 'all')
+        ? rawClientId.trim()
+        : null;
 
+      let targetClientId = isGlobal ? cleanClientId : clientScope;
+
+      // If user is not global and has no assigned client scope, return empty array gracefully
       if (!targetClientId && !isGlobal) {
-        return errorResponse(403, 'No tienes una empresa asignada para consultar perfiles sociales.', 'TENANT_SCOPE_MISSING');
+        return jsonResponse(200, { ok: true, sources: [] });
       }
 
       let query = {};
-      if (targetClientId && targetClientId !== 'all') {
+      if (targetClientId) {
         const clientQuery = ObjectId.isValid(targetClientId)
           ? { $or: [{ clientId: new ObjectId(targetClientId) }, { clientId: targetClientId }] }
           : { clientId: targetClientId };
@@ -45,22 +51,22 @@ export async function handler(event) {
       }
 
       const sources = await sourcesCollection.find(query).sort({ createdAt: -1 }).toArray();
-      const sanitized = sources.map(s => ({
-        id: s._id.toString(),
-        clientId: s.clientId.toString(),
-        platform: s.platform,
-        sourceType: s.sourceType,
-        accountUsername: s.accountUsername,
-        accountName: s.accountName,
-        biography: s.biography,
-        website: s.website,
-        profilePictureUrl: s.profilePictureUrl,
+      const sanitized = (sources || []).map(s => ({
+        id: s._id ? s._id.toString() : '',
+        clientId: s.clientId ? s.clientId.toString() : '',
+        platform: s.platform || 'instagram',
+        sourceType: s.sourceType || 'manual',
+        accountUsername: s.accountUsername || '',
+        accountName: s.accountName || '',
+        biography: s.biography || '',
+        website: s.website || '',
+        profilePictureUrl: s.profilePictureUrl || '',
         followersCount: s.followersCount || 0,
         followsCount: s.followsCount || 0,
         mediaCount: s.mediaCount || 0,
-        status: s.status,
-        lastSyncedAt: s.lastSyncedAt,
-        createdAt: s.createdAt,
+        status: s.status || 'active',
+        lastSyncedAt: s.lastSyncedAt || null,
+        createdAt: s.createdAt || null,
       }));
 
       return jsonResponse(200, { ok: true, sources: sanitized });

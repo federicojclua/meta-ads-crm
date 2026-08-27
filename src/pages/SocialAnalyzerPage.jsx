@@ -32,7 +32,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { formatDate, formatNumber } from '../lib/utils';
 
 export function SocialAnalyzerPage() {
-  const { userProfile } = useAuth();
+  const { userProfile, loading: authLoading } = useAuth();
   const { t, language } = useLanguage();
 
   const isGlobal = ['super_admin', 'admin'].includes(userProfile?.role);
@@ -70,11 +70,13 @@ export function SocialAnalyzerPage() {
   const [isUploading, setIsUploading] = useState(false);
 
   const fetchSocialData = async (overrideClientId = null) => {
+    if (authLoading || !userProfile) return;
+    const targetId = overrideClientId !== null ? overrideClientId : (isGlobal ? selectedClientId : clientScope);
+
     setIsLoading(true);
     setError(null);
     try {
-      const targetId = overrideClientId !== null ? overrideClientId : (isGlobal ? selectedClientId : clientScope);
-      const url = targetId ? `/api/social/sources?clientId=${targetId}` : '/api/social/sources';
+      const url = targetId ? `/api/social/sources?clientId=${encodeURIComponent(targetId)}` : '/api/social/sources';
       const res = await apiClient(url);
 
       if (res?.ok && Array.isArray(res.sources)) {
@@ -88,9 +90,20 @@ export function SocialAnalyzerPage() {
           setLatestAnalysis(null);
           setAnalysisHistory([]);
         }
+        setError(null);
+      } else {
+        setSources([]);
+        setSelectedSource(null);
+        setLatestAnalysis(null);
       }
     } catch (err) {
-      setError(err.message || 'Error al cargar fuentes sociales.');
+      console.error('[SOCIAL] Error loading social data:', err);
+      if (userProfile && err.status !== 404) {
+        setError(err.message || 'Error al cargar fuentes sociales.');
+      }
+      setSources([]);
+      setSelectedSource(null);
+      setLatestAnalysis(null);
     } finally {
       setIsLoading(false);
     }
@@ -98,39 +111,56 @@ export function SocialAnalyzerPage() {
 
   // 1. Fetch clients for global admins
   useEffect(() => {
+    if (authLoading || !userProfile) return;
+
     if (isGlobal) {
       apiClient('/api/clients')
         .then((res) => {
           if (res?.clients) {
-            const activeClients = res.clients.filter((c) => c.status === 'active');
+            const activeClients = res.clients.filter((c) => c.status === 'active' || !c.status);
             setClients(activeClients);
-            const initialId = selectedClientId || (activeClients.length > 0 ? (activeClients[0].id || activeClients[0]._id) : '');
-            if (initialId) {
-              setSelectedClientId(initialId);
-              fetchSocialData(initialId);
+            if (activeClients.length > 0) {
+              const defaultId = selectedClientId || activeClients[0]._id || activeClients[0].id;
+              setSelectedClientId(defaultId);
+              fetchSocialData(defaultId);
             } else {
-              fetchSocialData();
+              setSources([]);
+              setSelectedSource(null);
+              setLatestAnalysis(null);
+              setIsLoading(false);
             }
+          } else {
+            setSources([]);
+            setSelectedSource(null);
+            setLatestAnalysis(null);
+            setIsLoading(false);
           }
         })
         .catch((err) => {
-          console.error('[SOCIAL] Error loading clients:', err);
-          fetchSocialData();
+          console.warn('[SOCIAL] Error loading clients:', err.message);
+          setIsLoading(false);
         });
-    } else {
+    } else if (clientScope) {
+      setSelectedClientId(clientScope);
       fetchSocialData(clientScope);
+    } else {
+      setSources([]);
+      setSelectedSource(null);
+      setLatestAnalysis(null);
+      setIsLoading(false);
     }
-  }, [isGlobal, clientScope]);
+  }, [authLoading, userProfile, isGlobal, clientScope]);
 
   const fetchAnalysisHistory = async (sourceId) => {
+    if (!sourceId) return;
     try {
-      const res = await apiClient(`/api/social/analyze/history?sourceId=${sourceId}`);
+      const res = await apiClient(`/api/social/analyze/history?sourceId=${encodeURIComponent(sourceId)}`);
       if (res?.ok && Array.isArray(res.analyses)) {
         setAnalysisHistory(res.analyses);
         setLatestAnalysis(res.analyses.length > 0 ? res.analyses[0] : null);
       }
     } catch (err) {
-      console.warn('[SOCIAL] Error loading analyses:', err);
+      console.warn('[SOCIAL] Error loading analyses:', err.message);
     }
   };
 
@@ -297,7 +327,10 @@ export function SocialAnalyzerPage() {
               </span>
               <select
                 value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedClientId(e.target.value);
+                  fetchSocialData(e.target.value);
+                }}
                 className="text-xs bg-white border border-brand-border rounded-lg px-2.5 py-1.5 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
               >
                 {clients.map((c) => (

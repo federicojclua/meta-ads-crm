@@ -179,6 +179,28 @@ describe('Stage 8 — Frontend Social Analyzer UI & Diagnostics Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Sin Perfil Social Conectado')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Error/i)).not.toBeInTheDocument();
     });
+  });
+
+  it('3. SocialAnalyzerPage no ejecuta peticiones ni muestra errores mientras el perfil de autenticación está cargando', async () => {
+    vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
+      userProfile: null,
+      firebaseUser: null,
+      loading: true,
+    });
+
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    render(
+      <MemoryRouter>
+        <SocialAnalyzerPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
