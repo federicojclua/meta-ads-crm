@@ -8,7 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Added — Stage 15B: Offer Engine & E-Commerce True Profit (2026-08-27)
+### Added — Stages 16/17 Evolution: Asset Intelligence & Brand Guardian (2026-08-27)
+- **Asset Intelligence Metadata (`models/CreativeAsset.js`, `CampaignCreative.js`)**:
+  - Estructura de metadatos para cada pieza generada: `format` (1:1, 9:16, 1.91:1), `assetType`, `hookType`, `ctaType`, `offerId` (vinculado a la oferta activa de la Etapa 15B), `presenterType`, `brandComplianceScore`, y contenedor de `performanceMetrics` para futuros webhooks de Meta.
+- **Brand Guardian & Automated Compliance Matrix (`brandGuardianService.js`)**:
+  - Matriz de auditoría de 100 puntos en 4 dimensiones críticas:
+    1. *Logo Integrity (25 pts)*: Presencia y nitidez del logo oficial.
+    2. *Color Palette Match (25 pts)*: Coherencia estricta con la paleta de colores del Brand DNA.
+    3. *Offer & Price Accuracy (25 pts)*: Concordancia exacta con el precio, cuotas y bonos de la `active_offer` (zero-hallucination).
+    4. *Brand Safety & Forbidden Rules (25 pts)*: Ausencia total de términos o estilos prohibidos (`forbiddenElements`).
+  - Endpoints: `POST /api/brand-guardian/audit-asset` y `POST /api/brand-guardian/gatekeeper-check`.
+- **Gatekeeper Automatic Blocking Logic (Umbral $\ge 85/100$)**:
+  - Si un asset obtiene un score $< 85$ o viola restricciones de marca, su estado se fuerza a `NEEDS_REVIEW` o `REJECTED`, bloqueando automáticamente su publicación en el Meta Launch Engine.
+- **UI Creative Studio & Brand Badges (`CreativeStudioPage.jsx`)**:
+  - Insignia interactiva de cumplimiento `🛡️ Brand Guardian Compliance` con desglose por dimensión y validación en vivo del Gatekeeper en el Editor y en la Galería de Campañas.
+- **Suite de Pruebas Automatizadas (7 nuevos tests / 102 en total en 33 suites)**:
+  - `brand-guardian-audit.test.js`, `asset-gatekeeper-blocking.test.js`, `brand-guardian-frontend.test.jsx`.
 - **Estructura de Costos y True Profit Determinista (`models/Product.js`, `profitCalculator.js`)**:
   - Esquema `costStructure` para cada producto: `COGS` (Costo de fabricación/compra), `gatewayFeePercent` (Comisión pasarela 3.5%), `shippingCost` (Envío logístico), `estimatedCpa` (Costo de adquisición publicitaria en Meta Ads), `otherUnitCosts` y `targetMinMarginPercent`.
   - Motor de cálculo puramente aritmético en Node.js para determinar el **True Profit ($)** unitario real, el **Margen Neto (%)** y el **Descuento Máximo Seguro (%)** sin alucinaciones de IA.

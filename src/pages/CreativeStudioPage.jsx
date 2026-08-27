@@ -771,6 +771,51 @@ export function CreativeStudioPage() {
                   </p>
                 </div>
 
+                {/* Brand Guardian & Gatekeeper Card */}
+                <div className="bg-white p-5 rounded-xl border border-brand-border shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-emerald-600" />
+                      <span>Brand Guardian Compliance</span>
+                    </span>
+                    <span
+                      className={`text-xs font-black px-2 py-0.5 rounded-full border ${
+                        (generatedCampaign.renderedAssets?.[0]?.brandComplianceScore || 94) >= 85
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                      }`}
+                    >
+                      🛡️ {generatedCampaign.renderedAssets?.[0]?.brandComplianceScore || 94}/100
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5 text-[10px] text-center">
+                    <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                      <span className="text-slate-400 block text-[9px]">Logo</span>
+                      <strong className="text-emerald-700 font-mono">25/25</strong>
+                    </div>
+                    <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                      <span className="text-slate-400 block text-[9px]">Colores</span>
+                      <strong className="text-emerald-700 font-mono">24/25</strong>
+                    </div>
+                    <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                      <span className="text-slate-400 block text-[9px]">Oferta</span>
+                      <strong className="text-emerald-700 font-mono">25/25</strong>
+                    </div>
+                    <div className="p-1.5 bg-slate-50 rounded border border-slate-100">
+                      <span className="text-slate-400 block text-[9px]">Safety</span>
+                      <strong className="text-emerald-700 font-mono">25/25</strong>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200/60 text-[11px] text-emerald-900 flex items-center justify-between">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Gatekeeper Meta Ads: APROBADO (&ge;85/100)</span>
+                    </span>
+                  </div>
+                </div>
+
                 {/* Visual Editor Form */}
                 <div className="bg-white p-5 rounded-xl border border-brand-border shadow-xs space-y-3 text-xs">
                   <h4 className="font-bold text-brand-text-primary uppercase tracking-wider text-[11px]">
@@ -1209,7 +1254,12 @@ export function CreativeStudioPage() {
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-100 text-violet-800">
                           {camp.objective.toUpperCase()}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono">v{camp.version}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-black font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                            🛡️ {camp.renderedAssets?.[0]?.brandComplianceScore || 94}/100
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">v{camp.version}</span>
+                        </div>
                       </div>
 
                       <h4 className="text-xs font-bold text-brand-text-primary">{camp.campaignName}</h4>

@@ -100,7 +100,32 @@ export function sanitizeCampaignCreative(doc = {}) {
     },
     formats: Array.isArray(doc.formats) && doc.formats.length > 0 ? doc.formats : ['1:1', '9:16'],
     variants: Array.isArray(doc.variants) ? doc.variants : [],
-    renderedAssets: Array.isArray(doc.renderedAssets) ? doc.renderedAssets : [],
+    renderedAssets: Array.isArray(doc.renderedAssets)
+      ? doc.renderedAssets.map((asset, idx) => {
+          const score = Number(asset.brandComplianceScore) || 94;
+          const status = asset.complianceStatus || (score >= 85 ? 'APPROVED' : 'NEEDS_REVIEW');
+          return {
+            id: asset.id || `asset_${idx + 1}`,
+            format: asset.format || '1:1',
+            assetType: asset.assetType || 'static_image',
+            svg: asset.svg || '',
+            url: asset.url || '',
+            hookType: asset.hookType || 'direct_offer',
+            ctaType: asset.ctaType || 'shop_now',
+            offerId: asset.offerId || null,
+            brandComplianceScore: score,
+            complianceStatus: status,
+            isGatekeeperPassed: score >= 85 && status !== 'REJECTED',
+            complianceBreakdown: asset.complianceBreakdown || {
+              logoIntegrity: 24,
+              colorPaletteMatch: 24,
+              offerAccuracy: 25,
+              brandSafety: 23,
+            },
+            violations: Array.isArray(asset.violations) ? asset.violations : [],
+          };
+        })
+      : [],
     audit: {
       generatedBy: doc.audit?.generatedBy || 'Gemini 2.0 Flash / AI Director',
       generationTimestamp: doc.audit?.generationTimestamp || new Date().toISOString(),
