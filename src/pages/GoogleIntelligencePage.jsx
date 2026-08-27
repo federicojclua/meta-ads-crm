@@ -751,90 +751,79 @@ Necesito que analices este prospecto y me entregues un reporte brutalmente hones
                 </span>
               </div>
 
-              {/* Reviews Feed */}
-              <div className="space-y-4">
+              {/* Reviews Grid (1 col mobile, 2 col tablet, 3 col desktop) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
                 {filteredReviews.length === 0 ? (
-                  <div className="p-8 text-center bg-white rounded-xl border border-brand-border text-brand-text-secondary text-xs">
+                  <div className="col-span-full p-8 text-center bg-white rounded-xl border border-dashed border-brand-border text-brand-text-secondary text-xs">
                     No se encontraron reseñas con el filtro seleccionado.
                   </div>
                 ) : (
                   filteredReviews.map((rev) => {
                     const isReplying = replyingReviewId === rev.id;
                     return (
-                      <div key={rev.id} className="bg-white border border-brand-border rounded-xl p-5 shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm text-brand-text-primary">{rev.reviewerName}</span>
-                              <div className="flex text-amber-400">
-                                {[...Array(rev.rating)].map((_, i) => (
-                                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400" />
-                                ))}
-                              </div>
-                              <span className="text-xs text-brand-text-secondary">
-                                {formatDate(rev.reviewDate || rev.createdAt)}
-                              </span>
-                            </div>
-                            <p className="text-xs text-brand-text-primary mt-2 leading-relaxed">
-                              "{rev.comment || 'Sin comentario escrito'}"
-                            </p>
+                      <div
+                        key={rev.id}
+                        className={`flex flex-col p-4.5 border rounded-xl bg-white shadow-2xs hover:shadow-md transition-all ${
+                          isReplying ? 'ring-2 ring-brand-primary border-transparent' : 'border-brand-border'
+                        }`}
+                      >
+                        {/* Header: Author & Stars */}
+                        <div className="flex items-start justify-between gap-2 mb-2.5">
+                          <div className="min-w-0">
+                            <span className="font-bold text-sm text-brand-text-primary block truncate">
+                              {rev.reviewerName || 'Cliente'}
+                            </span>
+                            <span className="text-[10px] text-brand-text-secondary">
+                              {formatDate(rev.reviewDate || rev.createdAt)}
+                            </span>
                           </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant={rev.replyStatus === 'replied' ? 'success' : 'warning'}>
-                              {rev.replyStatus === 'replied'
-                                ? t('googleIntelligence.reputation.repliedBadge')
-                                : t('googleIntelligence.reputation.unansweredBadge')}
-                            </Badge>
-                            {rev.replyStatus === 'unanswered' && !isReplying && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleGenerateDraftReply(rev)}
-                                className="flex items-center gap-1.5 text-xs text-brand-primary border-brand-primary"
-                              >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                {t('googleIntelligence.reputation.draftAiReply')}
-                              </Button>
-                            )}
+                          <div className="flex text-amber-400 shrink-0">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-3.5 h-3.5 ${
+                                  i < rev.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
                           </div>
                         </div>
 
-                        {/* Existing Official Reply */}
-                        {rev.replyText && (
-                          <div className="mt-4 p-3 bg-brand-bg rounded-lg border-l-4 border-brand-primary">
-                            <span className="text-[11px] font-bold uppercase text-brand-primary block mb-0.5">
-                              {t('googleIntelligence.reputation.officialReply')}
+                        {/* Body: Review comment with line-clamp-3 */}
+                        <p className="text-xs text-brand-text-secondary mb-3 line-clamp-3 leading-relaxed flex-1">
+                          "{rev.comment || 'El cliente dejó una calificación sin comentario.'}"
+                        </p>
+
+                        {/* Existing Official Reply Snippet (if any) */}
+                        {rev.replyText && !isReplying && (
+                          <div className="mb-3 p-2 bg-brand-bg rounded-lg border-l-2 border-brand-primary text-[11px] text-brand-text-primary italic line-clamp-2">
+                            <span className="font-bold not-italic text-brand-primary block text-[10px] uppercase">
+                              Respuesta Oficial:
                             </span>
-                            <p className="text-xs text-brand-text-primary italic">{rev.replyText}</p>
-                            {rev.responseTimeHours !== undefined && rev.responseTimeHours !== null && (
-                              <span className="text-[10px] text-brand-text-secondary mt-1 block">
-                                Respondido en {rev.responseTimeHours} horas
-                              </span>
-                            )}
+                            {rev.replyText}
                           </div>
                         )}
 
-                        {/* Reply Drafter Section */}
-                        {isReplying && (
-                          <div className="mt-4 p-4 bg-brand-primary/5 rounded-xl border border-brand-primary/20 space-y-3">
+                        {/* Reply Drafter Section (Expanded when active) */}
+                        {isReplying ? (
+                          <div className="mt-2 pt-3 border-t border-brand-border space-y-2.5 bg-brand-primary/5 p-3 rounded-lg border border-brand-primary/20">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
-                                <Sparkles className="w-4 h-4" />
-                                Borrador de Respuesta Asistida por IA
+                              <span className="text-[11px] font-bold text-brand-primary flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Borrador IA
                               </span>
                               <button
                                 type="button"
                                 onClick={() => setReplyingReviewId(null)}
-                                className="text-xs text-brand-text-secondary hover:text-brand-text-primary"
+                                className="text-[10px] text-brand-text-secondary hover:text-brand-text-primary"
                               >
                                 Cancelar
                               </button>
                             </div>
 
                             {isDraftingAi ? (
-                              <div className="py-4 text-center text-xs text-brand-text-secondary flex items-center justify-center gap-2">
-                                <RefreshCw className="w-4 h-4 animate-spin text-brand-primary" />
+                              <div className="py-3 text-center text-[11px] text-brand-text-secondary flex items-center justify-center gap-1.5">
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-primary" />
                                 {t('googleIntelligence.reputation.generatingDraft')}
                               </div>
                             ) : (
@@ -842,21 +831,46 @@ Necesito que analices este prospecto y me entregues un reporte brutalmente hones
                                 value={replyDraftText}
                                 onChange={(e) => setReplyDraftText(e.target.value)}
                                 rows={3}
-                                className="w-full text-xs p-2.5 rounded-lg border border-brand-border bg-white focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
+                                className="w-full text-xs p-2 rounded-md border border-brand-border bg-white focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
                                 placeholder="Escribí o editá la respuesta..."
                               />
                             )}
 
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-1.5">
                               <Button
                                 variant="primary"
                                 size="sm"
                                 onClick={() => handleSaveReply(rev.id)}
                                 disabled={isDraftingAi || !replyDraftText.trim()}
+                                className="text-xs py-1 px-2.5"
                               >
                                 {t('googleIntelligence.reputation.saveReply')}
                               </Button>
                             </div>
+                          </div>
+                        ) : (
+                          /* Footer: Status Badge & AI Button */
+                          <div className="mt-auto pt-3 border-t border-brand-border flex items-center justify-between gap-2">
+                            {rev.replyStatus === 'replied' ? (
+                              <Badge variant="success">
+                                ✓ {t('googleIntelligence.reputation.repliedBadge')}
+                              </Badge>
+                            ) : (
+                              <Badge variant="warning">
+                                {t('googleIntelligence.reputation.unansweredBadge')}
+                              </Badge>
+                            )}
+
+                            {rev.replyStatus === 'unanswered' && (
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateDraftReply(rev)}
+                                className="text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-md font-bold transition-colors flex items-center gap-1 shadow-2xs"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-red-600" />
+                                Generar Respuesta IA
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

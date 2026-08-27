@@ -147,7 +147,7 @@ describe('Stage 9 — Frontend Google Intelligence UI & Components Tests', () =>
     await waitFor(() => {
       expect(screen.getByText(/Agustina Rossi/i)).toBeInTheDocument();
       expect(screen.getByText(/Excelente atención y fragancias originales/i)).toBeInTheDocument();
-      expect(screen.getByText(/Sugerir Respuesta con IA/i)).toBeInTheDocument();
+      expect(screen.getByText(/Generar Respuesta IA/i)).toBeInTheDocument();
     });
   });
 
