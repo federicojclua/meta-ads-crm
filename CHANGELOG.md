@@ -8,7 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Added — Stage 14: Omnichannel AI Sales Engine & Agent Control Plane (2026-08-27)
+### Added — Stage 15B: Offer Engine & E-Commerce True Profit (2026-08-27)
+- **Estructura de Costos y True Profit Determinista (`models/Product.js`, `profitCalculator.js`)**:
+  - Esquema `costStructure` para cada producto: `COGS` (Costo de fabricación/compra), `gatewayFeePercent` (Comisión pasarela 3.5%), `shippingCost` (Envío logístico), `estimatedCpa` (Costo de adquisición publicitaria en Meta Ads), `otherUnitCosts` y `targetMinMarginPercent`.
+  - Motor de cálculo puramente aritmético en Node.js para determinar el **True Profit ($)** unitario real, el **Margen Neto (%)** y el **Descuento Máximo Seguro (%)** sin alucinaciones de IA.
+- **AI Offer Engine & Orquestación Estratégica (`models/OfferArchitecture.js`, `offerService.js`)**:
+  - Generador de **3 Variaciones Estratégicas de Oferta**:
+    - **Offer A (Flash Sale Directo)**: Descuento agresivo seguro respetando el margen mínimo.
+    - **Offer B (Master Bundle de Alto Valor - Recomendada)**: Mantiene precio completo y añade bonos de valor percibido ($70.000) con bajo costo real ($6.500), maximizando el True Profit ($).
+    - **Offer C (Cero Riesgo & Financiación Flexible)**: 12 cuotas fijas + 30 días de garantía sin riesgo.
+  - Endpoints: `POST /api/offers/calculate-profit`, `POST /api/offers/generate`, `GET /api/offers/product/:productId`, `POST /api/offers/activate`.
+- **UI Offer Studio (`OfferEnginePanel.jsx`, `CreativeStudioPage.jsx`)**:
+  - Modal interactivo con editor de costos en tiempo real, desglose de True Profit con velocímetro de margen y visualización de tarjetas A/B/C.
+  - Botón de activación que inyecta la oferta ganadora al `CreativeProfile` para que el Creative Studio y Video Studio diseñen anuncios sobre una oferta rentable.
+- **Suite de Pruebas Automatizadas (7 nuevos tests / 95 en total en 30 suites)**:
+  - `profit-calculator.test.js`, `offer-engine-service.test.js`, `offer-engine-frontend.test.jsx`.
 - **AI Agent Control Plane & Zero-Rogue Security (`models/AIToolPermissionMatrix.js`, `controlPlaneService.js`)**:
   - Matriz de permisos granular por herramienta y agente (`qualifier`, `setter`, `followup`, `reactivation`, `copilot`, `director`).
   - Interceptor de seguridad que suspende en estado `pending_approval` toda acción de riesgo (ej. descuentos $> 15\%$, presupuestos publicitarios $> \$50.000$, cambios a etapas sensibles o activación de campañas en Meta).

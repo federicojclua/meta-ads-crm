@@ -20,6 +20,7 @@ import {
   Monitor,
   Trash2,
   Edit3,
+  Calculator,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -27,6 +28,7 @@ import { apiClient } from '../lib/api';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { OfferEnginePanel } from '../components/OfferEnginePanel';
 import { formatNumber } from '../lib/utils';
 import { SUPPORTED_INDUSTRIES, INDUSTRY_LABELS } from '../../models/CreativeProfile.js';
 import { CAMPAIGN_OBJECTIVES, OBJECTIVE_LABELS } from '../../models/CampaignCreative.js';
@@ -38,6 +40,7 @@ export function CreativeStudioPage() {
 
   // Data states
   const [creativeProfile, setCreativeProfile] = useState(null);
+  const [selectedOfferProduct, setSelectedOfferProduct] = useState(null);
   const [products, setProducts] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1138,9 +1141,26 @@ export function CreativeStudioPage() {
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded mt-1 inline-block">
-                    {p.installments}
-                  </span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded inline-block">
+                      {p.installments}
+                    </span>
+                    {p.activeOffer && (
+                      <span className="text-[9px] font-bold text-violet-700 bg-violet-50 px-1.5 py-0.2 rounded border border-violet-200">
+                        Oferta Activa
+                      </span>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedOfferProduct(p)}
+                    className="w-full mt-2.5 text-[11px] h-7 border-violet-200 text-violet-700 bg-violet-50/50 hover:bg-violet-100 font-bold gap-1"
+                  >
+                    <Calculator className="w-3 h-3" />
+                    <span>Offer Engine (True Profit)</span>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -1312,6 +1332,15 @@ export function CreativeStudioPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Offer Engine & True Profit Panel Modal */}
+      {selectedOfferProduct && (
+        <OfferEnginePanel
+          product={selectedOfferProduct}
+          onClose={() => setSelectedOfferProduct(null)}
+          onOfferActivated={() => fetchStudioData()}
+        />
+      )}
     </div>
   );
 }

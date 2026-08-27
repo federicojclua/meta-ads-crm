@@ -28,6 +28,17 @@ export function validateProduct(data = {}) {
  * Sanitizes a product document for output.
  */
 export function sanitizeProduct(doc = {}) {
+  const price = Number(doc.price) || 0;
+  const previousPrice = Number(doc.previousPrice) || 0;
+
+  const costStructure = doc.costStructure || {};
+  const cogs = Number(costStructure.cogs) || 0;
+  const gatewayFeePercent = Number(costStructure.gatewayFeePercent) || 3.5;
+  const shippingCost = Number(costStructure.shippingCost) || 0;
+  const estimatedCpa = Number(costStructure.estimatedCpa) || 0;
+  const otherUnitCosts = Number(costStructure.otherUnitCosts) || 0;
+  const targetMinMarginPercent = Number(costStructure.targetMinMarginPercent) || 15;
+
   return {
     id: doc._id?.toString() || doc.id || '',
     clientId: doc.clientId?.toString() || '',
@@ -35,13 +46,22 @@ export function sanitizeProduct(doc = {}) {
     sku: doc.sku || '',
     category: doc.category || 'General',
     description: doc.description || '',
-    price: Number(doc.price) || 0,
-    previousPrice: Number(doc.previousPrice) || 0,
-    discount: Number(doc.discount) || (doc.previousPrice > doc.price ? Math.round(((doc.previousPrice - doc.price) / doc.previousPrice) * 100) : 0),
+    price,
+    previousPrice,
+    discount: Number(doc.discount) || (previousPrice > price ? Math.round(((previousPrice - price) / previousPrice) * 100) : 0),
     installments: doc.installments || '12 cuotas fijas',
     imageUrl: doc.imageUrl || 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500&auto=format&fit=crop&q=80',
     features: Array.isArray(doc.features) ? doc.features : [],
     tags: Array.isArray(doc.tags) ? doc.tags : [],
+    costStructure: {
+      cogs,
+      gatewayFeePercent,
+      shippingCost,
+      estimatedCpa,
+      otherUnitCosts,
+      targetMinMarginPercent,
+    },
+    activeOffer: doc.activeOffer || null,
     active: doc.active !== false,
     createdAt: doc.createdAt || new Date().toISOString(),
     updatedAt: doc.updatedAt || new Date().toISOString(),
