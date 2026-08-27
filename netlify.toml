@@ -97,6 +97,102 @@
   force = true
 
 [[redirects]]
+  from = "/api/social/sources"
+  to = "/.netlify/functions/api-social-sources"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/social/sources/*"
+  to = "/.netlify/functions/api-social-sources"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/social/snapshot"
+  to = "/.netlify/functions/api-social-snapshot"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/social/snapshot/*"
+  to = "/.netlify/functions/api-social-snapshot"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/social/analyze"
+  to = "/.netlify/functions/api-social-analyzer"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/social/analyze/*"
+  to = "/.netlify/functions/api-social-analyzer"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/sources"
+  to = "/.netlify/functions/api-google-sources"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/sources/*"
+  to = "/.netlify/functions/api-google-sources"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/reviews"
+  to = "/.netlify/functions/api-google-reviews"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/reviews/*"
+  to = "/.netlify/functions/api-google-reviews"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/snapshots"
+  to = "/.netlify/functions/api-google-snapshots"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/snapshots/*"
+  to = "/.netlify/functions/api-google-snapshots"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/competitors"
+  to = "/.netlify/functions/api-google-competitors"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/competitors/*"
+  to = "/.netlify/functions/api-google-competitors"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/ai"
+  to = "/.netlify/functions/api-google-ai"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/google/ai/*"
+  to = "/.netlify/functions/api-google-ai"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

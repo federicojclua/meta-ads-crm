@@ -42,8 +42,8 @@ export function createGoogleSourceDocument(data, createdByUserId) {
     googleBusinessProfile: {
       locationId: data.googleBusinessProfile?.locationId || '',
       verified: !!data.googleBusinessProfile?.verified,
-      rating: Number(data.googleBusinessProfile?.rating) || 0,
-      userRatingsTotal: Number(data.googleBusinessProfile?.userRatingsTotal) || 0,
+      rating: Number(data.googleBusinessProfile?.rating) || (data.rating ? Number(data.rating) : 4.8),
+      userRatingsTotal: Number(data.googleBusinessProfile?.userRatingsTotal) || (data.userRatingsTotal ? Number(data.userRatingsTotal) : (data.reviewVolume ? Number(data.reviewVolume) : 1)),
       openingHours: data.googleBusinessProfile?.openingHours || {},
       connectedAt: data.googleBusinessProfile?.connectedAt ? new Date(data.googleBusinessProfile.connectedAt) : null,
     },
