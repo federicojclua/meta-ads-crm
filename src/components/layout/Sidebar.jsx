@@ -8,6 +8,7 @@ import {
   TrendingUp,
   ShieldCheck,
   Sparkles,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -27,6 +28,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
     { name: t('sidebar.leads'), href: '/app/leads', icon: Users },
     { name: t('sidebar.campaigns'), href: '/app/campaigns', icon: Megaphone },
     { name: t('sidebar.socialAnalyzer'), href: '/app/social-analyzer', icon: Sparkles },
+    { name: t('sidebar.googleIntelligence'), href: '/app/google-intelligence', icon: Globe },
     { name: t('sidebar.settings'), href: '/app/settings', icon: Settings },
   ];
 

@@ -15,6 +15,7 @@ const LeadsPage = lazy(() => import('./pages/LeadsPage').then(m => ({ default: m
 const CampaignsPage = lazy(() => import('./pages/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const SocialAnalyzerPage = lazy(() => import('./pages/SocialAnalyzerPage').then(m => ({ default: m.SocialAnalyzerPage })));
+const GoogleIntelligencePage = lazy(() => import('./pages/GoogleIntelligencePage').then(m => ({ default: m.GoogleIntelligencePage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 const RevenueDashboardPage = lazy(() => import('./pages/RevenueDashboardPage').then(m => ({ default: m.RevenueDashboardPage })));
 
@@ -54,6 +55,7 @@ export function App() {
           <Route path="leads" element={<LeadsPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="social-analyzer" element={<SocialAnalyzerPage />} />
+          <Route path="google-intelligence" element={<GoogleIntelligencePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

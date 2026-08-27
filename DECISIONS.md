@@ -454,3 +454,27 @@ Each decision records:
    - Ratios and non-additive metrics (`reach`) are never summed across days or accounts.
 3. **Mixed Tenant Campaign Conflict Detection:**
    - Campaigns containing AdSets from multiple companies are flagged with `hasMultipleTenants: true` and recorded in `meta_asset_conflicts` to prevent unauthorized cross-tenant data exposure.
+
+---
+
+## ADR-023: Google Intelligence, SEO Local & Anti-Scraping Compliance
+
+**Date:** 2026-08-27
+
+**Decision:** Integrate Google Intelligence (Google Business Profile, Search Console, GA4, Google Ads, and Local Competitors) with strict semantic separation, zero-scraping policy, and schema-validated AI diagnostics.
+
+**Rationale:**
+- **Zero Scraping & Legal Traceability**: Avoids fragile web scraping, CAPTCHA evasion, or undocumented endpoints by relying exclusively on official Google APIs (Business Information API, Search Console API, GA4 Data API, Google Ads API) or audited manual client uploads.
+- **Strict Attribution Isolation**: Search Console organic query impressions/clicks are never conflated with GA4 on-site sessions or Google Ads paid clicks. Each channel has distinct collections, date windows, and isolated reporting cards.
+- **Human-in-the-Loop Review Drafter**: AI-generated responses to customer reviews are strictly produced as editable drafts with anti-prompt injection sanitization and are never auto-posted to live Google profiles.
+- **Deterministic Math Engine**: All reputation metrics, response rates, CTR analysis, and local competitor ranking differentials are computed via pure functions before generating strategic AI reports.
+
+**Alternatives Discarded:**
+- Third-party scraping services (Scrapebox, Outscraper) — Violates Google Terms of Service and introduces security/maintenance liabilities.
+- Automated auto-reply publishing — High brand risk for clients without human review oversight.
+
+**Consequences:**
+- All Google entity data is strictly multi-tenant isolated by `clientId`.
+- Endpoints are protected by IP-based rate limiting (10 req/min).
+- Offline fallback deterministic reports provide 100% operational reliability.
+

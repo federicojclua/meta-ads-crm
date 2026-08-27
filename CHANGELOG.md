@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 9: Google Intelligence, SEO Local, Reseñas y Competencia (2026-08-27)
+- **Modelos de Datos y Aislamiento Multi-Tenant**: Creadas colecciones `google_sources`, `google_reviews`, `google_snapshots`, `google_competitors` y `google_analyses` con validación estricta de esquemas y aislamiento por `clientId`.
+- **Motor Matemático Determinista (`googleMetrics.js`)**: Cálculo puro de calificación promedio, distribución de estrellas (1-5), tasa de respuesta, tiempo medio de respuesta en horas, CTR orgánico medio, posición media en Search Console, detección de consultas de alto alcance/bajo CTR y radar competitivo local.
+- **Redactor Asistido de Respuestas a Reseñas con IA (`googleAi.js`)**: Generación de respuestas empáticas y educadas en modo **borrador editable** con protección anti-prompt injection (nunca auto-publicadas a Google).
+- **Diagnóstico Estratégico de Google con IA**: Reporte estructurado con 5 pilares (Ficha & Reputación, SEO Orgánico, Conversión Web, Eficiencia Ads, Posición Competitiva), hallazgos priorizados con responsables sugeridos, quick wins y roadmap táctico 30/60/90 días.
+- **Endpoints Serverless con Rate Limiting (10 req/min)**: Implementados `api-google-sources.js`, `api-google-reviews.js`, `api-google-snapshots.js`, `api-google-competitors.js` y `api-google-ai.js` con purga segura en cascada al desconectar entidades.
+- **Interfaz Interactiva y Accesible (`GoogleIntelligencePage.jsx`)**: Vista multi-pestaña (Visión General, Ficha & Reseñas, SEO & Search Console, Tráfico & Ads, Radar Competitivo, Diagnóstico IA) con selector de empresas, redactor de respuestas y advertencias de atribución explícitas.
+- **Internacionalización Completa (i18n)**: Diccionarios bilingües en español (`es`) e inglés (`en`) para todos los componentes y métricas de Google Intelligence.
+- **Suite de Pruebas Automatizadas (32 suites, 277 tests)**: Agregadas 13 pruebas unitarias e integradas (`google-metrics.test.js`, `google-ai.test.js`, `google-backend.test.js` y `google-frontend.test.jsx`) con 100% de éxito en toda la suite.
+
 ### Fixed — Stage 8 Social Analyzer Empty State & Auth Guard Hotfix (2026-08-27)
 - **Protección de Carga de Autenticación en `SocialAnalyzerPage.jsx`**: Incorporada la bandera `authLoading` en los efectos de carga inicial para evitar disparar peticiones prematuras a `/api/social/sources` antes de que el token de Firebase y el `userProfile` estén listos.
 - **Manejo Seguro de Inquilinos Vacíos en `api-social-sources.js`**: Si un inquilino no posee perfiles sociales aún o no cuenta con empresa asignada, el endpoint retorna código HTTP 200 con `{ ok: true, sources: [] }` en lugar de responder con un error 403 `TENANT_SCOPE_MISSING`.
