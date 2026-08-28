@@ -746,7 +746,9 @@ function TeamSlaSection() {
 
   if (!slaData) return null;
 
-  const { summary, leakedLeads, teamMetrics } = slaData;
+  const summary = slaData.summary || {};
+  const leakedLeads = slaData.leakedLeads || [];
+  const teamMetrics = slaData.teamMetrics || [];
 
   return (
     <div className="bg-white border border-brand-border rounded-lg p-6 shadow-subtle space-y-6">

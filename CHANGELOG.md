@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 19: ANIMA Learning Engine & Closed-Loop Intelligence (2026-08-28)
+- **Modelos de Memoria de Patrones (`models/PatternMemory.js`)**:
+  - Esquema estructurado para almacenar `Winning DNA`, `Losing DNA` y alertas de `Fatiga Creativa` (`patternType`, `featureCombination`, `metrics`, `statisticalConfidence`, `headline`, `diagnosis`, `prescriptiveAction`, `appliedCount`).
+  - Filtro de significancia estadística estricto (`MIN_STATISTICAL_SPEND = 5000` ARS, `MIN_STATISTICAL_IMPRESSIONS = 1000`) para descartar activos con muestras insuficientes antes de la clusterización.
+- **Motor de Aprendizaje y Reconocimiento de Patrones (`learningEngineService.js`)**:
+  - Cruce causal y determinista entre la metadata de Asset Intelligence (Etapa 16/17), el rendimiento publicitario de Meta Ads (Etapa 18) y las ventas y True Profit del CRM (Etapa 15B).
+  - Algoritmo de extracción de patrones:
+    - *Winning DNA*: Combinaciones con $\text{ROAS} \ge 1.25\times$ el promedio o Margen de True Profit $> 30\%$, con confianza estadística $\ge 85\%$.
+    - *Losing DNA*: Combinaciones con $\text{CPA} \ge 1.4\times$ el promedio o $\text{ROAS} < 0.7\times$.
+    - *Fatiga Creativa*: Piezas con Frecuencia $> 3.5$ y caída de $\text{CTR} > 20\%$ en los últimos 7 días.
+  - Sincronización automática de subdocumentos en `BusinessMemory.winningPatterns` y `BusinessMemory.losingPatterns`.
+  - Generador de presets para el Creative Studio (`generateCreativeStudioPreset`).
+- **Endpoints de Learning Engine (`netlify/functions/api-learning-engine.js`)**:
+  - `GET /api/learning-engine/insights`: Obtiene el resumen de patrones, diagnósticos de IA y alertas de fatiga.
+  - `POST /api/learning-engine/sync-patterns`: Escaneo y re-clusterización analítica de activos bajo demanda o vía CRON.
+  - `POST /api/learning-engine/apply-to-creative-studio`: Genera el brief pre-configurado para retroalimentar al Creative Studio.
+- **UI Learning Center (`src/pages/LearningCenterPage.jsx`, `Sidebar.jsx`, `App.jsx`)**:
+  - Dashboard ejecutivo con tarjetas de KPIs (Patrones Analizados, Winning DNA Activos, Lift de ROAS Promedio +42.5%, Alertas de Fatiga).
+  - Banner de Diagnóstico Causal de IA (Gemini Adaptive Learning).
+  - Columna 🏆 *Winning Performance DNA* con tarjetas interactivas y botón `"✨ Aplicar al Creative Studio"`.
+  - Columna ⚠️ *Losing DNA & Fatiga Creativa* con diagnósticos causales y acciones correctivas.
+  - Nueva ruta `/app/learning-center` y acceso con icono `Brain` en la barra de navegación lateral.
+- **Suite de Pruebas Automatizadas (6 nuevos tests / 108 en total en 36 suites)**:
+  - `learning-engine-patterns.test.js`, `learning-engine-api.test.js`, `learning-center-frontend.test.jsx`.
+
 ### Added — Stages 16/17 Evolution: Asset Intelligence & Brand Guardian (2026-08-27)
 - **Asset Intelligence Metadata (`models/CreativeAsset.js`, `CampaignCreative.js`)**:
   - Estructura de metadatos para cada pieza generada: `format` (1:1, 9:16, 1.91:1), `assetType`, `hookType`, `ctaType`, `offerId` (vinculado a la oferta activa de la Etapa 15B), `presenterType`, `brandComplianceScore`, y contenedor de `performanceMetrics` para futuros webhooks de Meta.

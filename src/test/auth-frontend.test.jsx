@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { Button } from '../components/ui/Button';
@@ -10,6 +10,15 @@ import { EmptyState } from '../components/ui/EmptyState';
 import * as AuthHook from '../hooks/useAuth';
 
 describe('Frontend UI & Protected Routes Tests', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
   it('10. Rutas privadas -> redirige a /login cuando no hay usuario autenticado', () => {
     vi.spyOn(AuthHook, 'useAuth').mockReturnValue({
       firebaseUser: null,

@@ -40,9 +40,9 @@ export function SettingsPage() {
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: string }
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
-  const [passwordsMatch, setPasswordsMatch] = useState(false);
+  const passwordsMatch = newPassword.length >= 6 && newPassword === confirmPassword;
   const isPasswordValidLength = newPassword.length >= 6;
-  const canSubmit = isPasswordValidLength && newPassword === confirmPassword && !actionLoading;
+  const canSubmit = passwordsMatch && !actionLoading;
 
   // AI Brain & Knowledge Base State
   const [brain, setBrain] = useState({

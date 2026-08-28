@@ -249,7 +249,7 @@ export async function handler(event) {
                 // ----------------------------------------------------
                 // Subetapa 14.2: Autonomous AI Agent Qualification
                 // ----------------------------------------------------
-                const brainDoc = await brainCollection.findOne({ clientId });
+                const brainDoc = brainCollection ? await brainCollection.findOne({ clientId }) : null;
                 const brain = brainDoc || DEFAULT_AI_BRAIN;
 
                 if (brain.autoQualifyEnabled && !chat.isBotMuted && currentLead?.stage === 'new') {
@@ -298,31 +298,33 @@ export async function handler(event) {
                   }
 
                   // Mutate Pipeline: Promote to 'qualified' if criteria met
-                  if (decision.shouldQualify) {
+                  if (decision.shouldQualify && typeof leadsCollection?.updateOne === 'function') {
                     await leadsCollection.updateOne(
                       { _id: leadId },
                       { $set: { stage: 'qualified', updatedAt: now } }
                     );
 
-                    await activitiesCollection.insertOne({
-                      clientId,
-                      leadId,
-                      type: 'stage_change',
-                      description: 'Prospecto calificado automáticamente por el Agente de IA comercial.',
-                      performedBy: { id: 'ai_qualifier', displayName: 'Agente Calificador IA', email: 'bot@animamkt.com' },
-                      data: { newStage: 'qualified', reason: decision.reason },
-                      createdAt: now,
-                    });
+                    if (typeof activitiesCollection?.insertOne === 'function') {
+                      await activitiesCollection.insertOne({
+                        clientId,
+                        leadId,
+                        type: 'stage_change',
+                        description: 'Prospecto calificado automáticamente por el Agente de IA comercial.',
+                        performedBy: { id: 'ai_qualifier', displayName: 'Agente Calificador IA', email: 'bot@animamkt.com' },
+                        data: { newStage: 'qualified', reason: decision.reason },
+                        createdAt: now,
+                      });
+                    }
                   }
 
                   // If Hand-off triggered, log alert for human team
-                  if (decision.shouldHandOff) {
+                  if (decision.shouldHandOff && typeof activitiesCollection?.insertOne === 'function') {
                     await activitiesCollection.insertOne({
                       clientId,
                       leadId,
-                      type: 'bot_handoff',
-                      description: `Pase a humano solicitado por el bot: ${decision.reason}`,
-                      performedBy: { id: 'ai_bot', displayName: 'Agente IA', email: 'bot@animamkt.com' },
+                      type: 'handoff_triggered',
+                      description: 'Agente de IA derivó la conversación a un ejecutivo humano.',
+                      performedBy: { id: 'ai_setter', displayName: 'Agente IA', email: 'bot@animamkt.com' },
                       data: { reason: decision.reason },
                       createdAt: now,
                     });
