@@ -1,811 +1,1440 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  ShoppingCart,
-  TrendingDown,
-  Sparkles,
-  AlertTriangle,
-  Layers,
-  PhoneCall,
-  Users,
-  DollarSign,
-  ArrowRight,
-  ShieldCheck,
+  ShoppingBag,
+  Target,
+  Search,
+  BookOpen,
   CheckCircle2,
-  RefreshCw,
-  Plus,
+  AlertTriangle,
   Zap,
-  Smartphone,
-  Monitor,
+  TrendingUp,
+  Award,
+  ShieldCheck,
+  RefreshCw,
+  Copy,
+  ExternalLink,
+  Plus,
+  ArrowRight,
+  FileText,
+  Users,
+  Layers,
+  Sparkles,
+  Download,
+  Clock,
+  Send,
+  HelpCircle,
+  BarChart3,
+  Flame,
+  Share2,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useLanguage } from '../contexts/LanguageContext';
 import { apiClient } from '../lib/api';
-import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
+import { Badge } from '../components/ui/Badge';
 import { formatCurrency, formatNumber } from '../lib/utils';
 
 export function EcommerceCroPage() {
+  const navigate = useNavigate();
   const { userProfile } = useAuth();
-  const { t, language } = useLanguage();
-  const [activeTab, setActiveTab] = useState('funnel'); // 'funnel' | 'cro' | 'catalog' | 'affiliates'
+  const [activeTab, setActiveTab] = useState('funnel_dropoff'); 
 
-  // Funnel & Friction State
+  // Product Intelligence State
+  const [productMode, setProductMode] = useState('dropshipping'); // 'dropshipping' | 'kdp'
+  const [productInputs, setProductInputs] = useState({
+    url: '',
+    competitorUrl: '',
+    productName: '',
+    category: 'Tecnología & Gadgets',
+    market: 'Argentina / LATAM',
+    country: 'AR',
+    currency: 'ARS',
+    salePrice: 45000,
+    cost: 18000,
+    shippingCost: 4500,
+    targetMargin: 40,
+    manualFeatures: '',
+    manualDescription: '',
+    // KDP Fields
+    niche: 'Desarrollo Personal / Hábitos',
+    mainKeyword: 'hábitos atómicos para profesionales',
+    audience: 'Emprendedores y profesionales con falta de tiempo',
+    language: 'Español',
+    marketplace: 'Amazon.com (ES/US)',
+    genre: 'No Ficción',
+    bookType: 'Paperback + Kindle',
+    concept: 'Guía práctica para construir rutinas de alta productividad en 21 días.',
+  });
+
+  const [analyzedProduct, setAnalyzedProduct] = useState(null);
+  const [isAnalyzingProduct, setIsAnalyzingProduct] = useState(false);
+  const [savedProductFeedback, setSavedProductFeedback] = useState(null);
+
+  // CRO Analyzer State
+  const [croUrl, setCroUrl] = useState('');
+  const [croAudience, setCroAudience] = useState('Tráfico Frío Meta Ads');
+  const [croAudit, setCroAudit] = useState(null);
+  const [legacyCroDiag, setLegacyCroDiag] = useState(null);
+  const [isAuditingCro, setIsAuditingCro] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+
+  // Funnel & Friction Legacy Data
   const [funnelData, setFunnelData] = useState(null);
   const [frictionData, setFrictionData] = useState(null);
-  const [catalogData, setCatalogData] = useState(null);
-  const [affiliatesData, setAffiliatesData] = useState([]);
-  const [profitabilityData, setProfitabilityData] = useState(null);
+
+  // Retention, Customers, LTV & Library State
+  const [productsList, setProductsList] = useState([]);
+  const [customersList, setCustomersList] = useState([]);
+  const [ltvData, setLtvData] = useState(null);
+  const [retentionRules, setRetentionRules] = useState([]);
+  const [retentionEvents, setRetentionEvents] = useState([]);
+  const [crossSellRecs, setCrossSellRecs] = useState([]);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // AI CRO Diagnostics State
-  const [croDiagnostic, setCroDiagnostic] = useState(null);
-  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  // Copy Feedback
+  const [copiedKey, setCopiedKey] = useState(null);
 
-  // New Affiliate Modal
-  const [isAffiliateModalOpen, setIsAffiliateModalOpen] = useState(false);
-  const [newAffiliate, setNewAffiliate] = useState({ name: '', email: '', promoCode: '', commissionRate: 10 });
-  const [isSavingAffiliate, setIsSavingAffiliate] = useState(false);
-
-  const fetchEcommerceData = async () => {
+  const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const [fRes, frRes, cRes, aRes, pRes] = await Promise.all([
+      const [dashRes, prodRes, custRes, ltvRes, rulesRes, eventsRes, crossRes, funRes, fricRes] = await Promise.all([
+        apiClient('/api/ecommerce/dashboard'),
+        apiClient('/api/ecommerce/products'),
+        apiClient('/api/ecommerce/customers'),
+        apiClient('/api/ecommerce/ltv'),
+        apiClient('/api/ecommerce/retention-rules'),
+        apiClient('/api/ecommerce/retention-events'),
+        apiClient('/api/ecommerce/cross-sell?productName=Notebook'),
         apiClient('/api/ecommerce/funnel'),
         apiClient('/api/ecommerce/friction'),
-        apiClient('/api/ecommerce/meta-catalog'),
-        apiClient('/api/affiliates'),
-        apiClient('/api/affiliates/profitability'),
       ]);
 
-      if (fRes?.funnel) setFunnelData(fRes);
-      if (frRes?.friction) setFrictionData(frRes);
-      if (cRes?.catalogCampaigns) setCatalogData(cRes);
-      if (aRes?.affiliates) setAffiliatesData(aRes.affiliates);
-      if (pRes?.profitability) setProfitabilityData(pRes.profitability);
+      if (dashRes?.summary) setDashboardSummary(dashRes.summary);
+      if (prodRes?.products) setProductsList(prodRes.products);
+      if (custRes?.customers) setCustomersList(custRes.customers);
+      if (ltvRes?.ltv) setLtvData(ltvRes.ltv);
+      if (rulesRes?.rules) setRetentionRules(rulesRes.rules);
+      if (eventsRes?.events) setRetentionEvents(eventsRes.events);
+      if (crossRes?.recommendations) setCrossSellRecs(crossRes.recommendations);
+      if (funRes?.funnel) setFunnelData(funRes.funnel);
+      if (fricRes?.friction) setFrictionData(fricRes.friction);
     } catch (err) {
-      console.warn('[ECOMMERCE_PAGE] Error fetching data:', err.message);
+      console.warn('[ECOMMERCE_INTELLIGENCE] Error loading data:', err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEcommerceData();
+    fetchAllData();
   }, [userProfile?.clientId]);
 
-  const handleRunCroDiagnosis = async () => {
-    setIsDiagnosing(true);
+  const handleAnalyzeProduct = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setIsAnalyzingProduct(true);
     try {
-      const res = await apiClient('/api/ecommerce/cro-diagnose', {
+      const res = await apiClient('/api/ecommerce/products/analyze', {
         method: 'POST',
-        body: JSON.stringify({ funnelData, frictionData }),
+        body: JSON.stringify({
+          mode: productMode,
+          ...productInputs,
+        }),
       });
-      if (res?.diagnostic) {
-        setCroDiagnostic(res.diagnostic);
+
+      if (res?.ok && res.analysis) {
+        setAnalyzedProduct(res.analysis);
       }
     } catch (err) {
-      console.warn('[CRO_DIAGNOSE] Error:', err.message);
+      console.warn('[PRODUCT_ANALYSIS] Error:', err.message);
     } finally {
-      setIsDiagnosing(false);
+      setIsAnalyzingProduct(false);
     }
   };
 
-  const handleCreateAffiliate = async (e) => {
-    e.preventDefault();
-    if (!newAffiliate.name || !newAffiliate.promoCode) return;
-    setIsSavingAffiliate(true);
+  const handleSaveProductToLibrary = async () => {
+    if (!analyzedProduct) return;
     try {
-      const res = await apiClient('/api/affiliates', {
+      const res = await apiClient('/api/ecommerce/products/save', {
         method: 'POST',
-        body: JSON.stringify(newAffiliate),
+        body: JSON.stringify({
+          productData: {
+            sourceType: productMode,
+            sourceUrl: productInputs.url,
+            competitorUrl: productInputs.competitorUrl,
+            productName: productInputs.productName || (productMode === 'kdp' ? analyzedProduct.kdpData?.suggestedTitle : 'Producto Analizado'),
+            category: productInputs.category,
+            market: productInputs.market,
+            currency: productInputs.currency,
+            salePrice: productInputs.salePrice,
+            cost: productInputs.cost,
+            shippingCost: productInputs.shippingCost,
+          },
+          analysisData: analyzedProduct,
+        }),
       });
-      if (res?.affiliate) {
-        setAffiliatesData((prev) => [res.affiliate, ...prev]);
-        setIsAffiliateModalOpen(false);
-        setNewAffiliate({ name: '', email: '', promoCode: '', commissionRate: 10 });
+
+      if (res?.ok) {
+        setSavedProductFeedback('¡Producto y análisis guardados con éxito en la Product Library!');
+        setProductsList((prev) => [res.product, ...prev]);
+        setTimeout(() => setSavedProductFeedback(null), 4000);
       }
     } catch (err) {
-      console.warn('[CREATE_AFFILIATE] Error:', err.message);
-    } finally {
-      setIsSavingAffiliate(false);
+      console.warn('[SAVE_PRODUCT] Error:', err.message);
     }
+  };
+
+  const handleAnalyzeCro = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setIsAuditingCro(true);
+    try {
+      const [res, diagRes] = await Promise.all([
+        apiClient('/api/ecommerce/cro/analyze', {
+          method: 'POST',
+          body: JSON.stringify({
+            url: croUrl || 'https://tienda-oficial.com.ar/producto',
+            targetAudience: croAudience,
+          }),
+        }),
+        apiClient('/api/ecommerce/cro-diagnose', {
+          method: 'POST',
+          body: JSON.stringify({}),
+        }),
+      ]);
+
+      if (res?.ok && res.audit) {
+        setCroAudit(res.audit);
+      }
+      if (diagRes?.ok && diagRes.diagnostic) {
+        setLegacyCroDiag(diagRes.diagnostic);
+      }
+    } catch (err) {
+      console.warn('[CRO_ANALYSIS] Error:', err.message);
+    } finally {
+      setIsAuditingCro(false);
+    }
+  };
+
+  const handleDispatchRetention = async () => {
+    try {
+      const res = await apiClient('/api/ecommerce/retention/dispatch', {
+        method: 'POST',
+      });
+      if (res?.ok) {
+        setSavedProductFeedback(`¡Automatizaciones evaluadas! ${res.sentCount} enviadas, ${res.blockedCount} bloqueadas por reglas de seguridad.`);
+        fetchAllData();
+      }
+    } catch (err) {
+      console.warn('[DISPATCH_RETENTION] Error:', err.message);
+    }
+  };
+
+  const copyToClipboard = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Page Header */}
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-brand-border">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-emerald-600/10 text-emerald-700 flex items-center justify-center font-bold">
-              <ShoppingCart className="w-5 h-5" />
-            </div>
-            <div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-600 flex items-center justify-center font-bold shadow-xs">
+            <ShoppingBag className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-brand-text-primary uppercase tracking-tight">
                 Hub de E-Commerce & Optimización CRO
               </h1>
-              <p className="text-xs text-brand-text-secondary mt-0.5">
-                Data Warehouse, auditoría de embudo de compras, fricción UI/UX y rentabilidad de afiliados.
-              </p>
+              <Badge variant="purple" className="text-[10px]">
+                Product → Offer → Retention
+              </Badge>
             </div>
+            <p className="text-xs text-brand-text-secondary mt-0.5">
+              E-Commerce Intelligence & Retention Engine · Descubrimiento de productos, auditoría CRO y recompra por WhatsApp.
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchEcommerceData}
-            disabled={isLoading}
-            className="text-xs h-8 px-2.5 gap-1.5"
-          >
+          <Button variant="outline" size="sm" onClick={fetchAllData} className="h-8 px-2.5 text-xs">
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Actualizar</span>
           </Button>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-brand-border text-xs font-semibold overflow-x-auto pb-px">
-        <button
-          type="button"
-          onClick={() => setActiveTab('funnel')}
-          className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'funnel'
-              ? 'border-emerald-600 text-emerald-700 font-bold'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Embudo & Drop-off</span>
-        </button>
+      {/* Feedback Banner */}
+      {savedProductFeedback && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-bold flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{savedProductFeedback}</span>
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('cro')}
-          className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'cro'
-              ? 'border-emerald-600 text-emerald-700 font-bold'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-emerald-600" />
-          <span>Auditoría UI/UX & Agente CRO</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('catalog')}
-          className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'catalog'
-              ? 'border-emerald-600 text-emerald-700 font-bold'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
-          }`}
-        >
-          <PhoneCall className="w-4 h-4" />
-          <span>Meta Ads Catálogo & Llamadas</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('affiliates')}
-          className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'affiliates'
-              ? 'border-emerald-600 text-emerald-700 font-bold'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Afiliados & Margen Neto Real</span>
-        </button>
+      {/* Tabs Navigation */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-slate-200 no-scrollbar">
+        {[
+          { id: 'funnel_dropoff', label: 'Embudo & Drop-off', icon: BarChart3 },
+          { id: 'cro_analyzer', label: 'Auditoría UI/UX & Agente CRO', icon: Search },
+          { id: 'product_intelligence', label: '🎯 Product Intelligence', icon: Sparkles },
+          { id: 'retention', label: '👥 Customer Retention', icon: Users },
+          { id: 'product_library', label: '📚 Product Library', icon: BookOpen },
+          { id: 'ltv_revenue', label: '📈 LTV & Revenue', icon: TrendingUp },
+          { id: 'automation', label: '⚡ Automation & Rules', icon: Zap },
+          { id: 'meta_catalog', label: 'Meta Ads Catálogo & Llamadas', icon: Target },
+          { id: 'affiliates', label: 'Afiliados & Margen Neto Real', icon: Share2 },
+          { id: 'reports', label: '📊 Reports', icon: FileText },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                isActive
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* ========================================================================= */}
-      {/* TAB 1: EMBUDO DE CONVERSIÓN & DROP-OFF                                     */}
-      {/* ========================================================================= */}
-      {activeTab === 'funnel' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Top KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">
-                Vistas de Producto (view_item)
-              </span>
-              <span className="text-xl font-black text-brand-text-primary mt-1 block font-mono">
-                {formatNumber(funnelData?.summary?.totalViews || 12450)}
-              </span>
-              <span className="text-[10px] text-slate-400">Tráfico calificado a fichas de producto</span>
+      {/* ======================================================== */}
+      {/* TAB: EMBUDO & DROP-OFF */}
+      {/* ======================================================== */}
+      {activeTab === 'funnel_dropoff' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider">
+                Visualización del Embudo de E-Commerce & Drop-off
+              </h3>
+              <span className="text-xs font-mono text-slate-400">Paso a Paso</span>
             </div>
 
-            <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">
-                Compras Finalizadas (purchase)
-              </span>
-              <span className="text-xl font-black text-emerald-700 mt-1 block font-mono">
-                {formatNumber(funnelData?.summary?.totalPurchases || 540)}
-              </span>
-              <span className="text-[10px] text-slate-400">Conversiones transaccionales efectivas</span>
-            </div>
+            <div className="space-y-3">
+              {(funnelData || [
+                { step: 'view_item', label: 'Vista de Producto (view_item)', count: 12450, conversionFromInitial: 100, dropoffFromPrevious: 0 },
+                { step: 'add_to_cart', label: 'Añadido al Carrito (add_to_cart)', count: 3860, conversionFromInitial: 31.0, dropoffFromPrevious: 69.0 },
+                { step: 'begin_checkout', label: 'Inicio de Checkout (begin_checkout)', count: 1940, conversionFromInitial: 15.6, dropoffFromPrevious: 49.7 },
+                { step: 'add_payment_info', label: 'Datos de Pago (add_payment_info)', count: 820, conversionFromInitial: 6.6, dropoffFromPrevious: 57.7 },
+                { step: 'purchase', label: 'Compra Finalizada (purchase)', count: 540, conversionFromInitial: 4.34, dropoffFromPrevious: 34.1 },
+              ]).map((st, i) => (
+                <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                  <div>
+                    <strong className="text-brand-text-primary block text-sm">{st.label || st.step}</strong>
+                    <span className="text-slate-500 font-mono">{formatNumber(st.count)} eventos</span>
+                  </div>
 
-            <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary">
-                Tasa de Conversión Global
-              </span>
-              <span className="text-xl font-black text-brand-text-primary mt-1 block font-mono">
-                {funnelData?.summary?.overallConversionRate || 4.34}%
-              </span>
-              <span className="text-[10px] text-slate-400">De vista a compra final</span>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-red-200 bg-red-50/40 shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">
-                Mayor Caída (Drop-off Bottleneck)
-              </span>
-              <span className="text-base font-bold text-red-800 mt-1 block truncate">
-                add_payment_info
-              </span>
-              <span className="text-[10px] text-red-600 font-semibold">57.5% de abandono en checkout</span>
+                  <div className="flex items-center gap-4 font-mono text-right">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Conv. Global</span>
+                      <strong className="text-emerald-700">{st.conversionFromInitial}%</strong>
+                    </div>
+                    {i > 0 && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Caída Paso</span>
+                        <strong className="text-rose-600">-{st.dropoffFromPrevious}%</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Visual Funnel */}
-          <div className="bg-white p-6 rounded-xl border border-brand-border shadow-xs space-y-6">
+      {/* ======================================================== */}
+      {/* TAB: AUDITORÍA UI/UX & AGENTE CRO */}
+      {/* ======================================================== */}
+      {activeTab === 'cro_analyzer' && (
+        <div className="space-y-6">
+          {/* Friction Banner */}
+          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider">
-                Embudo Visual de Transacciones (GA4 Standard E-Commerce)
-              </h3>
-              <p className="text-xs text-brand-text-secondary mt-0.5">
-                Volumen y tasa de retención escalonada paso a paso.
-              </p>
+              <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Puntaje de Fricción UI/UX</span>
+              <div className="text-2xl font-black text-rose-600 mt-0.5">68 / 100 · Severidad CRÍTICA</div>
+              <span className="text-xs text-slate-500">Abandono masivo en pasarela de pagos detectado</span>
             </div>
 
-            <div className="space-y-4">
-              {(funnelData?.funnel || []).map((step, idx) => {
-                const widthPercent = Math.max(8, step.conversionFromInitial);
-                const isFinal = idx === (funnelData.funnel.length - 1);
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleAnalyzeCro}
+              className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs h-9 px-4 gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Ejecutar Diagnóstico CRO con IA</span>
+            </Button>
+          </div>
 
-                return (
-                  <div key={step.step} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-brand-text-primary">{step.label}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-brand-text-primary font-bold">
-                          {formatNumber(step.count)} eventos
+          {/* Legacy Diagnostic Result if present */}
+          {legacyCroDiag && (
+            <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-3 text-xs animate-in fade-in">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <strong className="text-brand-text-primary text-sm">{legacyCroDiag.title}</strong>
+                <Badge variant="danger">{legacyCroDiag.overallSeverity}</Badge>
+              </div>
+              <span className="text-emerald-700 font-bold block">{legacyCroDiag.estimatedRevenueLift}</span>
+              <div className="space-y-2">
+                {(legacyCroDiag.bottlenecks || []).map((b, i) => (
+                  <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                      <strong className="text-slate-800">{b.step}</strong>
+                      <span className="text-rose-600 block text-[11px]">{b.dropoff} — {b.rootCause}</span>
+                    </div>
+                    <Badge variant="warning">{b.priority}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleAnalyzeCro} className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
+                <Search className="w-4 h-4 text-violet-600" />
+                <span>Auditoría CRO de Landing Page & Embudo de Conversión</span>
+              </h2>
+              <span className="text-xs text-slate-400 font-mono">10 Dimensiones de Conversión</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="md:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">URL de la Landing Page</label>
+                <input
+                  type="url"
+                  value={croUrl}
+                  onChange={(e) => setCroUrl(e.target.value)}
+                  placeholder="https://tienda.com/landing-oferta"
+                  className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Audiencia / Origen de Tráfico</label>
+                <input
+                  type="text"
+                  value={croAudience}
+                  onChange={(e) => setCroAudience(e.target.value)}
+                  className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                disabled={isAuditingCro}
+                className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs h-9 px-5 gap-2"
+              >
+                <Sparkles className={`w-4 h-4 ${isAuditingCro ? 'animate-spin' : ''}`} />
+                <span>{isAuditingCro ? 'Auditando Landing...' : 'Ejecutar Auditoría CRO Completa'}</span>
+              </Button>
+            </div>
+          </form>
+
+          {/* CRO Audit Results */}
+          {croAudit && (
+            <div className="space-y-6 animate-in fade-in">
+              <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-[10px] uppercase font-mono text-emerald-400 block font-bold">
+                    Puntuación CRO Global
+                  </span>
+                  <h3 className="text-2xl font-black font-mono text-white mt-1">
+                    {croAudit.croScore}/100 · Rendimiento Móvil
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                    {croAudit.executiveSummary}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsPdfModalOpen(true)}
+                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs h-9 gap-2 shadow-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>📄 Generar Informe PDF</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Quick Wins Matrix */}
+              <div className="bg-emerald-50/50 border border-emerald-200 p-5 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-emerald-600" />
+                    <span>Quick Wins (Alto Impacto / Bajo Esfuerzo de Implementación)</span>
+                  </span>
+                  <Badge variant="success" className="text-[9px]">
+                    {croAudit.quickWins?.length} Oportunidades Inmediatas
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {(croAudit.quickWins || []).map((qw, i) => (
+                    <div key={i} className="bg-white p-3.5 rounded-xl border border-emerald-200/80 space-y-1.5 text-xs shadow-2xs">
+                      <span className="text-[10px] font-black uppercase text-emerald-700 block font-mono">
+                        {qw.label}
+                      </span>
+                      <p className="font-bold text-slate-800">{qw.recommendation}</p>
+                      <span className="text-[10px] text-slate-500 block">Problema: {qw.problem}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 10 Dimensions Grid */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider">
+                  Evaluación de las 10 Dimensiones de Conversión
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {(croAudit.dimensions || []).map((dim, i) => (
+                    <div key={i} className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-2 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span className="font-black text-brand-text-primary">{dim.label}</span>
+                        <span className={`px-2 py-0.5 rounded font-mono font-bold text-[10px] ${
+                          dim.score >= 8 ? 'bg-emerald-100 text-emerald-800' : dim.score >= 6 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          Score: {dim.score}/10
                         </span>
-                        <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded text-[11px]">
-                          {step.conversionFromInitial}% global
-                        </span>
-                        {step.dropoffFromPrevious > 0 && (
-                          <span className="font-mono text-red-700 bg-red-50 px-1.5 py-0.2 rounded text-[11px] font-bold flex items-center gap-0.5">
-                            <TrendingDown className="w-3 h-3" />
-                            -{step.dropoffFromPrevious}% caída
+                      </div>
+                      <p className="text-slate-700"><strong>Fricción:</strong> {dim.problem}</p>
+                      <p className="text-emerald-900 font-semibold"><strong>Recomendación:</strong> {dim.recommendation}</p>
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                        <span>Prioridad: {dim.priority}</span>
+                        <span>Impacto: {dim.impact} | Esfuerzo: {dim.effort}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PDF Report Modal */}
+          {isPdfModalOpen && croAudit && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-xl border border-brand-border">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-violet-600" />
+                    <h3 className="text-sm font-black text-brand-text-primary uppercase">
+                      Informe Ejecutivo de Auditoría CRO
+                    </h3>
+                  </div>
+                  <button onClick={() => setIsPdfModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-3 font-mono">
+                  <div className="flex justify-between border-b border-slate-200 pb-2">
+                    <span>ANIMA MKT CRM · E-Commerce Intelligence</span>
+                    <span>Fecha: {new Date().toLocaleDateString()}</span>
+                  </div>
+                  <div>
+                    <strong className="block text-slate-900">URL: {croAudit.url}</strong>
+                    <span>Puntuación CRO: {croAudit.croScore}/100</span>
+                  </div>
+                  <p className="text-slate-700 font-sans text-xs">{croAudit.executiveSummary}</p>
+                  <div>
+                    <strong className="block text-slate-900 uppercase">Top Quick Wins:</strong>
+                    <ul className="list-disc pl-4 space-y-1 font-sans text-[11px]">
+                      {(croAudit.quickWins || []).map((q, i) => (
+                        <li key={i}>{q.recommendation}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200 text-right text-[10px] text-slate-400">
+                    ANIMA MKT CRM · Revenue Intelligence
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <Button variant="outline" size="sm" onClick={() => setIsPdfModalOpen(false)}>
+                    Cerrar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      window.print();
+                      setIsPdfModalOpen(false);
+                    }}
+                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Imprimir / Guardar PDF</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: PRODUCT INTELLIGENCE (Dropshipping & KDP) */}
+      {/* ======================================================== */}
+      {activeTab === 'product_intelligence' && (
+        <div className="space-y-6">
+          {/* Mode Switcher */}
+          <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase px-2">Modo de Análisis:</span>
+              <button
+                onClick={() => setProductMode('dropshipping')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  productMode === 'dropshipping'
+                    ? 'bg-white text-brand-text-primary shadow-xs border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                📦 Dropshipping & E-Commerce
+              </button>
+              <button
+                onClick={() => setProductMode('kdp')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  productMode === 'kdp'
+                    ? 'bg-white text-brand-text-primary shadow-xs border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                📖 Amazon KDP Books
+              </button>
+            </div>
+
+            <span className="text-[11px] font-mono text-slate-400">
+              Protección SSRF activa · Fact vs Inference Engine
+            </span>
+          </div>
+
+          {/* Input Form */}
+          <form onSubmit={handleAnalyzeProduct} className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
+                <Target className="w-4 h-4 text-violet-600" />
+                <span>
+                  {productMode === 'dropshipping'
+                    ? 'Configurar Producto para Análisis Comercial'
+                    : 'Configurar Libro / Nicho para Amazon KDP'}
+                </span>
+              </h2>
+              <span className="text-xs text-slate-400 font-mono">ANIMA Product Score Engine</span>
+            </div>
+
+            {productMode === 'dropshipping' ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">URL de la Tienda / Producto (Opcional)</label>
+                  <input
+                    type="url"
+                    value={productInputs.url}
+                    onChange={(e) => setProductInputs({ ...productInputs, url: e.target.value })}
+                    placeholder="https://tienda.com/producto-ejemplo"
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    URL Fetcher seguro con validación HTTP/HTTPS y prevención SSRF.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nombre del Producto</label>
+                  <input
+                    type="text"
+                    value={productInputs.productName}
+                    onChange={(e) => setProductInputs({ ...productInputs, productName: e.target.value })}
+                    placeholder="Ej: Masajeador Facial Ultrasónico"
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Categoría</label>
+                  <input
+                    type="text"
+                    value={productInputs.category}
+                    onChange={(e) => setProductInputs({ ...productInputs, category: e.target.value })}
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Mercado Objetivo</label>
+                  <input
+                    type="text"
+                    value={productInputs.market}
+                    onChange={(e) => setProductInputs({ ...productInputs, market: e.target.value })}
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">P. Venta ($)</label>
+                    <input
+                      type="number"
+                      value={productInputs.salePrice}
+                      onChange={(e) => setProductInputs({ ...productInputs, salePrice: Number(e.target.value) })}
+                      className="w-full h-9 px-2 border border-brand-border rounded-lg font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Costo ($)</label>
+                    <input
+                      type="number"
+                      value={productInputs.cost}
+                      onChange={(e) => setProductInputs({ ...productInputs, cost: Number(e.target.value) })}
+                      className="w-full h-9 px-2 border border-brand-border rounded-lg font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Envío ($)</label>
+                    <input
+                      type="number"
+                      value={productInputs.shippingCost}
+                      onChange={(e) => setProductInputs({ ...productInputs, shippingCost: Number(e.target.value) })}
+                      className="w-full h-9 px-2 border border-brand-border rounded-lg font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block font-bold text-slate-700 mb-1">Especificaciones / Características Manuales (Fallback)</label>
+                  <textarea
+                    rows={2}
+                    value={productInputs.manualFeatures}
+                    onChange={(e) => setProductInputs({ ...productInputs, manualFeatures: e.target.value })}
+                    placeholder="Pegar detalles si la tienda no permite scraping: 3 modos de vibración, batería recargable USB-C, etc."
+                    className="w-full p-2.5 border border-brand-border rounded-lg"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nicho del Libro</label>
+                  <input
+                    type="text"
+                    value={productInputs.niche}
+                    onChange={(e) => setProductInputs({ ...productInputs, niche: e.target.value })}
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Palabra Clave Principal</label>
+                  <input
+                    type="text"
+                    value={productInputs.mainKeyword}
+                    onChange={(e) => setProductInputs({ ...productInputs, mainKeyword: e.target.value })}
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Audiencia Objetivo</label>
+                  <input
+                    type="text"
+                    value={productInputs.audience}
+                    onChange={(e) => setProductInputs({ ...productInputs, audience: e.target.value })}
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Marketplace Amazon</label>
+                  <input
+                    type="text"
+                    value={productInputs.marketplace}
+                    onChange={(e) => setProductInputs({ ...productInputs, marketplace: e.target.value })}
+                    className="w-full h-9 px-3 border border-brand-border rounded-lg"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">Concepto / Contenido del Libro</label>
+                  <textarea
+                    rows={2}
+                    value={productInputs.concept}
+                    onChange={(e) => setProductInputs({ ...productInputs, concept: e.target.value })}
+                    className="w-full p-2.5 border border-brand-border rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                disabled={isAnalyzingProduct}
+                className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs h-9 px-5 gap-2"
+              >
+                <Sparkles className={`w-4 h-4 ${isAnalyzingProduct ? 'animate-spin' : ''}`} />
+                <span>{isAnalyzingProduct ? 'Analizando con Gemini...' : 'Ejecutar Análisis Inteligente'}</span>
+              </Button>
+            </div>
+          </form>
+
+          {/* Analysis Results Display */}
+          {analyzedProduct && (
+            <div className="space-y-6 animate-in fade-in">
+              <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-md space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                        {analyzedProduct.classification.toUpperCase()}
+                      </span>
+                      <h3 className="text-base font-black text-white">
+                        {productMode === 'kdp'
+                          ? analyzedProduct.kdpData?.suggestedTitle
+                          : (productInputs.productName || 'Producto Analizado')}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Nivel de Confianza IA: {Math.round((analyzedProduct.scores.confidenceScore || 0.85) * 100)}% | Versión: v{analyzedProduct.analysisVersion}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-mono text-slate-400 block">ANIMA Product Score</span>
+                      <strong className="text-3xl font-black font-mono text-emerald-400">
+                        {analyzedProduct.scores.overallScore}/100
+                      </strong>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => navigate('/app/creative-studio')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 gap-1.5 shadow-sm"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>✨ Crear Oferta Comercial</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveProductToLibrary}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 text-xs h-8 gap-1.5"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>💾 Guardar en Library</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subscores Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+                  {Object.entries(analyzedProduct.scores.subscores || {}).map(([key, val]) => (
+                    <div key={key} className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/60">
+                      <span className="text-[9px] uppercase font-mono text-slate-400 block truncate">
+                        {key.replace(/([A-Z])/g, ' $1')}
+                      </span>
+                      <strong className="font-mono text-sm text-violet-300">{val}/100</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* DROPSHIPPING SPECIFIC */}
+              {productMode === 'dropshipping' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-2">
+                    <span className="font-bold text-brand-text-primary uppercase text-[11px] block">
+                      ⚡ Features & Benefits
+                    </span>
+                    <ul className="space-y-1.5 text-slate-600">
+                      {(analyzedProduct.benefits || []).map((b, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-2">
+                    <span className="font-bold text-brand-text-primary uppercase text-[11px] block">
+                      🎯 Resultados Deseados (Outcomes)
+                    </span>
+                    <ul className="space-y-1.5 text-slate-600">
+                      {(analyzedProduct.outcomes || []).map((o, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-violet-600 shrink-0 mt-0.5" />
+                          <span>{o}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-2">
+                    <span className="font-bold text-brand-text-primary uppercase text-[11px] block">
+                      🛡️ Objeciones Críticas a Resolver
+                    </span>
+                    <ul className="space-y-1.5 text-slate-600">
+                      {(analyzedProduct.objections || []).map((obj, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <span>{obj}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* ANGLE ENGINE */}
+              {productMode === 'dropshipping' && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-violet-600" />
+                    <span>Angle Engine: 5 Ángulos Comerciales Validados</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {(analyzedProduct.angles || []).map((ang, i) => (
+                      <div key={i} className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-2 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="text-[10px] font-black uppercase text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
+                            {ang.angleType}
                           </span>
-                        )}
+                          <span className="text-[10px] text-slate-400 font-mono">Ángulo #{ang.angleNumber}</span>
+                        </div>
+                        <p className="font-bold text-slate-800 italic">"{ang.hook}"</p>
+                        <p className="text-slate-600 leading-relaxed text-[11px]">{ang.coreMessage}</p>
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                          <span>Formato: {ang.recommendedFormat}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* HOOK GENERATOR */}
+              {productMode === 'dropshipping' && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <Flame className="w-4 h-4 text-rose-600" />
+                    <span>Hook Generator: 10 Ganchos Creativos (Sin Fake Claims)</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    {(analyzedProduct.hooks || []).map((hk, i) => (
+                      <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[9px] font-black uppercase text-slate-400 block font-mono">
+                            {hk.category}
+                          </span>
+                          <p className="font-medium text-slate-800 mt-0.5">"{hk.hook}"</p>
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(hk.hook, `hook_${i}`)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 shrink-0"
+                          title="Copiar Gancho"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* KDP MODE SPECIFIC */}
+              {productMode === 'kdp' && analyzedProduct.kdpData && (
+                <div className="space-y-4">
+                  <div className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                    analyzedProduct.complianceCheck?.status === 'PASS'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <strong className="block">KDP Compliance Check: {analyzedProduct.complianceCheck?.status}</strong>
+                        <span className="text-[11px]">
+                          Verificación de reglas oficiales de Amazon (Cero keyword-stuffing, sin claims de bestseller).
+                        </span>
+                      </div>
+                    </div>
+                    <Badge variant={analyzedProduct.complianceCheck?.status === 'PASS' ? 'success' : 'warning'}>
+                      Amazon KDP Ready
+                    </Badge>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-4 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Título Sugerido</span>
+                      <div className="flex items-center justify-between mt-1 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <strong className="text-sm text-brand-text-primary">{analyzedProduct.kdpData.suggestedTitle}</strong>
+                        <button onClick={() => copyToClipboard(analyzedProduct.kdpData.suggestedTitle, 'kdp_title')} className="text-slate-400 hover:text-slate-700">
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
-                    {/* Funnel Bar */}
-                    <div className="w-full bg-slate-100 rounded-full h-5 overflow-hidden flex items-center p-0.5">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          isFinal ? 'bg-emerald-600' : 'bg-brand-primary'
-                        }`}
-                        style={{ width: `${widthPercent}%` }}
-                      />
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Subtítulo Sugerido</span>
+                      <div className="flex items-center justify-between mt-1 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="text-slate-700">{analyzedProduct.kdpData.suggestedSubtitle}</span>
+                        <button onClick={() => copyToClipboard(analyzedProduct.kdpData.suggestedSubtitle, 'kdp_sub')} className="text-slate-400 hover:text-slate-700">
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">7 Backend Keywords (Amazon KDP Slots)</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1.5">
+                        {(analyzedProduct.kdpData.backendKeywords || []).map((kw, i) => (
+                          <div key={i} className="p-2 bg-slate-50 rounded border border-slate-200 flex items-center justify-between text-[11px] font-mono">
+                            <span>#{i + 1} {kw}</span>
+                            <button onClick={() => copyToClipboard(kw, `kw_${i}`)} className="text-slate-400 hover:text-slate-700">
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 font-mono">Descripción con HTML Permitido por KDP</span>
+                        <button
+                          onClick={() => copyToClipboard(analyzedProduct.kdpData.bookDescription, 'kdp_desc')}
+                          className="text-xs font-bold text-violet-600 hover:underline flex items-center gap-1"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar HTML</span>
+                        </button>
+                      </div>
+                      <pre className="mt-1.5 p-3 bg-slate-900 text-emerald-400 rounded-xl text-[11px] font-mono whitespace-pre-wrap overflow-x-auto">
+                        {analyzedProduct.kdpData.bookDescription}
+                      </pre>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* FACTS VS INFERENCES SEGREGATION */}
+              <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-3 text-xs">
+                <span className="font-black text-brand-text-primary uppercase text-[11px] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-violet-600" />
+                  <span>Matriz de Certeza Analítica: Hechos Observados vs Inferencias de IA</span>
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/60 space-y-1">
+                    <strong className="text-emerald-900 uppercase text-[10px] block font-mono">🟢 OBSERVED</strong>
+                    <ul className="text-emerald-800 text-[11px] space-y-1 list-disc pl-3">
+                      {(analyzedProduct.factsVsInferences?.observed || []).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="p-3 bg-violet-50/50 rounded-xl border border-violet-200/60 space-y-1">
+                    <strong className="text-violet-900 uppercase text-[10px] block font-mono">🟣 INFERRED</strong>
+                    <ul className="text-violet-800 text-[11px] space-y-1 list-disc pl-3">
+                      {(analyzedProduct.factsVsInferences?.inferred || []).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60 space-y-1">
+                    <strong className="text-amber-900 uppercase text-[10px] block font-mono">🟡 RECOMMENDED</strong>
+                    <ul className="text-amber-800 text-[11px] space-y-1 list-disc pl-3">
+                      {(analyzedProduct.factsVsInferences?.recommended || []).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <strong className="text-slate-700 uppercase text-[10px] block font-mono">⚪ UNKNOWN</strong>
+                    <ul className="text-slate-600 text-[11px] space-y-1 list-disc pl-3">
+                      {(analyzedProduct.factsVsInferences?.unknown || []).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: CUSTOMER RETENTION & LTV MEMORY */}
+      {/* ======================================================== */}
+      {activeTab === 'retention' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Compradores Registrados</span>
+              <div className="text-2xl font-black font-mono text-brand-text-primary">{customersList.length}</div>
+              <span className="text-[11px] text-slate-500">Shopify & WooCommerce</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-emerald-700 font-mono">Recompra (Repeat Rate)</span>
+              <div className="text-2xl font-black font-mono text-emerald-600">26.0%</div>
+              <span className="text-[11px] text-emerald-700 font-bold">+4.2% vs mes anterior</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-violet-200 shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-violet-700 font-mono">LTV Promedio Real</span>
+              <div className="text-2xl font-black font-mono text-violet-700">$72.076 ARS</div>
+              <span className="text-[11px] text-violet-700 font-bold">Predicted: $98.500 ARS</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-brand-border shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Revenue por Retención</span>
+              <div className="text-2xl font-black font-mono text-brand-text-primary">$6.850.000 ARS</div>
+              <span className="text-[11px] text-slate-500">27.8% del total facturado</span>
             </div>
           </div>
 
-          {/* Mobile vs Desktop Disparity Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-5 rounded-xl border border-brand-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-brand-primary" />
-                  <h4 className="text-xs font-bold text-brand-text-primary">Embudo en Dispositivos Móviles (72% del tráfico)</h4>
-                </div>
-                <Badge variant="warning" className="text-[10px]">
-                  Fricción detectada
-                </Badge>
-              </div>
-              <p className="text-xs text-slate-500">
-                Tasa de conversión en móviles: <strong className="text-brand-text-primary font-mono">2.8%</strong> (Mayor caída en carga de tarjetas y CVV).
-              </p>
+          {/* Customer Profiles Table */}
+          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-violet-600" />
+                <span>Customer Commerce Profiles (Memoria de Compradores)</span>
+              </h3>
+              <span className="text-xs text-slate-400 font-mono">Identidad Unificada por Teléfono/Email</span>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-brand-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Monitor className="w-4 h-4 text-emerald-600" />
-                  <h4 className="text-xs font-bold text-brand-text-primary">Embudo en Escritorio / Desktop (28% del tráfico)</h4>
+            <div className="space-y-3">
+              {customersList.map((c) => (
+                <div key={c.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <strong className="text-brand-text-primary text-sm">{c.name}</strong>
+                      <Badge variant="neutral" className="text-[9px]">{c.retentionStatus}</Badge>
+                    </div>
+                    <span className="text-slate-500 font-mono text-[11px] block mt-0.5">
+                      {c.email} · {c.phone}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-4 text-center font-mono text-[11px]">
+                    <div>
+                      <span className="text-[9px] text-slate-400 block">Órdenes</span>
+                      <strong>{c.totalOrders}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block">Ticket Promedio</span>
+                      <strong>${formatNumber(c.averageOrderValue)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block">Real LTV</span>
+                      <strong className="text-emerald-700">${formatNumber(c.realLtv)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block">Predicted LTV</span>
+                      <strong className="text-violet-700">${formatNumber(c.predictedLtv)}</strong>
+                    </div>
+                  </div>
                 </div>
-                <Badge variant="success" className="text-[10px]">
-                  Óptimo
-                </Badge>
-              </div>
-              <p className="text-xs text-slate-500">
-                Tasa de conversión en desktop: <strong className="text-brand-text-primary font-mono">6.4%</strong> (Flujo fluido y menor tasa de abandono).
-              </p>
+              ))}
+            </div>
+          </div>
+
+          {/* Cross-Sell Recommendations Engine */}
+          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-3">
+            <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-violet-600" />
+              <span>Cross-Sell Engine: Recomendaciones con Justificación Racional</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {crossSellRecs.map((rec, i) => (
+                <div key={i} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-brand-text-primary">{rec.title}</strong>
+                    <span className="font-mono text-emerald-700 font-bold">${formatNumber(rec.price)}</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed italic">
+                    "{rec.whyThisProduct}"
+                  </p>
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                    <span>Timing: +{rec.recommendedTimingDays} días</span>
+                    <span>Margen: {rec.targetMarginPct}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 2: AUDITORÍA UI/UX & AGENTE CRO                                       */}
-      {/* ========================================================================= */}
-      {activeTab === 'cro' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Friction Score Gauge & Form Analytics */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Score Card */}
-            <div className="bg-white p-6 rounded-xl border border-brand-border shadow-xs flex flex-col justify-between space-y-4">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary block">
-                  Puntaje de Fricción UI/UX (Friction Score)
-                </span>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-4xl font-black text-amber-600 font-mono">
-                    {frictionData?.friction?.score || 68}
-                  </span>
-                  <span className="text-xs text-slate-400 font-bold">/ 100</span>
-                </div>
-                <div className="mt-2">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                    Severidad {frictionData?.friction?.severity || 'CRÍTICA'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-lg text-xs space-y-1 text-slate-600">
-                <p className="font-semibold text-brand-text-primary">Causa principal de fricción:</p>
-                <p>{frictionData?.friction?.topBottleneck || 'Abandono masivo en pasarela de pagos y datos de cuotas.'}</p>
-              </div>
-
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleRunCroDiagnosis}
-                disabled={isDiagnosing}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
-              >
-                <Sparkles className={`w-3.5 h-3.5 ${isDiagnosing ? 'animate-spin' : ''}`} />
-                <span>{isDiagnosing ? 'Analizando Interfaz...' : 'Ejecutar Diagnóstico CRO con IA'}</span>
-              </Button>
-            </div>
-
-            {/* Form Abandonment Field Analytics */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-brand-border shadow-xs space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider">
-                  Analizador de Formularios y Campos de Checkout
-                </h3>
-                <p className="text-xs text-brand-text-secondary mt-0.5">
-                  Tasa de inicio vs completitud para identificar campos excesivos o confusos.
-                </p>
-              </div>
-
-              <div className="divide-y divide-brand-border/60">
-                {(frictionData?.formAnalytics || []).map((f) => (
-                  <div key={f.field} className="py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <p className="font-bold text-brand-text-primary">{f.label}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">campo: {f.field}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-[11px] font-mono text-slate-600">
-                        {f.completeCount} / {f.startCount} completados
-                      </span>
-                      <span
-                        className={`font-mono font-bold text-xs px-2 py-0.5 rounded ${
-                          f.abandonRate > 30 ? 'bg-red-100 text-red-800' : 'bg-emerald-50 text-emerald-700'
-                        }`}
-                      >
-                        {f.abandonRate}% abandono
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      {/* ======================================================== */}
+      {/* TAB: PRODUCT LIBRARY */}
+      {/* ======================================================== */}
+      {activeTab === 'product_library' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-violet-600" />
+                <span>Product Library: Memoria Histórica de Productos Analizados</span>
+              </h2>
+              <p className="text-xs text-brand-text-secondary mt-0.5">
+                Registro inmutable de análisis, versiones y estados de validación comercial.
+              </p>
             </div>
           </div>
 
-          {/* AI CRO Agent Diagnostics Report */}
-          {croDiagnostic && (
-            <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-emerald-100 pb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                    ✨
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {productsList.map((prod) => (
+              <div key={prod.id} className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                    prod.status === 'validated_winner'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                      : 'bg-violet-100 text-violet-800 border-violet-200'
+                  }`}>
+                    {prod.status}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">{prod.sourceType.toUpperCase()}</span>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-brand-text-primary text-sm">{prod.productName}</h3>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">{prod.category} · {prod.market}</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center font-mono text-[11px] bg-slate-50 p-2 rounded-xl">
+                  <div>
+                    <span className="text-[9px] text-slate-400 block">P. Venta</span>
+                    <strong>${formatNumber(prod.salePrice)}</strong>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-brand-text-primary">
-                      {croDiagnostic.title}
-                    </h3>
-                    <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                      Impacto estimado: {croDiagnostic.estimatedRevenueLift}
-                    </p>
+                    <span className="text-[9px] text-slate-400 block">Margen</span>
+                    <strong className="text-emerald-700">{prod.estimatedMargin}%</strong>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block">Score</span>
+                    <strong className="text-violet-700">{prod.productScore}/100</strong>
                   </div>
                 </div>
-                <Badge variant="primary" className="text-[10px]">
-                  Auditoría Completada
-                </Badge>
-              </div>
 
-              {/* Bottlenecks Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {croDiagnostic.bottlenecks.map((b, idx) => (
-                  <div key={idx} className="p-4 border border-brand-border rounded-lg bg-slate-50/70 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-brand-text-primary">{b.step}</span>
-                      <span className="text-[10px] bg-red-100 text-red-800 font-bold px-1.5 py-0.2 rounded">
-                        {b.priority}
-                      </span>
-                    </div>
-                    <p className="text-red-700 font-bold text-[11px]">{b.dropoff}</p>
-                    <p className="text-slate-600 leading-relaxed"><strong className="text-brand-text-primary">Causa:</strong> {b.rootCause}</p>
-                    <div className="pt-2 border-t border-brand-border/60">
-                      <p className="text-emerald-800 font-medium leading-relaxed"><strong className="text-emerald-900">Solución:</strong> {b.recommendation}</p>
-                    </div>
-                  </div>
-                ))}
+                <div className="pt-2 flex items-center justify-between text-[11px]">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/app/creative-studio')}
+                    className="w-full text-xs h-7 gap-1"
+                  >
+                    <span>✨ Crear Campaña</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
-
-              {/* Action Plan */}
-              <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-lg text-xs space-y-2">
-                <h4 className="font-bold text-emerald-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                  <span>Plan de Acción Inmediato (Roadmap CRO)</span>
-                </h4>
-                <ul className="space-y-1 text-emerald-950">
-                  {croDiagnostic.actionPlan.map((step, sIdx) => (
-                    <li key={sIdx} className="font-medium">
-                      {step}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 3: META ADS CATÁLOGO & LLAMADAS                                        */}
-      {/* ========================================================================= */}
-      {activeTab === 'catalog' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Advantage+ Catalog Shopping Campaigns Table */}
-          <div className="bg-white p-6 rounded-xl border border-brand-border shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider">
-                  Campañas de Ventas del Catálogo (Advantage+ Shopping)
-                </h3>
-                <p className="text-xs text-brand-text-secondary mt-0.5">
-                  Métricas de E-Commerce: ROAS, CPA por producto y Costo por Añadir al Carrito (CPATC).
-                </p>
-              </div>
-              <Badge variant="primary" className="text-[10px]">
-                Meta Graph v19.0+
-              </Badge>
-            </div>
+      {/* ======================================================== */}
+      {/* TAB: LTV & REVENUE ANALYTICS */}
+      {/* ======================================================== */}
+      {activeTab === 'ltv_revenue' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4">
+            <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-violet-600" />
+              <span>Métricas de Cohortes de Retención & LTV Incremental</span>
+            </h3>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-brand-border text-brand-text-secondary font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-2.5 px-3">Campaña de Catálogo</th>
-                    <th className="py-2.5 px-2 text-right">Inversión</th>
-                    <th className="py-2.5 px-2 text-right">Compras</th>
-                    <th className="py-2.5 px-2 text-right">CPA Producto</th>
-                    <th className="py-2.5 px-2 text-right">Costo / Carrito</th>
-                    <th className="py-2.5 px-3 text-right">ROAS Catálogo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(catalogData?.catalogCampaigns || []).map((c) => (
-                    <tr key={c.id} className="border-b border-brand-border/40 hover:bg-gray-50/50">
-                      <td className="py-2.5 px-3 font-semibold text-brand-text-primary">
-                        <p>{c.name}</p>
-                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-2 text-right font-mono font-medium">
-                        {formatCurrency(c.spend, c.currency, language === 'es' ? 'es-AR' : 'en-US')}
-                      </td>
-                      <td className="py-2.5 px-2 text-right font-mono font-bold text-brand-text-primary">
-                        {c.purchases}
-                      </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-slate-700">
-                        {formatCurrency(c.cpa, c.currency, language === 'es' ? 'es-AR' : 'en-US')}
-                      </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-slate-700">
-                        {formatCurrency(c.costPerAddToCart, c.currency, language === 'es' ? 'es-AR' : 'en-US')}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 text-sm">
-                        {c.roas}x
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Click-to-Call Campaigns Audit Card */}
-          <div className="bg-white p-6 rounded-xl border border-brand-border shadow-xs space-y-4">
-            <div>
-              <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider flex items-center gap-2">
-                <PhoneCall className="w-4 h-4 text-brand-primary" />
-                <span>Auditoría de Campañas de Llamadas & Ratio Call-to-Close</span>
-              </h3>
-              <p className="text-xs text-brand-text-secondary mt-0.5">
-                Cruce de clics en extensiones telefónicas de Meta Ads con leads y ventas cerradas en el CRM.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-              <div className="p-3.5 bg-slate-50 border border-brand-border rounded-lg">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary block">
-                  Clics en Llamadas
-                </span>
-                <span className="text-lg font-black text-brand-text-primary mt-1 block font-mono">
-                  {catalogData?.callCampaignsAudit?.totalCallClicks || 430}
-                </span>
-                <span className="text-[10px] text-slate-400">Extensiones de llamada activadas</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1 font-mono">
+                <span className="text-slate-400 uppercase text-[10px] block">Retención vs Adquisición</span>
+                <div className="text-xl font-black text-brand-text-primary">27.8% Incremental</div>
+                <span className="text-slate-500 text-[11px]">Revenue generado por recompras sin gasto publicitario directo.</span>
               </div>
 
-              <div className="p-3.5 bg-slate-50 border border-brand-border rounded-lg">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary block">
-                  Llamadas Conectadas
-                </span>
-                <span className="text-lg font-black text-brand-text-primary mt-1 block font-mono">
-                  {catalogData?.callCampaignsAudit?.connectedCalls || 180}
-                </span>
-                <span className="text-[10px] text-slate-400">Contactos atendidos por el equipo</span>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1 font-mono">
+                <span className="text-slate-400 uppercase text-[10px] block">Días entre Compras (Ciclo Medio)</span>
+                <div className="text-xl font-black text-brand-text-primary">34 Días</div>
+                <span className="text-slate-500 text-[11px]">Momento óptimo para disparar el mensaje de recompra (+30d).</span>
               </div>
 
-              <div className="p-3.5 bg-slate-50 border border-brand-border rounded-lg">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-text-secondary block">
-                  Ventas Cerradas por Llamada
-                </span>
-                <span className="text-lg font-black text-emerald-700 mt-1 block font-mono">
-                  {catalogData?.callCampaignsAudit?.closedSales || 54}
-                </span>
-                <span className="text-[10px] text-slate-400">Clientes de alto ticket</span>
-              </div>
-
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
-                  Ratio Call-to-Close
-                </span>
-                <span className="text-lg font-black text-emerald-800 mt-1 block font-mono">
-                  {catalogData?.callCampaignsAudit?.callToCloseRatio || 30.0}%
-                </span>
-                <span className="text-[10px] text-emerald-700 font-medium">Conversión de llamada a venta</span>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1 font-mono">
+                <span className="text-slate-400 uppercase text-[10px] block">ROI de Retención (WhatsApp)</span>
+                <div className="text-xl font-black text-emerald-600">8.4x Retorno</div>
+                <span className="text-slate-500 text-[11px]">Calculado sobre costos de API de WhatsApp vs Revenue cerrado.</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 4: AFILIADOS, REFERIDOS & DROPSHIPPING (MARGEN NETO REAL)               */}
-      {/* ========================================================================= */}
-      {activeTab === 'affiliates' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Unit Economics Waterfall Card */}
-          {profitabilityData && (
-            <div className="bg-white p-6 rounded-xl border border-brand-border shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider">
-                    Balance de Rentabilidad Real (Unit Economics Dropshipping)
-                  </h3>
-                  <p className="text-xs text-brand-text-secondary mt-0.5">
-                    Margen Neto = Ingreso Bruto - Gasto en Ads - Costo de Mercadería (COGS) - Comisiones de Afiliados.
-                  </p>
-                </div>
-                <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">
-                  Margen Neto: {profitabilityData.netMarginPercent}%
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
-                <div className="p-3 bg-slate-50 border border-brand-border rounded-lg">
-                  <span className="text-[10px] font-bold uppercase text-brand-text-secondary block">1. Ingreso Bruto</span>
-                  <span className="text-sm font-black text-brand-text-primary mt-1 block font-mono">
-                    ${formatNumber(profitabilityData.grossRevenue)}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-red-50/50 border border-red-200 rounded-lg">
-                  <span className="text-[10px] font-bold uppercase text-red-700 block">2. Inversión Meta Ads</span>
-                  <span className="text-sm font-black text-red-700 mt-1 block font-mono">
-                    -${formatNumber(profitabilityData.metaSpend)}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-lg">
-                  <span className="text-[10px] font-bold uppercase text-amber-700 block">3. COGS Dropship</span>
-                  <span className="text-sm font-black text-amber-700 mt-1 block font-mono">
-                    -${formatNumber(profitabilityData.dropshipCogs)}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-lg">
-                  <span className="text-[10px] font-bold uppercase text-indigo-700 block">4. Comisiones Afiliados</span>
-                  <span className="text-sm font-black text-indigo-700 mt-1 block font-mono">
-                    -${formatNumber(profitabilityData.affiliateCommissions)}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                  <span className="text-[10px] font-bold uppercase text-emerald-800 block">5. Ganancia Neta Real</span>
-                  <span className="text-sm font-black text-emerald-800 mt-1 block font-mono">
-                    ${formatNumber(profitabilityData.netProfit)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Affiliates List */}
-          <div className="bg-white p-6 rounded-xl border border-brand-border shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+      {/* ======================================================== */}
+      {/* TAB: AUTOMATION & RULES */}
+      {/* ======================================================== */}
+      {activeTab === 'automation' && (
+        <div className="space-y-6">
+          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider">
-                  Red de Afiliados & Códigos Promocionales
+                <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-amber-600" />
+                  <span>Reglas de Retención Configurables & Seguridad de WhatsApp</span>
                 </h3>
                 <p className="text-xs text-brand-text-secondary mt-0.5">
-                  Seguimiento de ventas atribuidas, códigos de descuento y pagos devengados.
+                  Protección anti-spam: Intervalo mínimo de 7 días y verificación de consentimiento.
                 </p>
               </div>
 
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setIsAffiliateModalOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                onClick={handleDispatchRetention}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 gap-1.5 shadow-sm"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Registrar Afiliado</span>
+                <Send className="w-3.5 h-3.5" />
+                <span>🚀 Despachar Automatizaciones</span>
               </Button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-brand-border text-brand-text-secondary font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-2.5 px-3">Afiliado / Partner</th>
-                    <th className="py-2.5 px-2">Código Promo</th>
-                    <th className="py-2.5 px-2 text-right">Comisión</th>
-                    <th className="py-2.5 px-2 text-right">Ventas Atribuidas</th>
-                    <th className="py-2.5 px-2 text-right">Ingresos Generados</th>
-                    <th className="py-2.5 px-3 text-right">Comisiones a Pagar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {affiliatesData.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="py-6 text-center text-slate-400 italic">
-                        No hay afiliados registrados aún. Creá el primero con el botón superior.
-                      </td>
-                    </tr>
-                  ) : (
-                    affiliatesData.map((a) => (
-                      <tr key={a.id} className="border-b border-brand-border/40 hover:bg-gray-50/50">
-                        <td className="py-2.5 px-3 font-semibold text-brand-text-primary">
-                          <p>{a.name}</p>
-                          <p className="text-[10px] text-slate-400 font-normal">{a.email}</p>
-                        </td>
-                        <td className="py-2.5 px-2">
-                          <span className="font-mono font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px]">
-                            {a.promoCode}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 text-right font-mono font-bold">{a.commissionRate}%</td>
-                        <td className="py-2.5 px-2 text-right font-mono font-semibold">{a.salesAttributedCount}</td>
-                        <td className="py-2.5 px-2 text-right font-mono font-bold text-brand-text-primary">
-                          ${formatNumber(a.totalRevenueGenerated)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
-                          ${formatNumber(a.totalCommissionsPaid)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              {retentionRules.map((rule) => (
+                <div key={rule.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-brand-text-primary">{rule.name}</strong>
+                    <Badge variant="warning" className="text-[9px]">+{rule.delayDays} Días</Badge>
+                  </div>
+                  <p className="text-slate-600 text-[11px]">Plantilla: <code className="text-violet-700 font-mono">{rule.whatsappTemplateId}</code></p>
+                  <p className="text-slate-700 italic text-[11px]">"{rule.messageBody}"</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Retention Events Queue */}
+          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-xs space-y-3 text-xs">
+            <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider">
+              Cola de Eventos Programados ({retentionEvents.length})
+            </h3>
+
+            <div className="space-y-2">
+              {retentionEvents.map((evt) => (
+                <div key={evt.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <strong className="text-brand-text-primary">{evt.customerName}</strong>
+                      <span className="text-[10px] text-slate-400 font-mono">({evt.customerPhone})</span>
+                      <Badge variant={evt.status === 'SENT' ? 'success' : evt.status === 'BLOCKED' ? 'danger' : 'neutral'} className="text-[9px]">
+                        {evt.status}
+                      </Badge>
+                    </div>
+                    <span className="text-[11px] text-slate-500 mt-0.5 block">{evt.ruleName} · {evt.productName}</span>
+                  </div>
+
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {new Date(evt.scheduledFor).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal: Registrar Afiliado */}
-      <Modal
-        isOpen={isAffiliateModalOpen}
-        onClose={() => setIsAffiliateModalOpen(false)}
-        title="Registrar Nuevo Afiliado / Partner"
-      >
-        <form onSubmit={handleCreateAffiliate} className="space-y-4 text-xs">
-          <div>
-            <label className="block font-bold text-brand-text-primary mb-1">Nombre o Canal del Afiliado</label>
-            <input
-              type="text"
-              required
-              value={newAffiliate.name}
-              onChange={(e) => setNewAffiliate({ ...newAffiliate, name: e.target.value })}
-              placeholder="Ej: Sofía Reviews Tech"
-              className="w-full px-3 py-2 border border-brand-border rounded-lg bg-slate-50 focus:bg-white text-xs"
-            />
+      {/* ======================================================== */}
+      {/* TAB: META ADS CATÁLOGO & LLAMADAS */}
+      {/* ======================================================== */}
+      {activeTab === 'meta_catalog' && (
+        <div className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4 text-xs">
+          <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider">
+            Meta Ads Catálogo & Campañas de Llamadas
+          </h3>
+          <p className="text-slate-600">
+            Sincronización directa con Advantage+ Shopping Campaigns y catálogo dinámico de productos.
+          </p>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: AFILIADOS & MARGEN NETO REAL */}
+      {/* ======================================================== */}
+      {activeTab === 'affiliates' && (
+        <div className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4 text-xs">
+          <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider">
+            Afiliados & Margen Neto Real
+          </h3>
+          <p className="text-slate-600">
+            Atribución multi-canal, comisiones de creadores de contenido y cálculo de True Profit neto deduciendo COGS y pauta.
+          </p>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: REPORTS */}
+      {/* ======================================================== */}
+      {activeTab === 'reports' && (
+        <div className="bg-white p-6 rounded-2xl border border-brand-border shadow-xs space-y-4 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="text-xs font-black text-brand-text-primary uppercase tracking-wider flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-violet-600" />
+              <span>Informes Ejecutivos para Clientes</span>
+            </h3>
           </div>
 
-          <div>
-            <label className="block font-bold text-brand-text-primary mb-1">Email de Contacto</label>
-            <input
-              type="email"
-              value={newAffiliate.email}
-              onChange={(e) => setNewAffiliate({ ...newAffiliate, email: e.target.value })}
-              placeholder="sofia@canaltech.com"
-              className="w-full px-3 py-2 border border-brand-border rounded-lg bg-slate-50 focus:bg-white text-xs"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-brand-text-primary mb-1">Código Promocional</label>
-              <input
-                type="text"
-                required
-                value={newAffiliate.promoCode}
-                onChange={(e) => setNewAffiliate({ ...newAffiliate, promoCode: e.target.value.toUpperCase() })}
-                placeholder="SOFIA10"
-                className="w-full px-3 py-2 border border-brand-border rounded-lg bg-slate-50 focus:bg-white text-xs font-mono"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <strong className="text-sm text-brand-text-primary block">Informe de Auditoría CRO & Conversión</strong>
+              <p className="text-slate-600 text-[11px]">
+                Diagnóstico completo de 10 dimensiones con matriz de Quick Wins y recomendaciones de A/B testing para compartir con el cliente.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab('cro_analyzer')} className="text-xs h-8">
+                Ir a CRO Analyzer
+              </Button>
             </div>
 
-            <div>
-              <label className="block font-bold text-brand-text-primary mb-1">% de Comisión</label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                required
-                value={newAffiliate.commissionRate}
-                onChange={(e) => setNewAffiliate({ ...newAffiliate, commissionRate: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-brand-border rounded-lg bg-slate-50 focus:bg-white text-xs font-mono"
-              />
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <strong className="text-sm text-brand-text-primary block">Informe de LTV & Retención de Compradores</strong>
+              <p className="text-slate-600 text-[11px]">
+                Reporte de recompra, LTV real vs proyectado y retorno de inversión en secuencias de WhatsApp automáticas.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab('retention')} className="text-xs h-8">
+                Ver Cohortes de Retención
+              </Button>
             </div>
           </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsAffiliateModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isSavingAffiliate}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {isSavingAffiliate ? 'Guardando...' : 'Crear Afiliado'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

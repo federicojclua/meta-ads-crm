@@ -8,6 +8,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stage 20: E-Commerce Intelligence, CRO & Retention Engine (2026-08-28)
+- **Modelos de E-Commerce Intelligence & Memoria de Retención (`models/`)**:
+  - `models/EcommerceProduct.js`: Esquema de producto dropshipping/KDP (`sourceType`, `salePrice`, `cost`, `shippingCost`, `estimatedMargin`, `status`, `productScore`, `confidenceScore`).
+  - `models/EcommerceProductAnalysis.js`: Esquema versionado (`analysisVersion`) con desglose de features, benefits, outcomes, pain points, desires, objections, 10 subscores, 5 ángulos comerciales, 10 ganchos categorizados, metadata KDP y matriz de hechos vs inferencias (`OBSERVED`, `INFERRED`, `RECOMMENDED`, `UNKNOWN`).
+  - `models/EcommerceCroAudit.js`: Esquema de auditoría CRO en 10 dimensiones con prioridades (P0-P3), esfuerzo/impacto, Quick Wins y estructura para informe PDF.
+  - `models/EcommerceCustomer.js`: Perfil unificado de comprador (`totalOrders`, `totalRevenue`, `averageOrderValue`, `realLtv`, `predictedLtv`, `purchaseFrequencyDays`, `retentionStatus`, `optInWhatsApp`).
+  - `models/EcommerceOrder.js`: Esquema normalizado de órdenes (`subtotal`, `discounts`, `shipping`, `taxes`, `total`, `isRetentionPurchase`, `idempotencyKey`).
+  - `models/EcommerceRetentionRule.js`: Reglas de retención configurables (+30d recompra, +45d venta cruzada, +60d reactivación, +90d win-back).
+  - `models/EcommerceRetentionEvent.js`: Cola de eventos programados (`SCHEDULED`, `SENT`, `BLOCKED`, `CONVERTED`) con verificación de seguridad.
+- **Servicios de Backend E-Commerce (`netlify/functions/_shared/ecommerceEngine/`)**:
+  - `urlFetcherService.js`: Lector seguro de páginas con protección estricta contra SSRF (bloqueo de loopback `127.0.0.1`, IPs privadas `10.x`, `172.16-31.x`, `192.168.x`, endpoints de metadatos `169.254.169.254`), timeout de 6s y fallback elegante.
+  - `productIntelligenceService.js`: Motor de análisis IA para Dropshipping & Amazon KDP, cálculo de ANIMA Product Score (0-100), Angle Engine (5 ángulos) y Hook Generator (10 ganchos sin falsos claims). Matriz de compliance KDP (cero keyword stuffing, cero menciones de bestseller).
+  - `croAnalyzerService.js`: Evaluación de 10 dimensiones CRO (Claridad, Propuesta de Valor, Confianza, Envíos, Precio/Valor, Prueba Social, Objeciones, CTA, Móvil UX, Checkout), extracción de Quick Wins y generación de estructura de reporte PDF.
+  - `webhookAdapters.js`: Validación de firma criptográfica HMAC-SHA256 (`verifyShopifyHmac`), normalizadores para Shopify y WooCommerce (`ShopifyAdapter`, `WooCommerceAdapter`), e ingestión idempotente (`processNormalizedOrderService`) para evitar órdenes o clientes duplicados ante reintentos.
+  - `retentionEngineService.js`: Guardián de seguridad de WhatsApp (consentimiento, formato, rate limit de 7 días), integración con `controlPlaneService` para envíos automáticos, analítica de LTV real vs proyectado y motor de recomendaciones de Cross-Sell con justificación explicativa ("Why This Product").
+- **Endpoints de E-Commerce (`netlify/functions/api-ecommerce.js`)**:
+  - `GET /api/ecommerce/dashboard`: Resumen de métricas de productos, CRO, compradores y retención.
+  - `POST /api/ecommerce/products/analyze`: Diagnóstico de producto dropshipping o libro KDP.
+  - `GET /api/ecommerce/products` & `POST /api/ecommerce/products/save`: Biblioteca persistente y versionada de productos.
+  - `POST /api/ecommerce/cro/analyze`: Auditoría completa de landing page.
+  - `GET /api/ecommerce/customers`: Listado de perfiles de clientes con LTV real y proyectado.
+  - `GET /api/ecommerce/ltv`: Analítica avanzada de cohortes y retorno de retención.
+  - `GET /api/ecommerce/retention-rules` & `GET /api/ecommerce/retention-events`: Monitoreo de reglas y cola de retención.
+  - `POST /api/ecommerce/retention/dispatch`: Despacho de mensajes programados con control de seguridad.
+  - `GET /api/ecommerce/cross-sell`: Recomendaciones de productos complementarios con justificación racional.
+  - `POST /api/ecommerce/webhooks/shopify` & `POST /api/ecommerce/webhooks/woocommerce`: Webhooks de órdenes pagadas con HMAC.
+- **Frontend E-Commerce Intelligence (`src/pages/EcommerceCroPage.jsx`, `Sidebar.jsx`)**:
+  - Navegación integral por pestañas: *🎯 Product Intelligence*, *🔍 CRO Analyzer*, *📊 Embudo & Drop-off*, *👥 Customer Retention*, *📚 Product Library*, *📈 LTV & Revenue*, *⚡ Automation & Rules*, *🏷️ Meta Ads Catálogo*, *🤝 Afiliados*, *📄 Reports*.
+  - Modal interactivo de exportación de Informe Ejecutivo PDF de CRO.
+  - Botón de Closed-Loop `[ ✨ Crear Oferta Comercial ]` conectado con Creative Studio.
+  - Icono `ShoppingBag` y etiqueta `E-Commerce Intelligence` en la barra lateral.
+- **Suite de Pruebas Automatizadas (5 nuevas suites / 12 nuevos tests — Total: 82 suites / 429 tests 100% green)**:
+  - `src/test/ecommerce-product-intelligence.test.js`: Validación de score, 5 ángulos, 10 hooks y compliance KDP.
+  - `src/test/ecommerce-cro-analyzer.test.js`: Validación de 10 dimensiones CRO, Quick Wins y reporte PDF.
+  - `src/test/ecommerce-webhook-security.test.js`: Validación de HMAC-SHA256, protección SSRF e idempotencia estricta.
+  - `src/test/ecommerce-retention-ltv.test.js`: Validación de reglas de elegibilidad WhatsApp, LTV y Cross-Sell.
+  - `src/test/ecommerce-intelligence-frontend.test.jsx`: Pruebas de integración de interfaz, tabs y análisis.
+
 ### Added — Stages 20 & 21: Experimentation & Decision Engine (2026-08-28)
 - **Modelos de Experimentos y Alertas (`models/BusinessExperiment.js`, `models/SystemAlert.js`)**:
   - `BusinessExperiment`: Esquema estructurado para A/B Testing científico (`hypothesis`, `controlAsset`, `variantAsset`, `primaryMetric`, `status`, `winnerAssetId`, `statisticalSignificance`, `sampleSizeReached`).
