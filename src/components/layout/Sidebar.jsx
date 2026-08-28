@@ -15,6 +15,7 @@ import {
   Wand2,
   Clapperboard,
   Brain,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -31,6 +32,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
     ...(userProfile && ['super_admin', 'admin'].includes(userProfile.role)
       ? [{ name: t('sidebar.admin'), href: '/app/admin', icon: ShieldCheck }]
       : []),
+    { name: 'Decisiones & A/B', href: '/app/decision-center', icon: Zap },
     { name: t('sidebar.whatsappInbox'), href: '/app/whatsapp', icon: MessageSquare },
     { name: t('sidebar.ecommerceCro') || 'E-Commerce & CRO', href: '/app/ecommerce', icon: ShoppingCart },
     { name: t('sidebar.creativeStudio') || 'Creative Studio (IA)', href: '/app/creative-studio', icon: Wand2 },

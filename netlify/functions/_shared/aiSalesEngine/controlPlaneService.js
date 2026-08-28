@@ -19,7 +19,9 @@ export async function executeControlledTool({
   let matrix = DEFAULT_TOOL_PERMISSIONS;
   if (db && clientId) {
     const permCollection = db.collection('ai_tool_permissions');
-    const permDoc = await permCollection.findOne({ clientId: new ObjectId(clientId) });
+    const permDoc = typeof permCollection?.findOne === 'function'
+      ? await permCollection.findOne({ clientId: new ObjectId(clientId) })
+      : null;
     if (permDoc?.permissions) {
       matrix = permDoc.permissions;
     }
@@ -54,7 +56,8 @@ export async function executeControlledTool({
     };
 
     if (db) {
-      await db.collection('ai_action_logs').insertOne(rejectedLog);
+      const insRes = await db.collection('ai_action_logs').insertOne(rejectedLog);
+      rejectedLog._id = insRes?.insertedId;
     }
 
     return {

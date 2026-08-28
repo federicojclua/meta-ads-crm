@@ -22,6 +22,7 @@ const EcommerceCroPage = lazy(() => import('./pages/EcommerceCroPage').then(m =>
 const CreativeStudioPage = lazy(() => import('./pages/CreativeStudioPage').then(m => ({ default: m.CreativeStudioPage })));
 const VideoStudioPage = lazy(() => import('./pages/VideoStudioPage').then(m => ({ default: m.VideoStudioPage })));
 const LearningCenterPage = lazy(() => import('./pages/LearningCenterPage').then(m => ({ default: m.LearningCenterPage })));
+const DecisionCenterPage = lazy(() => import('./pages/DecisionCenterPage').then(m => ({ default: m.DecisionCenterPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 const RevenueDashboardPage = lazy(() => import('./pages/RevenueDashboardPage').then(m => ({ default: m.RevenueDashboardPage })));
 
@@ -63,6 +64,7 @@ export function App() {
           <Route path="creative-studio" element={<CreativeStudioPage />} />
           <Route path="video-studio" element={<VideoStudioPage />} />
           <Route path="learning-center" element={<LearningCenterPage />} />
+          <Route path="decision-center" element={<DecisionCenterPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="social-analyzer" element={<SocialAnalyzerPage />} />

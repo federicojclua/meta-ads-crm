@@ -18,6 +18,9 @@ export const AI_TOOLS = [
   'activate_meta_campaign',
   'change_budget',
   'delete_campaign',
+  'decision_pause_ad',
+  'decision_scale_budget',
+  'decision_trigger_ai_setter',
 ];
 
 export const DEFAULT_TOOL_PERMISSIONS = {
@@ -92,6 +95,9 @@ export const DEFAULT_TOOL_PERMISSIONS = {
     activate_meta_campaign: { isAllowed: false, requiresApproval: 'always' },
     change_budget: { isAllowed: false, requiresApproval: 'always' },
     delete_campaign: { isAllowed: false, requiresApproval: 'always' },
+    decision_pause_ad: { isAllowed: true, requiresApproval: 'never' },
+    decision_scale_budget: { isAllowed: true, requiresApproval: 'never' },
+    decision_trigger_ai_setter: { isAllowed: true, requiresApproval: 'never' },
   },
 };
 

@@ -8,6 +8,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Stages 20 & 21: Experimentation & Decision Engine (2026-08-28)
+- **Modelos de Experimentos y Alertas (`models/BusinessExperiment.js`, `models/SystemAlert.js`)**:
+  - `BusinessExperiment`: Esquema estructurado para A/B Testing científico (`hypothesis`, `controlAsset`, `variantAsset`, `primaryMetric`, `status`, `winnerAssetId`, `statisticalSignificance`, `sampleSizeReached`).
+  - `SystemAlert`: Esquema estructurado para detección de anomalías 24/7 (`alertType`, `severity`, `target`, `metricsSnapshot`, `aiDecision`, `status`, `triggeredAt`, `resolvedAt`).
+- **Motor de A/B Testing Estadístico (`experimentationService.js`)**:
+  - Evaluación de proporciones y prueba $Z\text{-score}$ con cálculo exacto de $p\text{-value}$ y nivel de significancia ($p < 0.05$, confianza $\ge 95\%$).
+  - Filtro de tamaño de muestra mínimo ($n \ge 1.000$ impresiones por variante) para evitar falsos positivos o conclusiones prematuras.
+  - Clasificación de experimentos en `WINNER`, `LOSER`, `INCONCLUSIVE` o `RUNNING` y retroalimentación automática hacia `PatternMemory` (Etapa 19).
+- **Daemon de Monitoreo de Anomalías 24/7 (`alertEngineService.js`)**:
+  - Matriz de 5 triggers críticos:
+    1. `CPL_ANOMALY`: Salto de CPL $\ge +35\%$ vs benchmark en las últimas 48h.
+    2. `ROAS_DROP`: Caída de ROAS $< 0.7\times$ del benchmark financiero.
+    3. `LEAD_DROP`: Descenso de volumen de leads $\ge -40\%$ en 48h.
+    4. `CREATIVE_FATIGUE`: Frecuencia $> 3.8$ combinada con caída de CTR $\ge 25\%$.
+    5. `SLA_LEAK`: Leads calificados sin atención $> 60\text{ minutos}$.
+- **The Decision Engine & Control Plane Execution (`decisionEngineService.js`)**:
+  - Generación de decisiones prescriptivas estructuradas en 4 bloques: 1. Diagnóstico, 2. Evidencia Dura, 3. Recomendación, 4. Acción Propuesta.
+  - Ejecución en un solo clic (`PAUSE_AD`, `SCALE_BUDGET`, `TRIGGER_AI_SETTER`) gobernada y auditada a través del `Agent Control Plane` (Etapa 14) con registro inmutable en `ai_action_logs`.
+- **Endpoints de Decision Engine (`netlify/functions/api-decision-engine.js`)**:
+  - `GET /api/decision-engine/alerts`: Escaneo y obtención de anomalías activas.
+  - `POST /api/decision-engine/execute-action`: Ejecución segura de recomendaciones vía Control Plane.
+  - `GET /api/decision-engine/experiments`: Listado de experimentos A/B activos y concluidos.
+  - `POST /api/decision-engine/experiments/create`: Creación y puesta en marcha de un nuevo test de hipótesis.
+  - `POST /api/decision-engine/experiments/evaluate`: Recálculo estadístico en tiempo real.
+- **UI Decision & Experimentation Center (`src/pages/DecisionCenterPage.jsx`, `Sidebar.jsx`, `App.jsx`)**:
+  - Pestaña *⚡ Decisiones*: KPIs ejecutivos, tarjetas de anomalías con los 4 bloques diagnósticos, y botones de ejecución de acción inmediata.
+  - Pestaña *🧪 Experimentos A/B*: Visualizador comparativo de Control vs Variante con métricas clave y widget de significancia ($p\text{-value}$, nivel de confianza, $Z\text{-score}$, lift relativo).
+  - Modal interactivo para creación de nuevos experimentos A/B.
+  - Nueva ruta `/app/decision-center` y acceso `"Decisiones & A/B"` con icono `Zap` en la barra lateral.
+- **Suite de Pruebas Automatizadas (4 nuevas suites / 9 nuevos tests — Total: 77 suites / 417 tests 100% green)**:
+  - `experimentation-statistics.test.js`, `alert-engine-triggers.test.js`, `decision-engine-control-plane.test.js`, `decision-center-frontend.test.jsx`.
+
 ### Added — Stage 19: ANIMA Learning Engine & Closed-Loop Intelligence (2026-08-28)
 - **Modelos de Memoria de Patrones (`models/PatternMemory.js`)**:
   - Esquema estructurado para almacenar `Winning DNA`, `Losing DNA` y alertas de `Fatiga Creativa` (`patternType`, `featureCombination`, `metrics`, `statisticalConfidence`, `headline`, `diagnosis`, `prescriptiveAction`, `appliedCount`).
