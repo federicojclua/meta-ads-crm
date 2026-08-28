@@ -1,7 +1,8 @@
 import { ObjectId } from 'mongodb';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
-import { checkRateLimit } from './_shared/rateLimiter.js';
+import { checkRateLimit, getClientIp } from './_shared/rateLimiter.js';
+import { sanitizeMetaLog } from './_shared/metaConfig.js';
 import {
   validateWaLine,
   sanitizeWaLine,
@@ -22,9 +23,9 @@ export async function handler(event) {
   const isSalesperson = user.role === 'salesperson';
 
   // Apply Rate Limiting on WhatsApp endpoints (30 req/min)
-  const clientIp = event.headers['x-forwarded-for'] || event.headers['client-ip'] || '127.0.0.1';
+  const clientIp = getClientIp(event);
   const rateKey = `wa-rate-${user._id?.toString() || clientIp}`;
-  const isAllowed = await checkRateLimit(db, rateKey, 30);
+  const isAllowed = await checkRateLimit(rateKey, 'whatsapp-api', 30, 60000);
   if (!isAllowed) {
     return errorResponse(429, 'Límite de solicitudes de WhatsApp excedido. Espere un minuto.', 'RATE_LIMIT_EXCEEDED');
   }
@@ -390,7 +391,7 @@ export async function handler(event) {
 
           if (!metaRes.ok) {
             const metaErr = await metaRes.json();
-            console.warn('[WHATSAPP_META_API_SEND_WARNING]', metaErr);
+            console.warn('[WHATSAPP_META_API_SEND_WARNING]', sanitizeMetaLog(metaErr));
           }
         } catch (dispatchErr) {
           console.warn('[WHATSAPP_META_DISPATCH_ERROR]', dispatchErr.message);
@@ -649,7 +650,7 @@ export async function handler(event) {
 
     return errorResponse(404, 'Ruta de WhatsApp/Omnicanal no encontrada.', 'NOT_FOUND');
   } catch (err) {
-    console.error('[API_WHATSAPP_ERROR]', err);
+    console.error('[API_WHATSAPP_ERROR]', err.message);
     return errorResponse(500, 'Error interno procesando solicitud de WhatsApp.', 'INTERNAL_SERVER_ERROR');
   }
 }

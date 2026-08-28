@@ -25,7 +25,7 @@ export async function handler(event) {
   // Rate limiting (15 requests/minute)
   const clientIp = getClientIp(event);
   const rateLimitKey = `copilot-rate-${user._id || clientIp}`;
-  const allowed = await checkRateLimit(rateLimitKey, 15, 60, db);
+  const allowed = await checkRateLimit(clientIp, 'copilot-ai', 15, 60000);
   if (!allowed) {
     return errorResponse(429, 'Límite de solicitudes del Copiloto excedido (15 por minuto). Intente nuevamente en breve.', 'RATE_LIMIT_EXCEEDED');
   }

@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Security & Hardening — Release Gate & Production Audit Certification (2026-08-28)
+- **Eliminación de Hardcoded Fallback Secrets (Severidad Crítica)**:
+  - `netlify/functions/api-ecommerce.js`: Eliminado fallback `'shopify_test_secret_key'` para firma HMAC de Shopify. Ahora falla de forma segura (500) si `SHOPIFY_WEBHOOK_SECRET` no está configurada.
+  - `netlify/functions/api-whatsapp-webhook.js`: Eliminado fallback `'anima_mkt_crm_wa_token'`. Webhook handshake responde estrictamente `403 Forbidden` si `WHATSAPP_VERIFY_TOKEN` no está configurado o no coincide.
+  - `netlify/functions/api-meta-assets.js`: Eliminado fallback `'crm_reclassify_secret'`. Reclasificación de campañas requiere `META_APP_SECRET` explícito.
+- **Sanitización Forense de Logs & PII (Información Personal Identificable)**:
+  - `netlify/functions/api-dashboard.js`: Eliminado log diagnóstico `[DASHBOARD_DIAGNOSTIC]` que exponía scopes y metadatos de sesión en producción.
+  - `netlify/functions/api-whatsapp.js`: Sanitizada respuesta de error de Meta Graph API vía `sanitizeMetaLog()` para evitar fuga de tokens en logs de Netlify.
+  - `netlify/functions/api-users.js`: Eliminado `firebaseUid` de logs de auditoría de revocación de sesiones.
+  - Sanitizados los 8 manejadores globales de error (`api-affiliates.js`, `api-audiences-export.js`, `api-creative-campaigns.js`, `api-creative-profile.js`, `api-products.js`, `api-team-sla.js`, `api-whatsapp.js`, `meta-sync-background.js`) para emitir exclusivamente `err.message` sanitizado, previniendo volcados de stack traces o URIs internas.
+- **Endurecimiento de Headers de Seguridad & Rate Limiting**:
+  - `netlify.toml`: Inyectado header `Strict-Transport-Security: max-age=31536000; includeSubDomains` (HSTS de 1 año) en todas las rutas.
+  - `netlify/functions/api-whatsapp.js`: Corregida llamada al rate limiter (firma `(key, endpoint, maxRequests, windowMs)` restaurada con IP real del cliente).
+  - `netlify/functions/api-copilot.js`: Corregida llamada al rate limiter (firma corregida a 15 req/min).
+  - `netlify/functions/api-ecommerce.js`: Añadido rate limiting estricto en `/api/ecommerce/products/analyze` y `/api/ecommerce/cro/analyze` (10 req/min).
+  - `netlify/functions/api-decision-engine.js`: Añadido rate limiting en `/execute-action` (10 req/min), `/experiments/create` (10 req/min) y `/experiments/evaluate` (20 req/min).
+- **Documentación de Entorno (`.env.example`)**:
+  - Incorporadas plantillas para `WHATSAPP_API_TOKEN`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID` y `SHOPIFY_WEBHOOK_SECRET`.
+- **Verificación de Release**:
+  - 82 suites de prueba / 429 tests pasando al 100% (verde absoluto).
+  - Compilación de producción Vite completada limpiamente en 31.81s con 0 errores.
+
+
 ### Added — Stage 20: E-Commerce Intelligence, CRO & Retention Engine (2026-08-28)
 - **Modelos de E-Commerce Intelligence & Memoria de Retención (`models/`)**:
   - `models/EcommerceProduct.js`: Esquema de producto dropshipping/KDP (`sourceType`, `salePrice`, `cost`, `shippingCost`, `estimatedMargin`, `status`, `productScore`, `confidenceScore`).

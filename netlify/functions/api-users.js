@@ -284,12 +284,10 @@ export async function handler(event) {
             const firebaseAuth = getFirebaseAdmin();
             await firebaseAuth.revokeRefreshTokens(targetUser.firebaseUid);
             console.log('[AUTH_AUDIT] User refresh tokens revoked successfully:', {
-              firebaseUid: targetUser.firebaseUid,
               revoked: true,
             });
           } catch (revokeErr) {
             console.warn('[AUTH_AUDIT] Firebase token revocation deferred or failed:', {
-              firebaseUid: targetUser.firebaseUid,
               revoked: false,
               errorCode: revokeErr.code || revokeErr.name || 'UNKNOWN_ERROR',
             });

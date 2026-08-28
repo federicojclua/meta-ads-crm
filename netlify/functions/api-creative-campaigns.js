@@ -341,7 +341,7 @@ export async function handler(event) {
 
     return errorResponse(404, 'Ruta de Campañas Creativas no encontrada.', 'NOT_FOUND');
   } catch (err) {
-    console.error('[API_CREATIVE_CAMPAIGNS_ERROR]', err);
+    console.error('[API_CREATIVE_CAMPAIGNS_ERROR]', err.message);
     return errorResponse(500, 'Error interno procesando campañas creativas.', 'INTERNAL_SERVER_ERROR');
   }
 }

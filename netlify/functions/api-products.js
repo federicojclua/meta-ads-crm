@@ -164,7 +164,7 @@ export async function handler(event) {
 
     return errorResponse(404, 'Ruta de Productos no encontrada.', 'NOT_FOUND');
   } catch (err) {
-    console.error('[API_PRODUCTS_ERROR]', err);
+    console.error('[API_PRODUCTS_ERROR]', err.message);
     return errorResponse(500, 'Error interno procesando catálogo de productos.', 'INTERNAL_SERVER_ERROR');
   }
 }

@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 import { jsonResponse, errorResponse } from './_shared/response.js';
+import { checkRateLimit, getClientIp } from './_shared/rateLimiter.js';
 import {
   calculateFunnelDropoff,
   calculateFrictionScore,
@@ -59,7 +60,10 @@ export async function handler(event) {
     if (provider === 'shopify' && method === 'POST') {
       const hmacHeader = event.headers['x-shopify-hmac-sha256'] || event.headers['X-Shopify-Hmac-Sha256'];
       const rawBody = event.body || '';
-      const shopifySecret = process.env.SHOPIFY_WEBHOOK_SECRET || 'shopify_test_secret_key';
+      const shopifySecret = process.env.SHOPIFY_WEBHOOK_SECRET;
+      if (!shopifySecret) {
+        return jsonResponse(500, { ok: false, error: 'SHOPIFY_WEBHOOK_SECRET no configurada en el servidor.' });
+      }
 
       // Verify HMAC
       const isValid = verifyShopifyHmac({ rawBody, hmacHeader, secret: shopifySecret });
@@ -140,8 +144,13 @@ export async function handler(event) {
       });
     }
 
-    // 2. POST /api/ecommerce/products/analyze
+    // 2. POST /api/ecommerce/products/analyze (Rate Limited: 10 req/min)
     if (segments[0] === 'products' && segments[1] === 'analyze' && method === 'POST') {
+      const clientIp = getClientIp(event);
+      const isAllowed = await checkRateLimit(clientIp, 'ecommerce-product-analyze', 10, 60000);
+      if (!isAllowed) {
+        return errorResponse(429, 'Límite de análisis de producto excedido (10/min). Intente nuevamente en breve.', 'RATE_LIMIT_EXCEEDED');
+      }
       const body = JSON.parse(event.body || '{}');
       const mode = body.mode || 'dropshipping';
 
@@ -178,8 +187,13 @@ export async function handler(event) {
       return jsonResponse(200, { ok: true, ...saved });
     }
 
-    // 5. POST /api/ecommerce/cro/analyze
+    // 5. POST /api/ecommerce/cro/analyze (Rate Limited: 10 req/min)
     if (segments[0] === 'cro' && segments[1] === 'analyze' && method === 'POST') {
+      const clientIp = getClientIp(event);
+      const isAllowed = await checkRateLimit(clientIp, 'ecommerce-cro-analyze', 10, 60000);
+      if (!isAllowed) {
+        return errorResponse(429, 'Límite de auditoría CRO excedido (10/min). Intente nuevamente en breve.', 'RATE_LIMIT_EXCEEDED');
+      }
       const body = JSON.parse(event.body || '{}');
       const audit = await analyzeLandingPageCroService({
         ...body,

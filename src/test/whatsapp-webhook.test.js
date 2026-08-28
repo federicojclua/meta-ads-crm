@@ -16,6 +16,7 @@ describe('Stage 13 — Meta WhatsApp Cloud API Webhook Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.WHATSAPP_VERIFY_TOKEN = 'anima_mkt_crm_wa_token';
 
     mockLinesCollection = {
       findOne: vi.fn().mockResolvedValue({

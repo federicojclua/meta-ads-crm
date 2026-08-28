@@ -97,7 +97,7 @@ export const handler = async (event) => {
 
       console.log(`[META_BACKGROUND_SYNC] Finished job ${jobId.toString()} with status: ${result.status}, rows: ${result.rowsUpserted}`);
     } catch (workerErr) {
-      console.error('[META_BACKGROUND_SYNC] Fatal error during background execution:', workerErr);
+      console.error('[META_BACKGROUND_SYNC] Fatal error during background execution:', sanitizeMetaLog(workerErr.message));
       await syncLogsCollection.updateOne(
         { _id: updatedJob._id },
         {
@@ -110,6 +110,6 @@ export const handler = async (event) => {
       );
     }
   } catch (err) {
-    console.error('[META_BACKGROUND_SYNC] Fatal error during background execution:', err);
+    console.error('[META_BACKGROUND_SYNC] Fatal error during background execution:', sanitizeMetaLog(err.message));
   }
 };

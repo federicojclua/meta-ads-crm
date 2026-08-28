@@ -36,14 +36,6 @@ export async function handler(event) {
                    cleanIdLower === 'undefined' ||
                    cleanIdLower === 'null';
 
-  console.log('[DASHBOARD_DIAGNOSTIC]', {
-    receivedRaw: params.clientId,
-    parsed: rawClientId,
-    isBypass,
-    clientScope,
-    isGlobal,
-    userRole: user?.role
-  });
 
   const isSalesperson = user.role === 'salesperson';
   const leadsCollection = db.collection('leads');

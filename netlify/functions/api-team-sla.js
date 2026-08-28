@@ -116,7 +116,7 @@ export async function handler(event) {
       teamMetrics,
     });
   } catch (err) {
-    console.error('[API_TEAM_SLA_ERROR]', err);
-    return errorResponse(500, 'Error calculando analíticas de SLA de equipo.', 'INTERNAL_SERVER_ERROR');
+    console.error('[API_TEAM_SLA_ERROR]', err.message);
+    return errorResponse(500, 'Error interno calculando métricas de SLA.', 'INTERNAL_SERVER_ERROR');
   }
 }

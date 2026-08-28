@@ -469,7 +469,10 @@ export const handler = async (event) => {
 
         // Generate SHA-256 confirmation hash
         const config = getMetaConfig();
-        const secret = config.appSecret || 'crm_reclassify_secret';
+        const secret = config.appSecret;
+        if (!secret) {
+          return jsonResponse(400, { ok: false, error: 'META_APP_SECRET no configurada. No se puede generar hash de reclasificación.' });
+        }
         const hashPayload = `${adAccountId}:${sourceClientId}:${targetClientId}:${dateStart}:${dateStop}:${totalSpendMinor}:${docIds.length}`;
         const previewHash = crypto.createHmac('sha256', secret).update(hashPayload).digest('hex');
 

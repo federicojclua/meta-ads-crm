@@ -148,7 +148,7 @@ export async function handler(event) {
 
     return errorResponse(404, 'Ruta de Creative Profile no encontrada.', 'NOT_FOUND');
   } catch (err) {
-    console.error('[API_CREATIVE_PROFILE_ERROR]', err);
+    console.error('[API_CREATIVE_PROFILE_ERROR]', err.message);
     return errorResponse(500, 'Error interno procesando Creative Profile.', 'INTERNAL_SERVER_ERROR');
   }
 }

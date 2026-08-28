@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
+import { checkRateLimit, getClientIp } from './_shared/rateLimiter.js';
 import {
   scanTenantAnomaliesService,
 } from './_shared/decisionEngine/alertEngineService.js';
@@ -56,8 +57,17 @@ export async function handler(event) {
       };
     }
 
-    // POST /api/decision-engine/execute-action
+    // POST /api/decision-engine/execute-action (Rate limited: 10 req/min)
     if (method === 'POST' && subPath === 'execute-action') {
+      const clientIp = getClientIp(event);
+      const isAllowed = await checkRateLimit(clientIp, 'decision-execute-action', 10, 60000);
+      if (!isAllowed) {
+        return {
+          statusCode: 429,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ok: false, error: 'Límite de ejecución de acciones excedido (10/min).', code: 'RATE_LIMIT_EXCEEDED' }),
+        };
+      }
       const body = JSON.parse(event.body || '{}');
       const { alertId, actionType, targetId, payload } = body;
 
@@ -92,8 +102,17 @@ export async function handler(event) {
       };
     }
 
-    // POST /api/decision-engine/experiments/create
+    // POST /api/decision-engine/experiments/create (Rate limited: 10 req/min)
     if (method === 'POST' && (subPath === 'experiments/create' || subPath === 'experiments')) {
+      const clientIp = getClientIp(event);
+      const isAllowed = await checkRateLimit(clientIp, 'decision-experiment-create', 10, 60000);
+      if (!isAllowed) {
+        return {
+          statusCode: 429,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ok: false, error: 'Límite de creación de experimentos excedido (10/min).', code: 'RATE_LIMIT_EXCEEDED' }),
+        };
+      }
       const body = JSON.parse(event.body || '{}');
       const created = await createExperimentService({
         clientId: clientScope,
@@ -108,8 +127,17 @@ export async function handler(event) {
       };
     }
 
-    // POST /api/decision-engine/experiments/evaluate
+    // POST /api/decision-engine/experiments/evaluate (Rate limited: 20 req/min)
     if (method === 'POST' && subPath === 'experiments/evaluate') {
+      const clientIp = getClientIp(event);
+      const isAllowed = await checkRateLimit(clientIp, 'decision-experiment-evaluate', 20, 60000);
+      if (!isAllowed) {
+        return {
+          statusCode: 429,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ok: false, error: 'Límite de evaluación estadística excedido (20/min).', code: 'RATE_LIMIT_EXCEEDED' }),
+        };
+      }
       const body = JSON.parse(event.body || '{}');
       const stats = calculateABStatistics(body);
 

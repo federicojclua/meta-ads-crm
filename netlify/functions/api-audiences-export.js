@@ -74,7 +74,7 @@ export async function handler(event) {
       body: csvContent,
     };
   } catch (err) {
-    console.error('[API_AUDIENCES_EXPORT_ERROR]', err);
+    console.error('[API_AUDIENCES_EXPORT_ERROR]', err.message);
     return errorResponse(500, 'Error generando archivo de audiencia para Meta.', 'INTERNAL_SERVER_ERROR');
   }
 }

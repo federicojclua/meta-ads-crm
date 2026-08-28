@@ -16,10 +16,9 @@ export async function handler(event) {
     const token = params['hub.verify_token'];
     const challenge = params['hub.challenge'];
 
-    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN || 'anima_mkt_crm_wa_token';
+    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN;
 
-    if (mode === 'subscribe' && token === expectedToken) {
-      console.log('[OMNICHANNEL_WEBHOOK] Handshake verified successfully.');
+    if (mode === 'subscribe' && expectedToken && token === expectedToken) {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'text/plain' },
@@ -30,7 +29,7 @@ export async function handler(event) {
     console.warn('[OMNICHANNEL_WEBHOOK] Handshake verification failed:', { mode, tokenProvided: Boolean(token) });
     return {
       statusCode: 403,
-      body: JSON.stringify({ error: 'Verification token mismatch.' }),
+      body: JSON.stringify({ error: 'Verification token mismatch or not configured.' }),
     };
   }
 
@@ -449,7 +448,7 @@ export async function handler(event) {
         }
       }
     } catch (dbErr) {
-      console.error('[OMNICHANNEL_WEBHOOK_PROCESSING_ERROR]', dbErr);
+      console.error('[OMNICHANNEL_WEBHOOK_PROCESSING_ERROR]', dbErr.message);
     }
 
     return {
