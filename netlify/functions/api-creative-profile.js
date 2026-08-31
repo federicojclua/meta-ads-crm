@@ -22,9 +22,16 @@ export async function handler(event) {
   const segments = cleanPath.split('/').filter(Boolean);
   const method = event.httpMethod;
 
-  const targetClientId = isGlobal
+  let targetClientId = isGlobal
     ? ((event.queryStringParameters || {}).clientId || clientScope)
     : clientScope;
+
+  if (!targetClientId && isGlobal) {
+    const firstClient = await db.collection('clients').findOne({ status: 'active' });
+    if (firstClient) {
+      targetClientId = firstClient._id.toString();
+    }
+  }
 
   if (!targetClientId) {
     return errorResponse(400, 'clientId es requerido.', 'CLIENT_ID_REQUIRED');

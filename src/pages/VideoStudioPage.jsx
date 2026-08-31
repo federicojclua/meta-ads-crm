@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
+import { apiClient } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { BLOCK_TYPE_LABELS } from '../../models/VideoProject.js';
@@ -71,30 +72,33 @@ export function VideoStudioPage() {
     setLoading(true);
     try {
       // 1. Fetch Video Projects
-      const projRes = await fetch('/api/video-studio/projects');
-      if (projRes.ok) {
-        const pData = await projRes.json();
-        if (pData.projects && pData.projects.length > 0) {
+      try {
+        const pData = await apiClient('/api/video-studio/projects');
+        if (pData?.projects && pData.projects.length > 0) {
           setProject(pData.projects[0]);
         }
+      } catch (projErr) {
+        console.warn('Could not load video projects:', projErr.message);
       }
 
       // 2. Fetch Creative Profile (Brand DNA & Avatars)
-      const profRes = await fetch('/api/creative-profile');
-      if (profRes.ok) {
-        const prData = await profRes.json();
-        if (prData.profile) {
+      try {
+        const prData = await apiClient('/api/creative-profile');
+        if (prData?.profile) {
           setProfile(prData.profile);
         }
+      } catch (profErr) {
+        console.warn('Could not load creative profile:', profErr.message);
       }
 
       // 3. Fetch Winner Patterns
-      const winRes = await fetch('/api/video-studio/winner-patterns');
-      if (winRes.ok) {
-        const wData = await winRes.json();
-        if (wData.winnerPattern) {
+      try {
+        const wData = await apiClient('/api/video-studio/winner-patterns');
+        if (wData?.winnerPattern) {
           setWinnerPattern(wData.winnerPattern);
         }
+      } catch (winErr) {
+        console.warn('Could not load winner patterns:', winErr.message);
       }
     } catch (err) {
       console.error('Error loading video studio data:', err);
@@ -110,32 +114,33 @@ export function VideoStudioPage() {
   const handleGenerateStoryboard = async () => {
     setGeneratingStoryboard(true);
     try {
-      const res = await fetch('/api/video-studio/storyboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          objective: storyboardObjective,
-          angle: storyboardAngle,
-        }),
+      const data = await apiClient.post('/api/video-studio/storyboard', {
+        objective: storyboardObjective,
+        angle: storyboardAngle,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.storyboard && project) {
-          setProject({
-            ...project,
-            scenes: data.storyboard.scenes,
-            storyboardSummary: data.storyboard.storyboardSummary,
-            costEstimate: data.storyboard.costEstimate,
-          });
-          setActiveSceneIndex(0);
-          setStoryboardModalOpen(false);
-          setActionSuccessMessage('Storyboard generado exitosamente con estructura de alta conversión.');
-          setTimeout(() => setActionSuccessMessage(''), 4000);
-        }
+      if (data?.storyboard) {
+        setProject((prev) => ({
+          ...(prev || {
+            id: 'proj_new',
+            title: `Video Ad Lead Gen — ${profile?.brandIdentity?.commercialName || 'Cliente'}`,
+            objective: storyboardObjective,
+            aspectRatio: '9:16',
+            status: 'needs_review',
+          }),
+          scenes: data.storyboard.scenes || [],
+          storyboardSummary: data.storyboard.storyboardSummary,
+          costEstimate: data.storyboard.costEstimate,
+        }));
+        setActiveSceneIndex(0);
+        setStoryboardModalOpen(false);
+        setActionSuccessMessage('Storyboard generado exitosamente con estructura de alta conversión.');
+        setTimeout(() => setActionSuccessMessage(''), 4000);
       }
     } catch (err) {
       console.error('Error generating storyboard:', err);
+      setActionSuccessMessage(`Error al generar storyboard: ${err.message || 'Verifique conexión'}`);
+      setTimeout(() => setActionSuccessMessage(''), 5000);
     } finally {
       setGeneratingStoryboard(false);
     }
@@ -145,28 +150,21 @@ export function VideoStudioPage() {
     if (!project) return;
     setContinuing(true);
     try {
-      const res = await fetch('/api/video-studio/continue-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: project.id,
-          prompt: continuePrompt,
-          durationSec: 6,
-        }),
+      const data = await apiClient.post('/api/video-studio/continue-project', {
+        projectId: project.id || project._id,
+        prompt: continuePrompt,
+        durationSec: 6,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.scene) {
-          setProject({
-            ...project,
-            scenes: [...project.scenes, data.scene],
-          });
-          setActiveSceneIndex(project.scenes.length);
-          setContinueModalOpen(false);
-          setActionSuccessMessage('Nueva escena encadenada utilizando el último fotograma de la escena previa.');
-          setTimeout(() => setActionSuccessMessage(''), 4000);
-        }
+      if (data?.scene) {
+        setProject((prev) => ({
+          ...prev,
+          scenes: [...(prev?.scenes || []), data.scene],
+        }));
+        setActiveSceneIndex(project.scenes?.length || 0);
+        setContinueModalOpen(false);
+        setActionSuccessMessage('Nueva escena encadenada utilizando el último fotograma de la escena previa.');
+        setTimeout(() => setActionSuccessMessage(''), 4000);
       }
     } catch (err) {
       console.error('Error continuing project:', err);
@@ -178,28 +176,23 @@ export function VideoStudioPage() {
   const handleCreatePausedMetaCampaign = async () => {
     setLaunchingMeta(true);
     try {
-      const res = await fetch('/api/meta-launch/create-paused', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `Meta Lead Gen — ${profile?.brandIdentity?.commercialName || 'Cliente'} — Video V01`,
-          businessObjective: 'leads',
-          dailyBudget: metaDailyBudget,
-          targeting: {
-            location: metaLocation,
-            ageMin: 25,
-            ageMax: 55,
-            advantagePlacements: true,
-          },
-          leadForm: {
-            formName: 'Solicitud de Presupuesto & Financiación',
-            customQuestion: metaLeadFormQuestion,
-          },
-        }),
+      const data = await apiClient.post('/api/meta-launch/create-paused', {
+        name: `Meta Lead Gen — ${profile?.brandIdentity?.commercialName || 'Cliente'} — Video V01`,
+        businessObjective: 'leads',
+        dailyBudget: metaDailyBudget,
+        targeting: {
+          location: metaLocation,
+          ageMin: 25,
+          ageMax: 55,
+          advantagePlacements: true,
+        },
+        leadForm: {
+          formName: 'Solicitud de Presupuesto & Financiación',
+          customQuestion: metaLeadFormQuestion,
+        },
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data?.campaign) {
         setLaunchedCampaign(data.campaign);
         setMetaWizardStep(4); // Move to review & activation screen
         setActionSuccessMessage('¡Campaña creada exitosamente en Meta Ads en estado PAUSED!');
@@ -216,18 +209,13 @@ export function VideoStudioPage() {
     if (!launchedCampaign) return;
     setActivating(true);
     try {
-      const res = await fetch(`/api/meta-launch/${launchedCampaign.id}/activate`, {
-        method: 'POST',
-      });
-
-      if (res.ok) {
-        setLaunchedCampaign({
-          ...launchedCampaign,
-          status: 'active',
-        });
-        setActionSuccessMessage('¡Campaña ACTIVADA en Meta Ads! Comienza la entrega y generación de leads.');
-        setTimeout(() => setActionSuccessMessage(''), 6000);
-      }
+      await apiClient.post(`/api/meta-launch/${launchedCampaign.id}/activate`);
+      setLaunchedCampaign((prev) => ({
+        ...prev,
+        status: 'active',
+      }));
+      setActionSuccessMessage('¡Campaña ACTIVADA en Meta Ads! Comienza la entrega y generación de leads.');
+      setTimeout(() => setActionSuccessMessage(''), 6000);
     } catch (err) {
       console.error('Error activating campaign:', err);
     } finally {
