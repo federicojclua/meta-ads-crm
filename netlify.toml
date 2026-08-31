@@ -6,6 +6,9 @@
 [build.environment]
   NODE_VERSION = "24"
 
+[functions]
+  node_bundler = "esbuild"
+
 [[redirects]]
   from = "/api/auth/me"
   to = "/.netlify/functions/api-auth-me"

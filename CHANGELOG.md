@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - Agregadas validaciones preventivas con `ObjectId.isValid()` en todos los accesos a MongoDB por `clientScope` o `targetClientId`, evitando crashes y excepciones `BSONError`.
   - Añadido fallback automático en `api-creative-profile.js` para usuarios administradores (`isGlobal`) cuando no se envía `clientId` en la query string.
   - Implementados bloques `try/catch` robustos en la generación de storyboards y escenas con IA para responder con `{ ok: false, error: '...' }` (HTTP 500) estructurado en lugar de crashear la lambda serverless (502 Bad Gateway).
+- **Serverless Function Bundling (`netlify.toml`)**:
+  - Configurado `[functions] node_bundler = "esbuild"` en `netlify.toml` para empaquetar y transpilar automáticamente todas las funciones serverless de Netlify, resolviendo el error `SyntaxError: Cannot use import statement outside a module` y habilitando la resolución de dependencias compartidas (`../../models/`, `_shared/`).
 - **Relajación de Content Security Policy (`netlify.toml`)**:
   - Actualizada directiva `img-src` para autorizar `https://images.unsplash.com`, `https://*.unsplash.com`, `https://*.googleusercontent.com`, `https://*.firebaseapp.com` y `blob:`.
   - Añadida directiva `media-src` para permitir la reproducción de videos y vistas previas desde `https://assets.mixkit.co`, `https://*.mixkit.co` y Unsplash.
