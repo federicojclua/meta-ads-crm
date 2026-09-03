@@ -25,6 +25,10 @@ import {
   ChevronRight,
   Radio,
   Lock,
+  Building2,
+  Scissors,
+  HelpCircle,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -49,13 +53,39 @@ export function VideoStudioPage() {
   // Storyboard Wizard state
   const [storyboardModalOpen, setStoryboardModalOpen] = useState(false);
   const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
-  const [storyboardObjective, setStoryboardObjective] = useState('leads');
-  const [storyboardAngle, setStoryboardAngle] = useState('problem_solution');
+  const [storyboardObjective, setStoryboardObjective] = useState('consultas'); // 'consultas' = Conversaciones por WhatsApp
+  const [storyboardAngle, setStoryboardAngle] = useState('fee_attack');
+  const [storyboardClientName, setStoryboardClientName] = useState('Grupo Novati');
+  const [storyboardPrompt, setStoryboardPrompt] = useState(
+    'Quiero un video para e-commerce promocionando cobrar más barato con el número de comercio de Fiserv y te hacemos la web. El ángulo es mostrar los costos reales y bajos de una terminal común, atacando directamente los costos inflados que cobran los agregadores como Tienda Nube o Mercado Pago. Tono profesional pero directo.'
+  );
+  const [storyboardHook, setStoryboardHook] = useState(
+    '¿Tenés un e-commerce y seguís regalando hasta un 7% de cada venta en comisiones a Mercado Pago o Tienda Nube?'
+  );
+  const [storyboardCompetitor, setStoryboardCompetitor] = useState(
+    'Costos inflados de agregadores (Tienda Nube o Mercado Pago 6% a 7%) vs terminal común Fiserv'
+  );
+  const [storyboardOffer, setStoryboardOffer] = useState(
+    'Te hacemos la web + cobrá con número de comercio Fiserv a costos reales y bajos'
+  );
+  const [storyboardTone, setStoryboardTone] = useState('Profesional pero directo');
+  const [storyboardCta, setStoryboardCta] = useState('Hablar por WhatsApp con un asesor');
+  const [storyboardEnvironment, setStoryboardEnvironment] = useState('fintech_modern_office');
 
-  // Next Scene / Continue Project state
+  // Next Scene / Continue Project state (Continuity Engine & B-Roll)
   const [continueModalOpen, setContinueModalOpen] = useState(false);
   const [continuing, setContinuing] = useState(false);
-  const [continuePrompt, setContinuePrompt] = useState('Ahora mostrá la garantía oficial y el botón de WhatsApp en cuotas fijas.');
+  const [continueBlockType, setContinueBlockType] = useState('ai_avatar');
+  const [continueTransition, setContinueTransition] = useState('cut');
+  const [continuePrompt, setContinuePrompt] = useState(
+    'Cobrar directo con Fiserv te deja el costo real de una terminal común sin intermediarios.'
+  );
+  const [continueVisualPrompt, setContinueVisualPrompt] = useState(
+    'Mismo presentador en la misma oficina fintech moderna, contacto visual y plano medio continuo sin saltos.'
+  );
+  const [continueOnScreenText, setContinueOnScreenText] = useState('COSTOS REALES FISERV 📉');
+  const [continueCtaText, setContinueCtaText] = useState('');
+  const [continueEnvironment, setContinueEnvironment] = useState('fintech_modern_office');
 
   // Meta Ads Launch Wizard state
   const [metaWizardStep, setMetaWizardStep] = useState(1);
@@ -67,6 +97,23 @@ export function VideoStudioPage() {
   const [launchedCampaign, setLaunchedCampaign] = useState(null);
   const [activating, setActivating] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState('');
+
+  const loadNovatiPreset = () => {
+    setStoryboardClientName('Grupo Novati');
+    setStoryboardObjective('consultas');
+    setStoryboardAngle('fee_attack');
+    setStoryboardPrompt(
+      'Quiero un video para e-commerce promocionando cobrar más barato con el número de comercio de Fiserv y te hacemos la web. El ángulo es mostrar los costos reales y bajos de una terminal común, atacando directamente los costos inflados que cobran los agregadores como Tienda Nube o Mercado Pago. Tono profesional pero directo.'
+    );
+    setStoryboardHook(
+      '¿Tenés un e-commerce y seguís regalando hasta un 7% de cada venta en comisiones a Mercado Pago o Tienda Nube?'
+    );
+    setStoryboardCompetitor('Costos inflados de agregadores (Tienda Nube o Mercado Pago 6% a 7%) vs terminal común Fiserv');
+    setStoryboardOffer('Te hacemos la web + cobrá con número de comercio Fiserv a costos reales y bajos');
+    setStoryboardTone('Profesional pero directo');
+    setStoryboardCta('Hablar por WhatsApp con un asesor');
+    setStoryboardEnvironment('fintech_modern_office');
+  };
 
   const fetchStudioData = async () => {
     setLoading(true);
@@ -117,24 +164,37 @@ export function VideoStudioPage() {
       const data = await apiClient.post('/api/video-studio/storyboard', {
         objective: storyboardObjective,
         angle: storyboardAngle,
+        clientName: storyboardClientName,
+        customPrompt: storyboardPrompt,
+        customHook: storyboardHook,
+        technicalBrief: {
+          clientName: storyboardClientName,
+          competitor: storyboardCompetitor,
+          offer: storyboardOffer,
+          tone: storyboardTone,
+          cta: storyboardCta,
+          environment: storyboardEnvironment,
+        },
       });
 
       if (data?.storyboard) {
+        const projectTitle = `Video Ad — ${storyboardClientName || profile?.brandIdentity?.commercialName || 'Cliente'} — Fiserv Direct`;
         setProject((prev) => ({
           ...(prev || {
             id: 'proj_new',
-            title: `Video Ad Lead Gen — ${profile?.brandIdentity?.commercialName || 'Cliente'}`,
+            title: projectTitle,
             objective: storyboardObjective,
             aspectRatio: '9:16',
             status: 'needs_review',
           }),
+          title: projectTitle,
           scenes: data.storyboard.scenes || [],
           storyboardSummary: data.storyboard.storyboardSummary,
           costEstimate: data.storyboard.costEstimate,
         }));
         setActiveSceneIndex(0);
         setStoryboardModalOpen(false);
-        setActionSuccessMessage('Storyboard generado exitosamente con estructura de alta conversión.');
+        setActionSuccessMessage(`Storyboard generado exitosamente para ${storyboardClientName} con gancho y continuidad.`);
         setTimeout(() => setActionSuccessMessage(''), 4000);
       }
     } catch (err) {
@@ -154,6 +214,12 @@ export function VideoStudioPage() {
         projectId: project.id || project._id,
         prompt: continuePrompt,
         durationSec: 6,
+        blockType: continueBlockType,
+        transition: continueTransition,
+        visualPrompt: continueVisualPrompt,
+        onScreenText: continueOnScreenText,
+        ctaText: continueCtaText,
+        environment: continueEnvironment,
       });
 
       if (data?.scene) {
@@ -163,11 +229,13 @@ export function VideoStudioPage() {
         }));
         setActiveSceneIndex(project.scenes?.length || 0);
         setContinueModalOpen(false);
-        setActionSuccessMessage('Nueva escena encadenada utilizando el último fotograma de la escena previa.');
+        setActionSuccessMessage('Nueva escena encadenada con continuidad de personaje, mismo ambiente y transición.');
         setTimeout(() => setActionSuccessMessage(''), 4000);
       }
     } catch (err) {
       console.error('Error continuing project:', err);
+      setActionSuccessMessage(`Error al continuar video: ${err.message || 'Verifique conexión'}`);
+      setTimeout(() => setActionSuccessMessage(''), 5000);
     } finally {
       setContinuing(false);
     }
@@ -511,20 +579,34 @@ export function VideoStudioPage() {
                   </div>
 
                   {/* Continuity Pack Inspector */}
-                  <div className="p-3 bg-violet-500/5 rounded-xl border border-violet-500/20 space-y-2">
-                    <div className="flex items-center gap-1.5 text-violet-700 font-bold text-xs">
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>Continuity Pack & Fotograma de Referencia</span>
+                  <div className="p-3.5 bg-violet-500/5 rounded-xl border border-violet-500/20 space-y-2">
+                    <div className="flex items-center justify-between text-violet-700 dark:text-violet-300 font-bold text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Continuity Pack & Bloqueo de Secuencia</span>
+                      </div>
+                      <Badge variant="purple" className="text-[9px]">
+                        {currentScene?.transition ? `Transición: ${currentScene.transition.toUpperCase()}` : 'Transición: CORTE DIRECTO'}
+                      </Badge>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-brand-text-secondary">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-brand-text-secondary pt-1">
                       <div>
-                        <span className="font-semibold text-brand-text-primary">Personaje:</span> {currentScene?.avatarId || 'B-Roll Orgánico'}
+                        <span className="font-semibold text-brand-text-primary block">Personaje:</span>
+                        <span>{currentScene?.continuityPack?.characterId || currentScene?.avatarId || 'Presentador Martina'}</span>
                       </div>
                       <div>
-                        <span className="font-semibold text-brand-text-primary">Iluminación:</span> {currentScene?.continuityPack?.lighting || 'Studio Soft'}
+                        <span className="font-semibold text-brand-text-primary block">Ambiente:</span>
+                        <span>{currentScene?.continuityPack?.environment === 'fintech_modern_office' ? 'Oficina Fintech' : currentScene?.continuityPack?.environment || 'Estudio Profesional'}</span>
                       </div>
                       <div>
-                        <span className="font-semibold text-brand-text-primary">Estado:</span> {currentScene?.status || 'completed'}
+                        <span className="font-semibold text-brand-text-primary block">Iluminación:</span>
+                        <span>{currentScene?.continuityPack?.lighting || 'Studio Soft'}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-brand-text-primary block">Relleno/Bloque:</span>
+                        <span className="text-violet-700 dark:text-violet-300 font-medium">
+                          {currentScene?.blockType === 'b_roll_fill' ? 'B-Roll Orgánico' : currentScene?.blockType === 'ai_avatar' ? 'A-Roll Avatar' : currentScene?.blockType === 'cta_overlay' ? 'Placa CTA' : currentScene?.blockType}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -586,10 +668,10 @@ export function VideoStudioPage() {
                       {idx + 1}. {scene.funnelRole}
                     </span>
                     <Badge
-                      variant={scene.blockType === 'organic_video' ? 'blue' : 'purple'}
+                      variant={scene.blockType === 'b_roll_fill' ? 'yellow' : scene.blockType === 'organic_video' ? 'blue' : scene.blockType === 'cta_overlay' ? 'green' : 'purple'}
                       className="text-[9px]"
                     >
-                      {scene.blockType === 'organic_video' ? 'REAL' : 'AI'}
+                      {scene.blockType === 'b_roll_fill' ? 'B-ROLL' : scene.blockType === 'cta_overlay' ? 'CTA' : scene.blockType === 'organic_video' ? 'REAL' : 'AVATAR'}
                     </Badge>
                   </div>
 
@@ -598,7 +680,7 @@ export function VideoStudioPage() {
                   </p>
 
                   <div className="flex items-center justify-between text-[10px] text-brand-text-secondary pt-1 border-t border-brand-border">
-                    <span>{scene.durationSec}s</span>
+                    <span>{scene.durationSec}s {scene.transition ? `• ${scene.transition}` : ''}</span>
                     <span className="text-emerald-600 font-bold">✓ Continuidad OK</span>
                   </div>
                 </div>
@@ -966,41 +1048,174 @@ export function VideoStudioPage() {
       {/* Storyboard Modal */}
       {storyboardModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-brand-surface border border-brand-border rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-scaleUp">
-            <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-tight flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-violet-600" />
-              <span>Generar Storyboard de Video con IA</span>
-            </h3>
+          <div className="bg-brand-surface border border-brand-border rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl animate-scaleUp max-h-[92vh] overflow-y-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border pb-3">
+              <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-tight flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-violet-600" />
+                <span>Generar Storyboard de Video con IA (Direct-Response)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={loadNovatiPreset}
+                className="px-2.5 py-1 text-[11px] font-bold bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-200 dark:hover:bg-violet-800/50 border border-violet-300 dark:border-violet-700 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                title="Cargar parámetros de Grupo Novati, Fiserv y WhatsApp"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span>Cargar Preset: Grupo Novati (Fiserv vs MP)</span>
+              </button>
+            </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-brand-text-secondary uppercase text-[10px]">Objetivo Comercial:</label>
-                <select
-                  value={storyboardObjective}
-                  onChange={(e) => setStoryboardObjective(e.target.value)}
-                  className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs"
-                >
-                  <option value="leads">Generación de Leads (Lead Frío / Problema)</option>
-                  <option value="vender">Venta Directa & Financiación</option>
-                  <option value="consultas">Conversaciones por WhatsApp</option>
-                </select>
+            <div className="space-y-3.5 text-xs">
+              {/* Row 1: Company Name & Commercial Objective */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-brand-text-secondary uppercase text-[10px] flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-violet-600" />
+                    <span>Empresa / Cliente:</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={storyboardClientName}
+                    onChange={(e) => setStoryboardClientName(e.target.value)}
+                    placeholder="Ej: Grupo Novati"
+                    className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs font-semibold focus:outline-hidden focus:border-violet-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-brand-text-secondary uppercase text-[10px] flex items-center gap-1">
+                    <Send className="w-3 h-3 text-violet-600" />
+                    <span>Objetivo Comercial del Video:</span>
+                  </label>
+                  <select
+                    value={storyboardObjective}
+                    onChange={(e) => setStoryboardObjective(e.target.value)}
+                    className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs focus:outline-hidden focus:border-violet-600"
+                  >
+                    <option value="consultas">Conversaciones por WhatsApp (Venta E-Commerce & Asesoramiento)</option>
+                    <option value="leads">Generación de Leads (Lead Frío / Problema)</option>
+                    <option value="vender">Venta Directa & Financiación</option>
+                  </select>
+                </div>
               </div>
 
+              {/* Row 2: Commercial Brief & Prompt */}
               <div>
-                <label className="font-bold text-brand-text-secondary uppercase text-[10px]">Ángulo Creativo del Hook:</label>
-                <select
-                  value={storyboardAngle}
-                  onChange={(e) => setStoryboardAngle(e.target.value)}
-                  className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs"
-                >
-                  <option value="problem_solution">Problema & Pérdida de Rendimiento (Recomendado)</option>
-                  <option value="social_proof">Prueba Social & Testimonial Real</option>
-                  <option value="exclusive_financing">Oferta de Financiación 12 Cuotas Fijas</option>
-                </select>
+                <label className="font-bold text-brand-text-secondary uppercase text-[10px] flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-violet-600" />
+                  <span>Prompt / Brief Comercial Completo:</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={storyboardPrompt}
+                  onChange={(e) => setStoryboardPrompt(e.target.value)}
+                  placeholder="Describí qué querés promocionar, qué fricción atacar y qué propuesta hacer..."
+                  className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs leading-relaxed focus:outline-hidden focus:border-violet-600"
+                />
+              </div>
+
+              {/* Row 3: Hook Angle & Hook Text */}
+              <div className="p-3 bg-violet-500/5 rounded-xl border border-violet-500/20 space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-violet-900 dark:text-violet-300 uppercase text-[10px]">
+                      Ángulo Creativo del Gancho (Hook):
+                    </label>
+                    <select
+                      value={storyboardAngle}
+                      onChange={(e) => setStoryboardAngle(e.target.value)}
+                      className="w-full mt-1 p-2 bg-brand-surface rounded-lg border border-brand-border text-brand-text-primary text-xs font-semibold focus:outline-hidden focus:border-violet-600"
+                    >
+                      <option value="fee_attack">Ataque a Comisiones Ocultas / Agregadores (Recomendado)</option>
+                      <option value="custom">Hook Personalizado (Escribir mi propio texto)</option>
+                      <option value="problem_solution">Problema & Pérdida de Rendimiento</option>
+                      <option value="social_proof">Prueba Social & Testimonial Real</option>
+                      <option value="exclusive_financing">Oferta de Financiación 12 Cuotas Fijas</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-violet-900 dark:text-violet-300 uppercase text-[10px]">
+                      Ambiente & Continuidad Escénica:
+                    </label>
+                    <select
+                      value={storyboardEnvironment}
+                      onChange={(e) => setStoryboardEnvironment(e.target.value)}
+                      className="w-full mt-1 p-2 bg-brand-surface rounded-lg border border-brand-border text-brand-text-primary text-xs focus:outline-hidden focus:border-violet-600"
+                    >
+                      <option value="fintech_modern_office">Oficina Fintech Ejecutiva & Moderna (Recomendado)</option>
+                      <option value="tech_studio">Estudio Tecnológico Neutro (Minimalista)</option>
+                      <option value="store_retail">Mostrador Comercial / Punto de Venta</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-violet-900 dark:text-violet-300 uppercase text-[10px]">
+                    Texto Exacto del Gancho (Primeros 3 Segundos):
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={storyboardHook}
+                    onChange={(e) => setStoryboardHook(e.target.value)}
+                    placeholder="Escribí la primera frase impactante para retener el scroll..."
+                    className="w-full mt-1 p-2 bg-brand-surface rounded-lg border border-brand-border text-brand-text-primary text-xs font-semibold focus:outline-hidden focus:border-violet-600 leading-snug"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Technical Guided Questions */}
+              <div className="space-y-2 pt-1">
+                <span className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider flex items-center gap-1">
+                  <HelpCircle className="w-3 h-3 text-brand-text-secondary" />
+                  <span>Cuestionario Técnico Guiado (Direct-Response Briefing):</span>
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-semibold text-brand-text-secondary">Fricción o Competidor a Atacar:</label>
+                    <input
+                      type="text"
+                      value={storyboardCompetitor}
+                      onChange={(e) => setStoryboardCompetitor(e.target.value)}
+                      className="w-full mt-0.5 p-1.5 bg-brand-bg rounded border border-brand-border text-brand-text-primary text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-brand-text-secondary">Propuesta de Valor & Solución:</label>
+                    <input
+                      type="text"
+                      value={storyboardOffer}
+                      onChange={(e) => setStoryboardOffer(e.target.value)}
+                      className="w-full mt-0.5 p-1.5 bg-brand-bg rounded border border-brand-border text-brand-text-primary text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-brand-text-secondary">Tono de Comunicación:</label>
+                    <input
+                      type="text"
+                      value={storyboardTone}
+                      onChange={(e) => setStoryboardTone(e.target.value)}
+                      className="w-full mt-0.5 p-1.5 bg-brand-bg rounded border border-brand-border text-brand-text-primary text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-brand-text-secondary">Llamado a la Acción (CTA WhatsApp):</label>
+                    <input
+                      type="text"
+                      value={storyboardCta}
+                      onChange={(e) => setStoryboardCta(e.target.value)}
+                      className="w-full mt-0.5 p-1.5 bg-brand-bg rounded border border-brand-border text-brand-text-primary text-xs"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-border">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-brand-border">
               <Button variant="outline" size="sm" onClick={() => setStoryboardModalOpen(false)}>
                 Cancelar
               </Button>
@@ -1009,9 +1224,9 @@ export function VideoStudioPage() {
                 size="sm"
                 onClick={handleGenerateStoryboard}
                 disabled={generatingStoryboard}
-                className="bg-violet-700 hover:bg-violet-800 text-white"
+                className="bg-violet-700 hover:bg-violet-800 text-white font-bold px-4"
               >
-                {generatingStoryboard ? 'Generando...' : 'Crear Storyboard'}
+                {generatingStoryboard ? 'Generando Storyboard...' : 'Crear Storyboard con IA'}
               </Button>
             </div>
           </div>
@@ -1021,29 +1236,121 @@ export function VideoStudioPage() {
       {/* Continue Project Modal */}
       {continueModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-brand-surface border border-brand-border rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-scaleUp">
-            <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-tight flex items-center gap-2">
+          <div className="bg-brand-surface border border-brand-border rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl animate-scaleUp max-h-[92vh] overflow-y-auto">
+            <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-tight flex items-center gap-2 border-b border-brand-border pb-3">
               <Plus className="w-4 h-4 text-violet-600" />
-              <span>Continuar Video (Continuity Engine)</span>
+              <span>Continuar Video (Continuity Engine — Sin Saltos)</span>
             </h3>
 
-            <p className="text-xs text-brand-text-secondary">
-              Se inyectará el último fotograma de la <strong>Escena {project?.scenes?.length || 1}</strong> como primer frame para garantizar continuidad audiovisual sin saltos.
-            </p>
+            {/* Continuity Guarantee Badge */}
+            <div className="p-3 bg-violet-500/10 rounded-xl border border-violet-500/20 space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5 text-violet-800 dark:text-violet-300 font-bold text-xs">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Bloqueo de Continuidad Audiovisual Activo</span>
+              </div>
+              <p className="text-[11px] text-brand-text-secondary leading-relaxed">
+                Se inyectará el último fotograma de la <strong>Escena {project?.scenes?.length || 1}</strong> como primer frame. Mismo personaje, mismo vestuario, misma oficina e iluminación uniforme.
+              </p>
+            </div>
 
             <div className="space-y-3 text-xs">
+              {/* Row 1: Scene Type & Transition */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-brand-text-secondary uppercase text-[10px]">
+                    Tipo de Escena / Relleno (B-Roll vs A-Roll):
+                  </label>
+                  <select
+                    value={continueBlockType}
+                    onChange={(e) => setContinueBlockType(e.target.value)}
+                    className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs focus:outline-hidden focus:border-violet-600"
+                  >
+                    <option value="ai_avatar">Avatar / Presentador hablando (A-Roll)</option>
+                    <option value="b_roll_fill">B-Roll / Relleno Orgánico (Pantalla / Terminal Fiserv)</option>
+                    <option value="product_demo">Demostración de Tienda Web (Navegación e-commerce)</option>
+                    <option value="comparison_graphic">Placa Gráfica de Costos (Comparativa)</option>
+                    <option value="cta_overlay">Placa Final con Botón de WhatsApp (CTA)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-brand-text-secondary uppercase text-[10px] flex items-center gap-1">
+                    <Scissors className="w-3 h-3 text-violet-600" />
+                    <span>Transición Audiovisual:</span>
+                  </label>
+                  <select
+                    value={continueTransition}
+                    onChange={(e) => setContinueTransition(e.target.value)}
+                    className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs focus:outline-hidden focus:border-violet-600"
+                  >
+                    <option value="cut">Corte Directo (Hard Cut — Estándar Direct-Response)</option>
+                    <option value="smooth_push_in">Zoom Suave / Push In (Foco dramático)</option>
+                    <option value="whip_pan">Whip Pan (Barrido dinámico a los lados)</option>
+                    <option value="cross_dissolve">Disolución Cruzada (Suave)</option>
+                    <option value="match_cut">Match Cut (Coincidencia visual de encuadre)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Speech Script */}
               <div>
-                <label className="font-bold text-brand-text-secondary uppercase text-[10px]">Instrucción de la Siguiente Escena:</label>
+                <label className="font-bold text-brand-text-secondary uppercase text-[10px]">
+                  Guion de Voz / Locución (Qué dice en esta escena):
+                </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={continuePrompt}
                   onChange={(e) => setContinuePrompt(e.target.value)}
-                  className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs"
+                  placeholder="Escribí el diálogo exacto que dirá el presentador o la locución..."
+                  className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs font-medium focus:outline-hidden focus:border-violet-600"
                 />
+              </div>
+
+              {/* Row 3: Visual Prompt */}
+              <div>
+                <label className="font-bold text-brand-text-secondary uppercase text-[10px]">
+                  Prompt Visual & Dirección de Cámara (Qué se muestra en escena):
+                </label>
+                <textarea
+                  rows={2}
+                  value={continueVisualPrompt}
+                  onChange={(e) => setContinueVisualPrompt(e.target.value)}
+                  placeholder="Instrucción de cámara, plano y acción visual en el mismo ambiente..."
+                  className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs text-brand-text-secondary font-mono text-[11px] focus:outline-hidden focus:border-violet-600"
+                />
+              </div>
+
+              {/* Row 4: On-Screen Text & CTA Text */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-brand-text-secondary uppercase text-[10px]">
+                    Texto en Pantalla (Zona Segura):
+                  </label>
+                  <input
+                    type="text"
+                    value={continueOnScreenText}
+                    onChange={(e) => setContinueOnScreenText(e.target.value)}
+                    placeholder="Ej: COSTOS REALES FISERV 📉"
+                    className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-brand-text-secondary uppercase text-[10px]">
+                    Botón CTA (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    value={continueCtaText}
+                    onChange={(e) => setContinueCtaText(e.target.value)}
+                    placeholder="Ej: CONSULTAR POR WHATSAPP"
+                    className="w-full mt-1 p-2 bg-brand-bg rounded-lg border border-brand-border text-brand-text-primary text-xs font-bold"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-border">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-brand-border">
               <Button variant="outline" size="sm" onClick={() => setContinueModalOpen(false)}>
                 Cancelar
               </Button>
@@ -1052,9 +1359,9 @@ export function VideoStudioPage() {
                 size="sm"
                 onClick={handleContinueProject}
                 disabled={continuing}
-                className="bg-violet-700 hover:bg-violet-800 text-white"
+                className="bg-violet-700 hover:bg-violet-800 text-white font-bold px-4"
               >
-                {continuing ? 'Encadenando...' : 'Generar Siguiente Escena'}
+                {continuing ? 'Encadenando Escena...' : 'Generar Siguiente Escena'}
               </Button>
             </div>
           </div>

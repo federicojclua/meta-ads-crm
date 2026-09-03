@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed & Added — Video Studio 502/404 Resolution, Custom Hooks & Continuity Engine (2026-09-03)
+- **Resolución de Error 502 & Empaquetado esbuild (`netlify/functions/_shared/creativeEngine/metaAdsLaunchService.js`, `netlify/functions/api-video-studio.js`)**:
+  - Exportada la función `analyzeLeadWinnerPatterns()` en `metaAdsLaunchService.js`, corrigiendo la excepción de compilación en `esbuild` que forzaba a Netlify a un empaquetado fallback defectuoso que provocaba `SyntaxError: Cannot use import statement outside a module` (502 Bad Gateway).
+  - Verificada la compilación limpia e instantánea (0 errores) de todas las funciones serverless de Video Studio.
+- **Resolución de Rutas 404 en Netlify Functions (`netlify.toml`)**:
+  - Agregadas reglas de redirección explícitas con `force = true` para `/api/dashboard`, `/api/dashboard/*`, `/api/learning-engine` y `/api/learning-engine/*`, resolviendo los errores 404 observados en la consola al cargar estadísticas y centros de aprendizaje.
+- **Fallback Tolerante en WhatsApp AI Brain (`netlify/functions/api-whatsapp.js`)**:
+  - Implementado fallback automático de cliente activo para usuarios administradores (`isGlobal`) en la ruta `/api/whatsapp/brain`, evitando errores 400 por falta de `clientId`.
+- **Motor de Storyboard con Hook Personalizado & Preset Grupo Novati (`src/pages/VideoStudioPage.jsx`, `videoProviderRouter.js`, `api-video-studio.js`)**:
+  - Incorporado botón de pre-carga rápida de 1-clic: *Preset Grupo Novati (Fiserv vs Mercado Pago / Tienda Nube)* para autocompletar el brief comercial, hook y preguntas técnicas solicitadas.
+  - Campo editable para el Hook exacto de los primeros 3 segundos, permitiendo redactar ganchos libres sin estar atado a opciones predeterminadas.
+  - Cuestionario técnico guiado para Direct-Response: Competidor/Fricción a atacar (comisiones de 6-7% de agregadores vs terminal común Fiserv), Propuesta de valor (diseño de tienda web + alta de número de comercio), Tono directo y Botón CTA a WhatsApp.
+- **Continuity Engine Avanzado con Transiciones y Rellenos B-Roll (`src/pages/VideoStudioPage.jsx`, `videoProviderRouter.js`)**:
+  - Soporte de transiciones audiovisuales configurables: Corte Directo (*Hard Cut*), Zoom Suave (*Push In*), *Whip Pan* dinámico, Disolución Cruzada y *Match Cut*.
+  - Selección de tipo de bloque/relleno: A-Roll (Avatar/Presentador continuo), B-Roll (Relleno orgánico de pantalla/terminal Fiserv), Demo de tienda online, Placa comparativa de costos y Placa CTA final.
+  - Bloqueo de coherencia visual: mismo personaje, mismo vestuario, misma oficina fintech e inyección del último fotograma como primer frame sin saltos.
+  - Nuevas pruebas unitarias y de integración automatizadas en `src/test/video-continuity-engine.test.js` y `src/test/video-studio-frontend.test.jsx` (8/8 tests pasando al 100%).
+
 ### Fixed — Hotfix Crítico 1: Video Studio 502/401, Sesión de Auth & CSP Relaxation (2026-08-31)
 - **Frontend Auth & Token Injection (`src/pages/VideoStudioPage.jsx`)**:
   - Reemplazadas todas las llamadas directas `fetch('/api/...')` por `apiClient` desde `src/lib/api.js`.

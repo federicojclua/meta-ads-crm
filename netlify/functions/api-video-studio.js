@@ -129,6 +129,10 @@ export async function handler(event) {
           products,
           objective: body.objective || 'leads',
           angle: body.angle || 'problem_solution',
+          customHook: body.customHook || '',
+          customPrompt: body.customPrompt || '',
+          clientName: body.clientName || '',
+          technicalBrief: body.technicalBrief || {},
           durationSec: Number(body.durationSec) || 24,
         });
       } catch (genErr) {
@@ -203,7 +207,7 @@ export async function handler(event) {
       } catch {
         body = {};
       }
-      const { projectId, prompt, durationSec } = body;
+      const { projectId, prompt, durationSec, transition, blockType, visualPrompt, onScreenText, ctaText, environment } = body;
 
       if (!projectId || !ObjectId.isValid(projectId)) {
         return {
@@ -245,14 +249,16 @@ export async function handler(event) {
         newSceneResult = await generateNextSceneWithContinuity({
           previousScene: lastScene,
           newSceneSpec: {
-            blockType: 'ai_avatar',
-            funnelRole: 'offer',
+            blockType: blockType || 'ai_avatar',
+            funnelRole: body.funnelRole || 'offer',
             durationSec: Number(durationSec) || 6,
+            transition: transition || 'cut',
+            environment: environment || 'fintech_modern_office',
             script: {
               speechText: prompt || 'Aprovechá la promoción disponible solo esta semana.',
-              visualPrompt: 'Presenter details the financing offer with clear graphic alignment.',
-              onScreenText: 'PROMO SEMANAL 🎁',
-              ctaText: 'CONSULTAR AHORA',
+              visualPrompt: visualPrompt || 'Presenter details the financing offer with clear graphic alignment in the same studio.',
+              onScreenText: onScreenText || 'PROMO EXCLUSIVA 🎁',
+              ctaText: ctaText || 'CONSULTAR AHORA',
             },
           },
           brandProfile,

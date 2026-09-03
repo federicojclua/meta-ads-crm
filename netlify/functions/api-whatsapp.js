@@ -570,9 +570,16 @@ export async function handler(event) {
     // ----------------------------------------------------
     if (segments[0] === 'brain') {
       const brainCollection = db.collection('ai_brain');
-      const targetClientId = isGlobal
+      let targetClientId = isGlobal
         ? ((event.queryStringParameters || {}).clientId || clientScope)
         : clientScope;
+
+      if (!targetClientId && isGlobal) {
+        const firstClient = await db.collection('clients').findOne({ status: 'active' });
+        if (firstClient) {
+          targetClientId = firstClient._id.toString();
+        }
+      }
 
       if (!targetClientId) {
         return errorResponse(400, 'clientId es requerido para acceder al Cerebro IA.', 'CLIENT_ID_REQUIRED');

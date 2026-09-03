@@ -180,4 +180,32 @@ describe('Stage 17 — Frontend Video Studio & Meta Launch Wizard Tests', () => 
       expect(screen.getByText(/Confirmar & Activar Campaña/i)).toBeInTheDocument();
     });
   });
+
+  it('3. VideoStudioPage abre el modal de Storyboard con preset de Grupo Novati y campos de Hook personalizable', async () => {
+    render(
+      <MemoryRouter>
+        <VideoStudioPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Generar Storyboard con IA/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText(/Generar Storyboard con IA/i));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cargar Preset: Grupo Novati/i)).toBeInTheDocument();
+      expect(screen.getByText(/Ángulo Creativo del Gancho/i)).toBeInTheDocument();
+      expect(screen.getByText(/Texto Exacto del Gancho/i)).toBeInTheDocument();
+      expect(screen.getByText(/Cuestionario Técnico Guiado/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText(/Cargar Preset: Grupo Novati/i));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue(/Grupo Novati/i)).toBeInTheDocument();
+      expect(screen.getByDisplayValue(/Mercado Pago o Tienda Nube/i)).toBeInTheDocument();
+    });
+  });
 });

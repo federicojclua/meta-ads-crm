@@ -80,4 +80,66 @@ describe('Stage 17 — Video Continuity Engine & Storyboard Direct-Response Test
     expect(proEstimate.creditsEstimated).toBe(120);
     expect(proEstimate.estimatedCostUsd).toBe(1.8);
   });
+
+  it('4. generateStoryboard con brief de Grupo Novati, Fiserv y WhatsApp genera escenas con B-Roll y comparativa de costos', async () => {
+    const brandProfile = {
+      ...DEFAULT_CREATIVE_PROFILE,
+      brandIdentity: { commercialName: 'Grupo Novati' },
+    };
+
+    const result = await generateStoryboard({
+      brandProfile,
+      clientName: 'Grupo Novati',
+      objective: 'consultas',
+      angle: 'fee_attack',
+      customHook: '¿Tenés un e-commerce y seguís regalando hasta un 7% de cada venta en comisiones a Mercado Pago o Tienda Nube?',
+      customPrompt: 'Quiero un video para e-commerce promocionando cobrar mas barato con el número de comercio de Fiserv y te hacemos la web.',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.storyboard.scenes).toHaveLength(4);
+    expect(result.storyboard.scenes[0].script.speechText).toContain('Mercado Pago o Tienda Nube');
+    expect(result.storyboard.scenes[1].blockType).toBe('b_roll_fill');
+    expect(result.storyboard.scenes[1].script.speechText).toContain('Fiserv');
+    expect(result.storyboard.scenes[2].script.speechText).toContain('Grupo Novati');
+    expect(result.storyboard.scenes[3].script.ctaText).toContain('WHATSAPP');
+    expect(result.storyboard.scenes[0].continuityPack.environment).toBe('fintech_modern_office');
+  });
+
+  it('5. generateNextSceneWithContinuity propaga la transición, el ambiente y el tipo de bloque seleccionado', async () => {
+    const previousScene = {
+      sequence: 2,
+      continuityPack: {
+        lastFrameUrl: 'https://example.com/frame2.jpg',
+        characterId: 'avatar_martina',
+        environment: 'fintech_modern_office',
+        lighting: 'studio_soft',
+      },
+    };
+
+    const newSceneSpec = {
+      sceneId: 'scene_03',
+      blockType: 'b_roll_fill',
+      transition: 'whip_pan',
+      environment: 'fintech_modern_office',
+      durationSec: 6,
+      script: {
+        speechText: 'Detalle de comisiones reales en terminal física.',
+        visualPrompt: 'Plano macro de terminal Fiserv con tarjeta sin contacto.',
+      },
+    };
+
+    const result = await generateNextSceneWithContinuity({
+      previousScene,
+      newSceneSpec,
+      brandProfile: DEFAULT_CREATIVE_PROFILE,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.scene.sequence).toBe(3);
+    expect(result.scene.blockType).toBe('b_roll_fill');
+    expect(result.scene.transition).toBe('whip_pan');
+    expect(result.scene.continuityPack.environment).toBe('fintech_modern_office');
+    expect(result.scene.continuityPack.inputFirstFrameUrl).toBe('https://example.com/frame2.jpg');
+  });
 });

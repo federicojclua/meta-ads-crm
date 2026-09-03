@@ -64,6 +64,30 @@
   force = true
 
 [[redirects]]
+  from = "/api/dashboard"
+  to = "/.netlify/functions/api-dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/dashboard/*"
+  to = "/.netlify/functions/api-dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/learning-engine"
+  to = "/.netlify/functions/api-learning-engine"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/learning-engine/*"
+  to = "/.netlify/functions/api-learning-engine"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/meta/insights"
   to = "/.netlify/functions/api-meta-insights"
   status = 200
