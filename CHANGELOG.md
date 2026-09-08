@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Shopify Dropshipping Integration & AutoDS Controller (2026-09-08)
+- **Extracción Criptográfica con AliExpress Dropshipping API (`netlify/functions/_shared/ecommerceEngine/aliExpressService.js`)**:
+  - Implementada función `generateAliExpressSignature()` con ordenamiento alfabético estricto de parámetros y hashing criptográfico **HMAC-SHA256** y **MD5** en mayúsculas.
+  - Implementada función `extractAliExpressProductId()` capaz de parsear enlaces directos (`/item/100500...html`), parámetros `?productId=...` o IDs numéricos puros.
+  - Implementada función `fetchAliExpressProduct()` conectada al gateway oficial `https://api-sg.aliexpress.com/sync` con timeout defensivo (`AbortController`), control de errores específicos de la API (`isv.product-not-found`, firmas inválidas) y normalización a esquema unificado (`normalizeAliExpressApiResponse`).
+- **Servicio de Dropshipping AutoDS (`netlify/functions/_shared/ecommerceEngine/shopifyDropshippingService.js`)**:
+  - Implementada función `cleanProductTitle()` con limpiador heurístico de términos spam, etiquetas promocionales `[...]` / `(...)` y mayúsculas sostenidas típicas de AliExpress.
+  - Implementada función `calculateDropshippingPricing()` aplicando la fórmula de AutoDS con aritmética en centavos: $\text{price} = (\text{originalPrice} + \text{shippingCost}) \times 2.5$ y $\text{compare\_at\_price} = \text{price} \times 1.20$ (+20% descuento simulado).
+  - Implementada función `mapShopifyImages()` que convierte arrays de imágenes y normaliza URLs relativas de protocolo a la estructura `[{ src: "https://..." }]`.
+  - Implementada función `transformProductData()` que genera el payload oficial para Shopify Admin API 2024-01 con variantes, inventario e información de márgenes.
+  - Implementada función `exportToShopify()` con autenticación vía header `X-Shopify-Access-Token`, lectura estricta de `process.env.SHOPIFY_STORE_URL` y `process.env.SHOPIFY_ACCESS_TOKEN`, normalización de subdominio `myshopify.com` y manejo exhaustivo de errores HTTP (`401`, `403`, `422`, `429` con `Retry-After`).
+  - Implementada función `testShopifyConnection()` para validar conectividad con `/admin/api/2024-01/shop.json`.
+- **Controlador Serverless Netlify Function (`netlify/functions/api-shopify.js`)**:
+  - Creado handler serverless con soporte integral de CORS y validaciones defensivas de esquema.
+  - Implementado endpoint `POST /api/shopify/sync-aliexpress`: ejecuta el flujo ETL completo de 3 pasos (Extracción desde AliExpress API con firma HMAC-SHA256 $\to$ Transformación con reglas AutoDS $\to$ Carga a Shopify Admin API 2024-01).
+  - Expuestos endpoints adicionales: `POST /api/shopify/import`, `POST /api/shopify/transform` (modo preview sin exportar), `POST /api/shopify/export`, `GET /api/shopify/status` y `GET /api/shopify/calculate`.
+- **Frontend React (`src/components/ecommerce/AliExpressShopifySync.jsx`, `src/pages/EcommerceCroPage.jsx`)**:
+  - Creado componente interactivo `AliExpressShopifySync` con input para ID o URL de producto, autodetección de ID con chip verde en tiempo real, selector de costo de envío, indicador visual de los 3 pasos de carga, manejo de estados (idle, loading, success, error) y tarjeta de producto con desglose de márgenes brutos y enlace directo a Shopify Admin.
+  - Integrado como nueva pestaña interactiva `🛍️ Dropshipping (AliExpress → Shopify)` en el hub de E-Commerce del CRM.
+- **Configuración y Redirecciones (`netlify.toml`)**:
+  - Mapeadas las rutas `/api/shopify` y `/api/shopify/*` hacia `/.netlify/functions/api-shopify`.
+- **Pruebas Automatizadas (`src/test/shopify-dropshipping.test.js`, `src/test/aliexpress-shopify-sync-frontend.test.jsx`)**:
+  - 32/32 pruebas unitarias y de integración pasando al 100% (28 de backend/ETL y 4 de interfaz de usuario React).
+
 ### Fixed & Added — Video Studio 502/404 Resolution, Custom Hooks & Continuity Engine (2026-09-03)
 - **Resolución de Error 502 & Empaquetado esbuild (`netlify/functions/_shared/creativeEngine/metaAdsLaunchService.js`, `netlify/functions/api-video-studio.js`)**:
   - Exportada la función `analyzeLeadWinnerPatterns()` en `metaAdsLaunchService.js`, corrigiendo la excepción de compilación en `esbuild` que forzaba a Netlify a un empaquetado fallback defectuoso que provocaba `SyntaxError: Cannot use import statement outside a module` (502 Bad Gateway).

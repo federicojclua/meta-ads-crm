@@ -33,6 +33,7 @@ import { apiClient } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { formatCurrency, formatNumber } from '../lib/utils';
+import { AliExpressShopifySync } from '../components/ecommerce/AliExpressShopifySync';
 
 export function EcommerceCroPage() {
   const navigate = useNavigate();
@@ -277,6 +278,7 @@ export function EcommerceCroPage() {
       <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-slate-200 no-scrollbar">
         {[
           { id: 'funnel_dropoff', label: 'Embudo & Drop-off', icon: BarChart3 },
+          { id: 'dropshipping_shopify', label: '🛍️ Dropshipping (AliExpress → Shopify)', icon: ShoppingBag },
           { id: 'cro_analyzer', label: 'Auditoría UI/UX & Agente CRO', icon: Search },
           { id: 'product_intelligence', label: '🎯 Product Intelligence', icon: Sparkles },
           { id: 'retention', label: '👥 Customer Retention', icon: Users },
@@ -305,6 +307,13 @@ export function EcommerceCroPage() {
           );
         })}
       </div>
+
+      {/* ======================================================== */}
+      {/* TAB: DROPSHIPPING (ALIEXPRESS TO SHOPIFY ETL) */}
+      {/* ======================================================== */}
+      {activeTab === 'dropshipping_shopify' && (
+        <AliExpressShopifySync />
+      )}
 
       {/* ======================================================== */}
       {/* TAB: EMBUDO & DROP-OFF */}

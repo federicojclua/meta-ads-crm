@@ -286,6 +286,18 @@
   force = true
 
 [[redirects]]
+  from = "/api/shopify"
+  to = "/.netlify/functions/api-shopify"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/shopify/*"
+  to = "/.netlify/functions/api-shopify"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/affiliates"
   to = "/.netlify/functions/api-affiliates"
   status = 200
