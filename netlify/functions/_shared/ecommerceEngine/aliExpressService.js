@@ -10,10 +10,7 @@ import crypto from 'node:crypto';
 /**
  * Endpoints oficiales de AliExpress Open Platform
  */
-const ALIEXPRESS_API_GATEWAYS = [
-  'https://api-sg.aliexpress.com/sync',
-  'https://api-sg.aliexpress.com/rest',
-];
+const ALIEXPRESS_API_GATEWAY = 'https://api-sg.aliexpress.com/rest';
 
 /**
  * Extrae el ID numérico de producto a partir de una URL completa de AliExpress o un ID directo.
@@ -70,9 +67,10 @@ export function extractAliExpressProductId(input) {
  * @param {object} params - Parámetros de la petición
  * @param {string} appSecret - Secret del cliente (process.env.ALIEXPRESS_APP_SECRET)
  * @param {string} [signMethod='sha256'] - Algoritmo ('sha256' o 'md5')
+ * @param {string} [apiPath=''] - Path de la API IOP (prefijo del base string para la firma)
  * @returns {string} Firma en hexadecimal mayúscula
  */
-export function generateAliExpressSignature(params, appSecret, signMethod = 'sha256') {
+export function generateAliExpressSignature(params, appSecret, signMethod = 'sha256', apiPath = '') {
   if (!appSecret || typeof appSecret !== 'string') {
     throw new Error('ALIEXPRESS_APP_SECRET es requerido para generar la firma de la petición.');
   }
@@ -82,8 +80,8 @@ export function generateAliExpressSignature(params, appSecret, signMethod = 'sha
     .filter((k) => k !== 'sign' && params[k] !== undefined && params[k] !== null)
     .sort();
 
-  // 2. Concatenar clave + valor
-  let baseString = '';
+  // 2. Concatenar apiPath (IOP protocol) + clave + valor
+  let baseString = apiPath || '';
   for (const key of keys) {
     baseString += `${key}${params[key]}`;
   }
@@ -209,6 +207,7 @@ export function normalizeAliExpressApiResponse(apiResult, productId) {
 export async function fetchAliExpressProduct(productId, options = {}) {
   const appKey = options.appKey || process.env.ALIEXPRESS_APP_KEY;
   const appSecret = options.appSecret || process.env.ALIEXPRESS_APP_SECRET;
+  const accessToken = options.accessToken || process.env.ALIEXPRESS_ACCESS_TOKEN;
 
   if (!appKey) {
     const error = new Error('Credenciales faltantes: ALIEXPRESS_APP_KEY no está configurada en las variables de entorno.');
@@ -224,6 +223,13 @@ export async function fetchAliExpressProduct(productId, options = {}) {
     throw error;
   }
 
+  if (!accessToken) {
+    const error = new Error('Credenciales faltantes: ALIEXPRESS_ACCESS_TOKEN no está configurada. Ejecutá: node scripts/aliexpress-get-token.mjs');
+    error.statusCode = 500;
+    error.code = 'ERR_ALIEXPRESS_CONFIG_ACCESS_TOKEN_MISSING';
+    throw error;
+  }
+
   const cleanProductId = extractAliExpressProductId(productId);
   if (!cleanProductId) {
     const error = new Error(`El ID o URL de producto de AliExpress es inválido: "${productId}". Debe ser un ID numérico o un link directo.`);
@@ -235,42 +241,40 @@ export async function fetchAliExpressProduct(productId, options = {}) {
   // 1. Preparar parámetros de la llamada a la Dropshipping API
   const signMethod = 'sha256';
   const timestamp = Date.now().toString();
+  const apiPath = '/aliexpress.ds.product.get';
 
   const requestParams = {
     app_key: appKey,
+    access_token: accessToken,
     timestamp,
-    format: 'json',
-    v: '2.0',
     sign_method: signMethod,
-    method: 'aliexpress.ds.product.get',
     product_id: cleanProductId,
     ship_to_country: options.shipToCountry || 'US',
     target_currency: options.targetCurrency || 'USD',
     target_language: 'EN',
   };
 
-  // 2. Generar firma oficial
-  const signature = generateAliExpressSignature(requestParams, appSecret, signMethod);
+  // 2. Generar firma oficial (IOP: apiPath como prefijo del base string)
+  const signature = generateAliExpressSignature(requestParams, appSecret, signMethod, apiPath);
   requestParams.sign = signature;
 
-  // 3. Despachar petición HTTP POST a la pasarela de AliExpress
-  const gatewayUrl = ALIEXPRESS_API_GATEWAYS[0];
+  // 3. Despachar petición HTTP POST a la pasarela de AliExpress (IOP path format)
+  const gatewayUrl = `${ALIEXPRESS_API_GATEWAY}${apiPath}`;
   const timeoutMs = options.timeoutMs || 15000;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // Usar x-www-form-urlencoded para la pasarela de AliExpress
-    const bodyParams = new URLSearchParams(requestParams);
+    // IOP: params como query string en la URL
+    const queryString = new URLSearchParams(requestParams).toString();
 
-    const response = await fetch(gatewayUrl, {
+    const response = await fetch(`${gatewayUrl}?${queryString}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
         'User-Agent': 'Anima-CRM-AliExpress-Dropshipping/1.0',
       },
-      body: bodyParams.toString(),
       signal: controller.signal,
     });
 
