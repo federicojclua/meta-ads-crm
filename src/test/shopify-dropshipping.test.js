@@ -25,6 +25,7 @@ describe('Shopify Dropshipping (AutoDS Simulator) Integration Tests', () => {
     process.env.SHOPIFY_ACCESS_TOKEN = 'shpat_test_access_token_12345';
     process.env.ALIEXPRESS_APP_KEY = '545792';
     process.env.ALIEXPRESS_APP_SECRET = '6FugeMXsqFaF2YS4ujMjsPuoAsnjGdCk';
+    process.env.ALIEXPRESS_ACCESS_TOKEN = 'mock_ae_access_token_123';
   });
 
   afterEach(() => {

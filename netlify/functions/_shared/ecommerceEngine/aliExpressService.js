@@ -240,15 +240,17 @@ export async function fetchAliExpressProduct(productId, options = {}) {
     throw error;
   }
 
-  // 1. Preparar parámetros de la llamada a la Dropshipping API
+  // 1. Preparar parámetros de la llamada a la Dropshipping API (TOP protocol)
   const signMethod = 'sha256';
-  const timestamp = Date.now().toString();
-  const apiPath = '/aliexpress.ds.product.get';
+  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
   const requestParams = {
     app_key: appKey,
-    access_token: accessToken,
+    method: 'aliexpress.ds.product.get',
+    session: accessToken,
     timestamp,
+    format: 'json',
+    v: '2.0',
     sign_method: signMethod,
     product_id: cleanProductId,
     ship_to_country: options.shipToCountry || 'US',
@@ -256,12 +258,12 @@ export async function fetchAliExpressProduct(productId, options = {}) {
     target_language: 'EN',
   };
 
-  // 2. Generar firma oficial (IOP: apiPath como prefijo del base string)
-  const signature = generateAliExpressSignature(requestParams, appSecret, signMethod, apiPath);
+  // 2. Generar firma oficial (TOP protocol: orden alfabético de parámetros)
+  const signature = generateAliExpressSignature(requestParams, appSecret, signMethod);
   requestParams.sign = signature;
 
-  // 3. Despachar petición HTTP POST a la pasarela de AliExpress (IOP path format)
-  const gatewayUrl = `${ALIEXPRESS_API_GATEWAY}${apiPath}`;
+  // 3. Despachar petición HTTP POST a la pasarela de AliExpress
+  const gatewayUrl = ALIEXPRESS_API_GATEWAY;
   const timeoutMs = options.timeoutMs || 15000;
 
   const controller = new AbortController();

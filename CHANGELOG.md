@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — AliExpress Dropshipping API Protocol & Gateway Calling (2026-09-09)
+- **Corrección de Gateway y Firma TOP en AliExpress Dropshipping (`netlify/functions/_shared/ecommerceEngine/aliExpressService.js`)**:
+  - Resuelto error `InvalidApiPath` (`The specified API Path is invalid`): se corrigió la llamada al gateway de negocio `https://api-sg.aliexpress.com/sync` usando el estándar oficial TOP con el método como parámetro (`method=aliexpress.ds.product.get`) y la sesión (`session=ALIEXPRESS_ACCESS_TOKEN`) en lugar de agregarlo al path de la URL.
+  - Verificado funcionamiento de extremo a extremo contra la API real de AliExpress con extracción, variantes y normalización de precios.
+  - Actualizado suite de pruebas unitarias `src/test/shopify-dropshipping.test.js` con el entorno de pruebas actualizado.
+
 ### Added — Shopify Dropshipping Integration & AutoDS Controller (2026-09-08)
 - **Extracción Criptográfica con AliExpress Dropshipping API (`netlify/functions/_shared/ecommerceEngine/aliExpressService.js`)**:
   - Implementada función `generateAliExpressSignature()` con ordenamiento alfabético estricto de parámetros y hashing criptográfico **HMAC-SHA256** y **MD5** en mayúsculas.
