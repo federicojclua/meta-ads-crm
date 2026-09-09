@@ -23,8 +23,8 @@ describe('Shopify Dropshipping (AutoDS Simulator) Integration Tests', () => {
     vi.restoreAllMocks();
     process.env.SHOPIFY_STORE_URL = 'https://mi-tienda-test.myshopify.com/';
     process.env.SHOPIFY_ACCESS_TOKEN = 'shpat_test_access_token_12345';
-    process.env.ALIEXPRESS_APP_KEY = '545792';
-    process.env.ALIEXPRESS_APP_SECRET = '6FugeMXsqFaF2YS4ujMjsPuoAsnjGdCk';
+    process.env.ALIEXPRESS_APP_KEY = 'mock_ae_app_key_12345';
+    process.env.ALIEXPRESS_APP_SECRET = 'mock_ae_app_secret_test_abcdef';
     process.env.ALIEXPRESS_ACCESS_TOKEN = 'mock_ae_access_token_123';
   });
 
@@ -575,7 +575,7 @@ describe('Shopify Dropshipping (AutoDS Simulator) Integration Tests', () => {
 
     it('generateAliExpressSignature ordena alfabéticamente y genera hash HMAC-SHA256 en mayúsculas', () => {
       const params = {
-        app_key: '545792',
+        app_key: 'mock_ae_app_key_12345',
         method: 'aliexpress.ds.product.get',
         product_id: '1005006321458921',
         v: '2.0',
