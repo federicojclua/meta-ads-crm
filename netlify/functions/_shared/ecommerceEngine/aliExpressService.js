@@ -9,8 +9,10 @@ import crypto from 'node:crypto';
 
 /**
  * Endpoints oficiales de AliExpress Open Platform
+ * /sync → APIs de negocio (product.get, order, etc.)
+ * /rest → APIs de sistema (auth/token)
  */
-const ALIEXPRESS_API_GATEWAY = 'https://api-sg.aliexpress.com/rest';
+const ALIEXPRESS_API_GATEWAY = 'https://api-sg.aliexpress.com/sync';
 
 /**
  * Extrae el ID numérico de producto a partir de una URL completa de AliExpress o un ID directo.
