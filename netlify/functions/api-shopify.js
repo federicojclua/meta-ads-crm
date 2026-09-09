@@ -15,6 +15,10 @@ import {
   fetchAliExpressProduct,
   extractAliExpressProductId,
 } from './_shared/ecommerceEngine/aliExpressService.js';
+import {
+  getCuratedUSOpportunities,
+  auditProductForUSMarket,
+} from './_shared/ecommerceEngine/opportunityEngine.js';
 import { verifyAuthorizedUser } from './_shared/permissions.js';
 
 /**
@@ -338,6 +342,89 @@ export async function handler(event) {
       return buildResponse(200, {
         ok: true,
         data: pricing,
+      });
+    }
+
+    // ----------------------------------------------------
+    // GET /api/shopify/opportunities (Radar de Oportunidades USA)
+    // ----------------------------------------------------
+    if (action === 'opportunities' && method === 'GET') {
+      const q = event.queryStringParameters || {};
+      const minMargin = parseFloat(q.minMargin || '0');
+      const category = (q.category || '').toLowerCase();
+      const search = (q.search || '').toLowerCase();
+
+      let opportunities = getCuratedUSOpportunities();
+
+      if (minMargin > 0) {
+        opportunities = opportunities.filter((op) => op.financials.marginPct >= minMargin);
+      }
+      if (category && category !== 'all') {
+        opportunities = opportunities.filter((op) =>
+          op.category.toLowerCase().includes(category) || op.niche.toLowerCase().includes(category)
+        );
+      }
+      if (search) {
+        opportunities = opportunities.filter(
+          (op) =>
+            op.title.toLowerCase().includes(search) ||
+            op.description.toLowerCase().includes(search) ||
+            op.category.toLowerCase().includes(search)
+        );
+      }
+
+      return buildResponse(200, {
+        ok: true,
+        total: opportunities.length,
+        data: opportunities,
+      });
+    }
+
+    // ----------------------------------------------------
+    // POST /api/shopify/opportunities/audit (Scanner Aduanero y Logístico)
+    // ----------------------------------------------------
+    if (action === 'opportunities' && method === 'POST') {
+      let body;
+      try {
+        body = JSON.parse(event.body || '{}');
+      } catch {
+        return buildResponse(400, {
+          ok: false,
+          error: 'Formato JSON inválido en el cuerpo de la solicitud.',
+          code: 'ERR_INVALID_JSON',
+        });
+      }
+
+      // Si nos pasaron una URL o ID, podemos intentar extraer datos reales de AliExpress si no vinieron
+      let productToAudit = { ...body };
+      if (body.url || body.productId) {
+        const cleanId = extractAliExpressProductId(body.url || body.productId);
+        if (cleanId && (!body.title || !body.costUsd)) {
+          try {
+            const fetched = await fetchAliExpressProduct(cleanId, {
+              shipToCountry: 'US',
+              targetCurrency: 'USD',
+            });
+            productToAudit = {
+              ...productToAudit,
+              productId: cleanId,
+              title: fetched.title,
+              costUsd: fetched.originalPrice,
+              shippingCostUsd: fetched.shippingCost || 0,
+              description: fetched.description,
+              category: fetched.productType || 'AliExpress Gadget',
+            };
+          } catch (fetchErr) {
+            // Si la API falla o no hay conexión, auditamos con los datos provistos en el body
+            console.warn('[Opportunities Audit]: Fallback to local inputs:', fetchErr.message);
+          }
+        }
+      }
+
+      const auditResult = auditProductForUSMarket(productToAudit);
+      return buildResponse(200, {
+        ok: true,
+        data: auditResult,
       });
     }
 

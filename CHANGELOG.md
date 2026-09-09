@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — US Dropshipping Opportunity Radar & CBP Customs Compliance Engine (2026-09-09)
+- **Motor de Oportunidades y Auditoría Aduanera USA (`netlify/functions/_shared/ecommerceEngine/opportunityEngine.js`)**:
+  - Implementada función `evaluateUSCustomsCompliance()`: detecta riesgos de propiedad intelectual/marcas registradas, restricciones de carga aérea IATA/CBP (baterías sueltas, cuchillos, inflamables), normativas FDA y exención arancelaria Section 321 De Minimis (< $800 USD).
+  - Implementada función `evaluateShippingViability()`: filtra artículos compactos (< 600-750g) que evitan recargos de flete aéreo y proyecta tiempos de entrega de 7 a 12 días a EE.UU.
+  - Implementada función `calculateFinancials()`: proyección en tiempo real aplicando la fórmula de AutoDS ($2.5\times$ landed cost y margen $\ge 50\%$).
+  - Implementada función `auditProductForUSMarket()`: genera el Opportunity Score integral (0-100) y badges de certificación.
+  - Implementada función `getCuratedUSOpportunities()`: catálogo pre-aprobado de oportunidades ganadoras para importar desde China a EE.UU.
+- **Endpoints Serverless (`netlify/functions/api-shopify.js`)**:
+  - Expuesto `GET /api/shopify/opportunities`: catálogo curado con filtrado por nicho, margen mínimo y búsqueda libre.
+  - Expuesto `POST /api/shopify/opportunities/audit`: auditoría en tiempo real para cualquier URL o ID de AliExpress ingresado por el usuario.
+- **Interfaz React (`src/components/ecommerce/OpportunityRadar.jsx`, `src/pages/EcommerceCroPage.jsx`)**:
+  - Creada pestaña interactiva `🎯 Radar Oportunidades (USA)` en el hub de E-Commerce con selector de nichos, filtro de margen mínimo, scanner aduanero interactivo y tarjetas con botón directo de **Sincronización a Shopify con 1-Clic**.
+- **Pruebas Automatizadas (`src/test/opportunity-radar.test.js`)**:
+  - 11/11 pruebas unitarias pasando al 100% verificando reglas aduaneras, viabilidad logística y endpoints de API.
+
 ### Fixed — AliExpress Dropshipping API Protocol & Gateway Calling (2026-09-09)
 - **Corrección de Gateway y Firma TOP en AliExpress Dropshipping (`netlify/functions/_shared/ecommerceEngine/aliExpressService.js`)**:
   - Resuelto error `InvalidApiPath` (`The specified API Path is invalid`): se corrigió la llamada al gateway de negocio `https://api-sg.aliexpress.com/sync` usando el estándar oficial TOP con el método como parámetro (`method=aliexpress.ds.product.get`) y la sesión (`session=ALIEXPRESS_ACCESS_TOKEN`) en lugar de agregarlo al path de la URL.

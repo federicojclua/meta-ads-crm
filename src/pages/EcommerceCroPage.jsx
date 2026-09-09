@@ -34,6 +34,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { formatCurrency, formatNumber } from '../lib/utils';
 import { AliExpressShopifySync } from '../components/ecommerce/AliExpressShopifySync';
+import { OpportunityRadar } from '../components/ecommerce/OpportunityRadar';
 
 export function EcommerceCroPage() {
   const navigate = useNavigate();
@@ -278,6 +279,7 @@ export function EcommerceCroPage() {
       <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-slate-200 no-scrollbar">
         {[
           { id: 'funnel_dropoff', label: 'Embudo & Drop-off', icon: BarChart3 },
+          { id: 'opportunity_radar', label: '🎯 Radar Oportunidades (USA)', icon: Sparkles },
           { id: 'dropshipping_shopify', label: '🛍️ Dropshipping (AliExpress → Shopify)', icon: ShoppingBag },
           { id: 'cro_analyzer', label: 'Auditoría UI/UX & Agente CRO', icon: Search },
           { id: 'product_intelligence', label: '🎯 Product Intelligence', icon: Sparkles },
@@ -307,6 +309,13 @@ export function EcommerceCroPage() {
           );
         })}
       </div>
+
+      {/* ======================================================== */}
+      {/* TAB: RADAR DE OPORTUNIDADES DROPSHIPPING (USA) */}
+      {/* ======================================================== */}
+      {activeTab === 'opportunity_radar' && (
+        <OpportunityRadar />
+      )}
 
       {/* ======================================================== */}
       {/* TAB: DROPSHIPPING (ALIEXPRESS TO SHOPIFY ETL) */}
