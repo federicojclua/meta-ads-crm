@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Isolated Product Import, Anti-Fraud Variant Shield & Automated Stock Sync (2026-09-15)
+- **Importación Aislada de Producto Único (`netlify/functions/_shared/ecommerceEngine/shopifyDropshippingService.js`, `netlify/functions/api-shopify.js`)**:
+  - Implementado aislamiento estricto de productos individuales: purga forzosa de `related_items`, `store_recommendations`, `cross_sell` y `other_seller_products` para evitar arrastrar catálogos enteros de vendedores asiáticos.
+  - Inyección de trazabilidad bidireccional: metafield oficial (`custom.aliexpress_item_id`), tags identificatorios (`aliexpress_id:${productId}`) y SKU formateado (`AE-${productId}-${skuId}`) en Shopify.
+  - Soportado payload con `aliexpress_item_id` en `POST /api/products/import` (con redirect en `netlify.toml`), `POST /api/shopify/sync-aliexpress` y `POST /api/shopify/import`.
+- **Escudo Anti-Fraude de Variantes Engañosas / Bait-and-Switch (`filterFraudulentVariants`, `SUSPICIOUS_VARIANT_KEYWORDS_REGEX`)**:
+  - **Filtro Regex de Accesorios Engañosos**: Descarte automático de variantes de señuelo (`cable`, `box only`, `plug adapter`, `case only`, `strap only`).
+  - **Detección de Variantes Outlier por Varianza de Precio**: Descarte automático de variantes de precio anómalo cuyo costo sea $\le 50\%$ de la mediana o promedio del conjunto (ej: cable de $3 USD vs teclado mecánico de $80 USD).
+  - **Bloqueo Defensivo de Productos Fraudulentos**: Rechazo total con excepción `ERR_FRAUDULENT_PRODUCT_REJECTED` (código HTTP 422) si un producto contiene exclusivamente accesorios o variantes de engaño.
+- **Sincronización Automática de Stock y Auto-Drafting (`syncShopifyInventoryWithSupplier`, `POST /api/shopify/sync-stock`)**:
+  - Endpoint de sincronización de stock con proveedores en China que audita productos activos en Shopify, recupera el stock en tiempo real desde AliExpress, y cambia automáticamente el estado a `draft` si el stock en China llega a 0.
+  - Reporte de auditoría detallado con métricas de `checkedCount`, `draftedCount`, `updatedCount` y logs de auditoría por producto.
+- **Interfaz React (`src/components/ecommerce/OpportunityRadar.jsx`)**:
+  - Agregado botón de "Sincronizar Stock con Proveedor (China)", badge del Escudo Anti-Fraude Activo, y panel interactivo con resumen de productos auditados y pausados a borrador.
+- **Suite de Pruebas Automatizadas (`src/test/shopify-dropshipping.test.js`)**:
+  - Agregadas pruebas unitarias y de integración para filtrado por regex, varianza de precio, rechazo de productos fraudulentos y auto-drafting de Shopify con stock 0 (34/34 pruebas pasando al 100%).
+
 ### Added — US Dropshipping Opportunity Radar & CBP Customs Compliance Engine (2026-09-09)
 - **Motor de Oportunidades y Auditoría Aduanera USA (`netlify/functions/_shared/ecommerceEngine/opportunityEngine.js`)**:
   - Implementada función `evaluateUSCustomsCompliance()`: detecta riesgos de propiedad intelectual/marcas registradas, restricciones de carga aérea IATA/CBP (baterías sueltas, cuchillos, inflamables), normativas FDA y exención arancelaria Section 321 De Minimis (< $800 USD).

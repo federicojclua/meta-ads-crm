@@ -322,6 +322,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/products/import"
+  to = "/.netlify/functions/api-shopify"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/products"
   to = "/.netlify/functions/api-products"
   status = 200

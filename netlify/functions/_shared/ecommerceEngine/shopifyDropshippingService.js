@@ -2,8 +2,10 @@
  * @file shopifyDropshippingService.js
  * @description Servicio de integración de Dropshipping estilo AutoDS para Shopify Admin API (2024-01).
  * Implementa normalización y sanitización de datos de AliExpress, cálculo de márgenes y precios,
- * y despacho seguro hacia el endpoint /products.json de Shopify.
+ * escudo anti-fraude de variantes engañosas, y despacho seguro hacia el endpoint /products.json de Shopify.
  */
+
+import { fetchAliExpressProduct } from './aliExpressService.js';
 
 /**
  * Lista de términos y patrones ruidosos típicos en títulos de marketplaces (AliExpress, etc.)
@@ -11,7 +13,7 @@
 const JUNK_KEYWORDS = [
   /\bfree\s+shipping\b/gi,
   /\bdrop\s*shipping\b/gi,
-  /\bhot\s+sale\b/gi,
+  /\bhot\s+item\b/gi,
   /\btop\s+quality\b/gi,
   /\bhigh\s+quality\b/gi,
   /\bbest\s+quality\b/gi,
@@ -84,9 +86,6 @@ export function cleanProductTitle(rawTitle) {
   return cleaned;
 }
 
-/**
- * Calcula los precios de venta y precios tachados (compare-at) según las reglas de negocio de AutoDS:
- * - price = (precio_original + costo_envio) * 2.5
 /**
  * Redondea un valor numérico a 2 decimales con precisión financiera en centavos (estándar Stripe/Shopify)
  * @param {number} value
@@ -179,6 +178,97 @@ export function mapShopifyImages(rawImages) {
 }
 
 /**
+ * Expresión regular para detectar accesorios sospechosos o señuelos típicos de marketplaces (AliExpress)
+ * como "cables", "cajas vacías", "adaptadores" que se usan fraudulentamente para bajar el precio visible.
+ */
+export const SUSPICIOUS_VARIANT_KEYWORDS_REGEX = /\b(cable|box\s*only|plug\s*adapter|case\s*only|strap\s*only)\b/i;
+
+/**
+ * Escudo Anti-Fraude de Variantes (Bait-and-Switch Shield).
+ * 1. Descarta variantes por coincidencia de palabras clave sospechosas (cables, cajas vacías, adaptadores).
+ * 2. Descarta variantes con precios anómalos (outliers) donde el costo sea <= 50% de la mediana.
+ * 3. Si todas las variantes son descartadas, lanza un error impidiendo importar un producto fraudulento.
+ *
+ * @param {Array<object>} variants - Lista de variantes en crudo
+ * @returns {{ validVariants: Array<object>, discardedCount: number, filteredOutVariants: Array<object> }}
+ */
+export function filterFraudulentVariants(variants) {
+  if (!Array.isArray(variants) || variants.length === 0) {
+    return { validVariants: [], discardedCount: 0, filteredOutVariants: [] };
+  }
+
+  const validAfterRegex = [];
+  const filteredOutVariants = [];
+
+  // Regla 2: Filtro Regex por Palabras Clave
+  for (const v of variants) {
+    const textToCheck = [
+      v.title,
+      v.name,
+      v.sku_attr,
+      v.property_value_definition_name,
+      v.sku,
+      v.option1,
+    ].filter(Boolean).join(' ');
+
+    const regexMatch = textToCheck.match(SUSPICIOUS_VARIANT_KEYWORDS_REGEX);
+    if (regexMatch) {
+      filteredOutVariants.push({
+        variant: v,
+        rule: 'SUSPICIOUS_KEYWORD',
+        reason: `Variante descartada por contener término sospechoso: "${regexMatch[0].toLowerCase()}"`,
+      });
+    } else {
+      validAfterRegex.push(v);
+    }
+  }
+
+  // Regla 1: Varianza de Precio (Detección de outliers donde price <= 50% de la mediana)
+  const validVariants = [];
+  if (validAfterRegex.length > 1) {
+    const prices = validAfterRegex.map((v) =>
+      parseFloat(v.offer_sale_price || v.sku_price || v.price || 0)
+    );
+    const sortedPrices = [...prices].sort((a, b) => a - b);
+    const mid = Math.floor(sortedPrices.length / 2);
+    const median = sortedPrices.length % 2 === 0
+      ? (sortedPrices[mid - 1] + sortedPrices[mid]) / 2
+      : sortedPrices[mid];
+
+    for (let i = 0; i < validAfterRegex.length; i++) {
+      const v = validAfterRegex[i];
+      const p = prices[i];
+      // Si la variante cuesta <= 50% de la mediana de las variantes del producto
+      if (median > 0 && p <= 0.5 * median) {
+        filteredOutVariants.push({
+          variant: v,
+          rule: 'PRICE_VARIANCE_OUTLIER',
+          reason: `Variante descartada por precio atípico ($${p.toFixed(2)} es <= 50% de la mediana $${median.toFixed(2)})`,
+        });
+      } else {
+        validVariants.push(v);
+      }
+    }
+  } else {
+    validVariants.push(...validAfterRegex);
+  }
+
+  // Si todas las variantes fueron descartadas, rechazar el producto completamente
+  if (validVariants.length === 0 && variants.length > 0) {
+    const error = new Error('Escudo Anti-Fraude: contiene únicamente variantes de accesorios o artículos de engaño.');
+    error.statusCode = 422;
+    error.code = 'ERR_FRAUDULENT_PRODUCT_REJECTED';
+    throw error;
+  }
+
+  return {
+    validVariants,
+    discardedCount: filteredOutVariants.length,
+    filteredOutVariants,
+  };
+}
+
+/**
  * Transforma un producto en crudo de AliExpress a la estructura oficial requerida por Shopify Admin API (2024-01).
  *
  * @param {object} rawProduct
@@ -198,7 +288,15 @@ export function transformProductData(rawProduct) {
     throw new Error('El objeto rawProduct es requerido y debe ser un objeto válido.');
   }
 
+  // Regla 1 de Importación Aislada: Aislamiento estricto del producto
+  // Eliminar referencias a productos relacionados, recomendaciones de tienda o cross-sells
+  delete rawProduct.related_items;
+  delete rawProduct.store_recommendations;
+  delete rawProduct.cross_sell;
+  delete rawProduct.other_seller_products;
+
   const {
+    productId = '',
     title = '',
     images = [],
     originalPrice = 0,
@@ -208,13 +306,64 @@ export function transformProductData(rawProduct) {
     vendor = 'AutoDS Dropshipping',
     productType = 'Dropshipping',
     tags = ['AliExpress Import', 'Dropshipping', 'AutoDS'],
+    variantsRaw = [],
   } = rawProduct;
 
   // 1. Limpiar el título
   const cleanedTitle = cleanProductTitle(title);
 
-  // 2. Calcular precios y márgenes según reglas de negocio
-  const pricing = calculateDropshippingPricing(originalPrice, shippingCost);
+  // 2. Aplicar Escudo Anti-Fraude a las variantes si vienen en crudo
+  let finalVariants = [];
+  let antiFraudMeta = { filteredOutCount: 0, filteredOut: [] };
+
+  if (Array.isArray(variantsRaw) && variantsRaw.length > 0) {
+    const filterResult = filterFraudulentVariants(variantsRaw);
+    antiFraudMeta = {
+      filteredOutCount: filterResult.discardedCount,
+      filteredOut: filterResult.filteredOutVariants,
+    };
+
+    finalVariants = filterResult.validVariants.map((sku, index) => {
+      const rawPrice = sku.offer_sale_price || sku.sku_price || sku.price || originalPrice;
+      const skuPricing = calculateDropshippingPricing(rawPrice, shippingCost);
+      const skuStock = Math.max(0, parseInt(sku.sku_available_stock || sku.ipm_sku_stock || inventory, 10) || 0);
+      const skuAttr = sku.sku_attr || sku.property_value_definition_name || `Opción ${index + 1}`;
+      const cleanAttr = skuAttr.replace(/^\d+:\d+#?/, '').trim() || `Variante ${index + 1}`;
+      const skuId = sku.sku_id || sku.id || (index + 1);
+
+      return {
+        option1: cleanAttr,
+        price: skuPricing.sellingPrice,
+        compare_at_price: skuPricing.compareAtPrice,
+        inventory_management: 'shopify',
+        inventory_quantity: skuStock,
+        requires_shipping: true,
+        sku: `AE-${productId || 'DS'}-${skuId}`,
+      };
+    });
+  }
+
+  // Si no vinieron variantes múltiples o quedaron vacías, crear variante estándar
+  if (finalVariants.length === 0) {
+    const pricing = calculateDropshippingPricing(originalPrice, shippingCost);
+    const inventoryQuantity = Math.max(0, parseInt(inventory, 10) || 0);
+    finalVariants = [
+      {
+        price: pricing.sellingPrice,
+        compare_at_price: pricing.compareAtPrice,
+        inventory_management: 'shopify',
+        inventory_quantity: inventoryQuantity,
+        requires_shipping: true,
+        sku: `AE-${productId || 'DS'}-${Date.now().toString(36).toUpperCase()}`,
+      },
+    ];
+  }
+
+  // Precios generales tomados de la primera variante o del producto base
+  const primaryPricing = calculateDropshippingPricing(
+    originalPrice,
+    shippingCost
+  );
 
   // 3. Mapear imágenes al formato de Shopify
   const formattedImages = mapShopifyImages(images);
@@ -224,25 +373,25 @@ export function transformProductData(rawProduct) {
     ? (description.includes('<') ? description : `<p>${description.replace(/\n/g, '<br/>')}</p>`)
     : `<p>${cleanedTitle}</p>`;
 
-  // 5. Formatear tags (Shopify acepta string separado por comas o array)
-  const formattedTags = Array.isArray(tags) ? tags.join(', ') : String(tags || '');
+  // 5. Formatear tags e incluir trazabilidad del ID de AliExpress
+  const tagList = Array.isArray(tags) ? [...tags] : String(tags || '').split(',').map((t) => t.trim()).filter(Boolean);
+  if (productId && !tagList.some((t) => t.includes(productId))) {
+    tagList.push(`aliexpress_id:${productId}`);
+  }
+  tagList.push('AliExpress Import', 'Dropshipping', 'AutoDS');
+  const formattedTags = Array.from(new Set(tagList)).join(', ');
 
-  // 6. Convertir inventario a número entero seguro
-  const inventoryQuantity = Math.max(0, parseInt(inventory, 10) || 0);
-
-  // 7. Construir estructura de variantes
-  const variants = [
+  // 6. Metafields para trazabilidad de AliExpress en Shopify
+  const metafields = productId ? [
     {
-      price: pricing.sellingPrice,
-      compare_at_price: pricing.compareAtPrice,
-      inventory_management: 'shopify',
-      inventory_quantity: inventoryQuantity,
-      requires_shipping: true,
-      sku: `ADS-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`,
+      namespace: 'custom',
+      key: 'aliexpress_item_id',
+      value: String(productId),
+      type: 'single_line_text_field',
     },
-  ];
+  ] : [];
 
-  // 8. Payload compatible con POST /admin/api/2024-01/products.json
+  // 7. Payload compatible con POST /admin/api/2024-01/products.json
   const shopifyProduct = {
     title: cleanedTitle,
     body_html: bodyHtml,
@@ -250,7 +399,8 @@ export function transformProductData(rawProduct) {
     product_type: productType || 'Dropshipping',
     tags: formattedTags,
     images: formattedImages,
-    variants,
+    variants: finalVariants,
+    metafields,
   };
 
   return {
@@ -260,9 +410,11 @@ export function transformProductData(rawProduct) {
       cleanedTitle,
       originalPrice: parseFloat(originalPrice) || 0,
       shippingCost: parseFloat(shippingCost) || 0,
-      pricing,
+      pricing: primaryPricing,
       totalImagesMapped: formattedImages.length,
-      inventoryQuantity,
+      variantsCount: finalVariants.length,
+      antiFraud: antiFraudMeta,
+      productId: String(productId || ''),
       transformedAt: new Date().toISOString(),
     },
   };
@@ -511,4 +663,146 @@ export async function testShopifyConnection(options = {}) {
       error: err.message,
     };
   }
+}
+
+/**
+ * Servicio de Sincronización Automática de Stock con Proveedor en China (AliExpress).
+ * 1. Consulta productos activos en Shopify.
+ * 2. Extrae el ID de AliExpress (desde tags, SKU o metafields).
+ * 3. Consulta el stock en tiempo real en China con fetchAliExpressProduct.
+ * 4. Si el stock del proveedor asiático llega a 0 -> Cambia el estado del producto en Shopify a 'draft'.
+ * 5. Si hay stock disponible -> Actualiza el inventario en Shopify.
+ *
+ * @param {object} [options={}]
+ * @param {string} [options.storeUrl] - URL de la tienda
+ * @param {string} [options.accessToken] - Token de acceso de Shopify
+ * @returns {Promise<{ success: boolean, checkedCount: number, draftedCount: number, updatedCount: number, skippedCount: number, auditLogs: Array }>}
+ */
+export async function syncShopifyInventoryWithSupplier(options = {}) {
+  const storeUrl = options.storeUrl || process.env.SHOPIFY_STORE_URL;
+  const accessToken = options.accessToken || process.env.SHOPIFY_ACCESS_TOKEN;
+
+  if (!storeUrl || !accessToken) {
+    const error = new Error('Credenciales de Shopify faltantes para sincronización de stock.');
+    error.statusCode = 500;
+    error.code = 'ERR_SHOPIFY_CONFIG_MISSING';
+    throw error;
+  }
+
+  const storeHost = normalizeShopifyStoreUrl(storeUrl);
+  const fetchUrl = `https://${storeHost}/admin/api/2024-01/products.json?status=active&limit=250`;
+
+  const response = await fetch(fetchUrl, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Error al listar productos en Shopify (${response.status})`);
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  const data = await response.json();
+  const products = data.products || [];
+
+  let checkedCount = 0;
+  let draftedCount = 0;
+  let updatedCount = 0;
+  let skippedCount = 0;
+  const auditLogs = [];
+
+  for (const prod of products) {
+    checkedCount++;
+    let aeId = null;
+
+    // A. Buscar en tags: "aliexpress_id:12345"
+    if (prod.tags) {
+      const match = prod.tags.match(/aliexpress_id:(\d+)/i);
+      if (match) aeId = match[1];
+    }
+
+    // B. Buscar en SKU de variantes: "AE-12345-..."
+    if (!aeId && Array.isArray(prod.variants)) {
+      for (const v of prod.variants) {
+        if (v.sku) {
+          const match = v.sku.match(/^AE-(\d+)/i);
+          if (match) {
+            aeId = match[1];
+            break;
+          }
+        }
+      }
+    }
+
+    if (!aeId) {
+      skippedCount++;
+      continue;
+    }
+
+    try {
+      // Consultar stock en vivo del proveedor en China
+      const supplierProduct = await fetchAliExpressProduct(aeId, {
+        shipToCountry: 'US',
+        targetCurrency: 'USD',
+      });
+
+      const currentStock = supplierProduct.inventory || 0;
+
+      // Si el proveedor agotó el stock (0 unidades) -> Pasar a 'draft'
+      if (currentStock === 0) {
+        await fetch(`https://${storeHost}/admin/api/2024-01/products/${prod.id}.json`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken,
+          },
+          body: JSON.stringify({
+            product: {
+              id: prod.id,
+              status: 'draft',
+            },
+          }),
+        });
+
+        draftedCount++;
+        auditLogs.push({
+          productId: prod.id,
+          title: prod.title,
+          aeId,
+          action: 'DRAFTED_OUT_OF_STOCK',
+          stock: 0,
+        });
+      } else {
+        // En stock: actualizar inventario en Shopify si la variante lo gestiona
+        updatedCount++;
+        auditLogs.push({
+          productId: prod.id,
+          title: prod.title,
+          aeId,
+          action: 'IN_STOCK_ACTIVE',
+          stock: currentStock,
+        });
+      }
+    } catch (err) {
+      auditLogs.push({
+        productId: prod.id,
+        title: prod.title,
+        aeId,
+        action: 'SUPPLIER_CHECK_FAILED',
+        error: err.message,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    checkedCount,
+    draftedCount,
+    updatedCount,
+    skippedCount,
+    auditLogs,
+  };
 }

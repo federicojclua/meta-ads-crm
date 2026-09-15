@@ -10,6 +10,7 @@ import {
   exportToShopify,
   testShopifyConnection,
   calculateDropshippingPricing,
+  syncShopifyInventoryWithSupplier,
 } from './_shared/ecommerceEngine/shopifyDropshippingService.js';
 import {
   fetchAliExpressProduct,
@@ -230,11 +231,11 @@ export async function handler(event) {
         });
       }
 
-      const input = body.productId || body.url || body.id;
+      const input = body.aliexpress_item_id || body.productId || body.url || body.id;
       if (!input || typeof input !== 'string') {
         return buildResponse(400, {
           ok: false,
-          error: 'Debe ingresar un ID numérico o enlace válido del producto de AliExpress (campo "productId" o "url").',
+          error: 'Debe ingresar un ID numérico o enlace válido del producto de AliExpress (campo "aliexpress_item_id", "productId" o "url").',
           code: 'ERR_MISSING_PRODUCT_INPUT',
         });
       }
@@ -342,6 +343,19 @@ export async function handler(event) {
       return buildResponse(200, {
         ok: true,
         data: pricing,
+      });
+    }
+
+    // ----------------------------------------------------
+    // POST /api/shopify/sync-stock o GET /api/shopify/sync-stock
+    // Sincronización Automática de Stock con Proveedor en China (Auto-Draft si stock = 0)
+    // ----------------------------------------------------
+    if ((action === 'sync-stock' || action === 'stock-sync') && (method === 'POST' || method === 'GET')) {
+      const syncReport = await syncShopifyInventoryWithSupplier();
+      return buildResponse(200, {
+        ok: true,
+        message: `Sincronización de stock completada: ${syncReport.checkedCount} verificados, ${syncReport.updatedCount} activos, ${syncReport.draftedCount} pausados a borrador (sin stock).`,
+        data: syncReport,
       });
     }
 

@@ -42,6 +42,11 @@ export function OpportunityRadar() {
   const [syncSuccess, setSyncSuccess] = useState({});
   const [syncError, setSyncError] = useState({});
 
+  // Estado de Sincronización Automática de Stock con Proveedor
+  const [isSyncingStock, setIsSyncingStock] = useState(false);
+  const [stockSyncReport, setStockSyncReport] = useState(null);
+  const [stockSyncError, setStockSyncError] = useState(null);
+
   useEffect(() => {
     loadOpportunities();
   }, [selectedCategory, minMarginFilter]);
@@ -158,6 +163,22 @@ export function OpportunityRadar() {
     }
   };
 
+  const handleSyncStock = async () => {
+    setIsSyncingStock(true);
+    setStockSyncError(null);
+    setStockSyncReport(null);
+    try {
+      const res = await apiClient.post('/shopify/sync-stock');
+      if (res?.data?.data) {
+        setStockSyncReport(res.data.data);
+      }
+    } catch (err) {
+      setStockSyncError(err.response?.data?.error || err.message || 'Error al sincronizar stock con el proveedor.');
+    } finally {
+      setIsSyncingStock(false);
+    }
+  };
+
   const categories = [
     { id: 'all', label: 'Todos los Nichos' },
     { id: 'tech', label: '💻 Tech & Smart Gadgets' },
@@ -184,6 +205,9 @@ export function OpportunityRadar() {
               <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 px-2.5 py-0.5 text-xs font-bold">
                 🛡️ CBP Section 321 De Minimis Safe
               </Badge>
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 px-2.5 py-0.5 text-xs font-bold">
+                🛡️ Escudo Anti-Fraude Activo (Bait-and-Switch)
+              </Badge>
             </div>
             <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-400" />
@@ -194,15 +218,46 @@ export function OpportunityRadar() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-3.5 rounded-xl backdrop-blur-sm self-start lg:self-auto shrink-0">
-            <Plane className="w-6 h-6 text-indigo-400" />
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Logística Garantizada</span>
-              <span className="text-xs font-black text-white">AliExpress Selection Standard / Choice US</span>
-              <span className="text-[11px] text-emerald-400 block font-mono">7 a 12 días con Tracking oficial</span>
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-3.5 rounded-xl backdrop-blur-sm">
+              <Plane className="w-6 h-6 text-indigo-400" />
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Logística Garantizada</span>
+                <span className="text-xs font-black text-white">AliExpress Selection Standard / Choice US</span>
+                <span className="text-[11px] text-emerald-400 block font-mono">7 a 12 días con Tracking oficial</span>
+              </div>
             </div>
+
+            <Button
+              onClick={handleSyncStock}
+              disabled={isSyncingStock}
+              className="text-xs py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingStock ? 'animate-spin' : ''}`} />
+              <span>{isSyncingStock ? 'Verificando Stock en China...' : 'Sincronizar Stock Proveedor'}</span>
+            </Button>
           </div>
         </div>
+
+        {/* Feedback de Sincronización de Stock */}
+        {stockSyncReport && (
+          <div className="mt-4 p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 flex items-center justify-between gap-2 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                <strong>Stock Sincronizado:</strong> {stockSyncReport.checkedCount} productos analizados ({stockSyncReport.updatedCount} activos, {stockSyncReport.draftedCount} pausados a borrador por falta de stock).
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-emerald-300">Auto-Draft Activo</span>
+          </div>
+        )}
+
+        {stockSyncError && (
+          <div className="mt-4 p-3 bg-rose-500/20 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-center gap-2 animate-in fade-in">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{stockSyncError}</span>
+          </div>
+        )}
       </div>
 
       {/* Herramienta: Scanner de Auditoría Aduanera & Logística para cualquier URL */}

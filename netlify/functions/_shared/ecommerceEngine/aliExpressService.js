@@ -184,7 +184,7 @@ export function normalizeAliExpressApiResponse(apiResult, productId) {
     images,
     originalPrice: Number(minCost.toFixed(2)),
     shippingCost: 0, // Envío estándar Dropshipping
-    inventory: totalStock > 0 ? totalStock : 100,
+    inventory: skuList.length > 0 ? totalStock : (totalStock > 0 ? totalStock : 100),
     description,
     vendor: 'AliExpress Direct',
     productType: 'Dropshipping',

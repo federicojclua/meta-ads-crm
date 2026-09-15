@@ -7,6 +7,8 @@ import {
   normalizeShopifyStoreUrl,
   exportToShopify,
   testShopifyConnection,
+  filterFraudulentVariants,
+  syncShopifyInventoryWithSupplier,
 } from '../../netlify/functions/_shared/ecommerceEngine/shopifyDropshippingService.js';
 import {
   extractAliExpressProductId,
@@ -610,6 +612,154 @@ describe('Shopify Dropshipping (AutoDS Simulator) Integration Tests', () => {
       await expect(fetchAliExpressProduct('1005006321458921')).rejects.toThrow(
         /no fue encontrado o no está disponible para dropshipping/
       );
+    });
+  });
+
+  // ----------------------------------------------------
+  // 10. Escudo Anti-Fraude de Variantes & Importación Aislada
+  // ----------------------------------------------------
+  describe('Anti-Fraud Variant Shield & Isolated Product Import', () => {
+    it('filterFraudulentVariants descarta variantes de accesorios sospechosos por Regex', () => {
+      const variantsRaw = [
+        { sku_id: '1', title: 'Mechanical Keyboard RGB Pro', sku_price: '85.00' },
+        { sku_id: '2', title: 'Type-C USB Cable Only', sku_price: '3.50' },
+        { sku_id: '3', title: 'Empty Box only for collection', sku_price: '2.00' },
+      ];
+
+      const result = filterFraudulentVariants(variantsRaw);
+      expect(result.validVariants).toHaveLength(1);
+      expect(result.validVariants[0].title).toBe('Mechanical Keyboard RGB Pro');
+      expect(result.discardedCount).toBe(2);
+      expect(result.filteredOutVariants.some((f) => f.reason.includes('cable'))).toBe(true);
+      expect(result.filteredOutVariants.some((f) => f.reason.includes('box only'))).toBe(true);
+    });
+
+    it('filterFraudulentVariants descarta variantes outliers con precios <= 50% de la mediana', () => {
+      const variantsRaw = [
+        { sku_id: '1', title: 'Gaming Keyboard Red Switch', sku_price: '80.00' },
+        { sku_id: '2', title: 'Gaming Keyboard Blue Switch', sku_price: '85.00' },
+        { sku_id: '3', title: 'Gaming Keyboard Brown Switch', sku_price: '82.00' },
+        { sku_id: '4', title: 'Plastic Keycap Puller', sku_price: '3.00' }, // Outlier extremo ($3 vs ~$82)
+      ];
+
+      const result = filterFraudulentVariants(variantsRaw);
+      expect(result.validVariants).toHaveLength(3);
+      expect(result.discardedCount).toBe(1);
+      expect(result.filteredOutVariants[0].rule).toBe('PRICE_VARIANCE_OUTLIER');
+    });
+
+    it('filterFraudulentVariants rechaza productos fraudulentos si todas las variantes son descartadas', () => {
+      const scamVariants = [
+        { sku_id: '1', title: 'Replacement USB Cable only', sku_price: '2.50' },
+        { sku_id: '2', title: 'Strap only accessory', sku_price: '1.99' },
+      ];
+
+      expect(() => filterFraudulentVariants(scamVariants)).toThrow(
+        /Escudo Anti-Fraude: contiene únicamente variantes de accesorios/
+      );
+    });
+
+    it('transformProductData aísla el producto eliminando catálogos recomendados e inyecta trazabilidad', () => {
+      const rawProduct = {
+        productId: '1005006321458921',
+        title: 'Wireless Ergonomic Vertical Mouse 2.4G',
+        originalPrice: 20.0,
+        shippingCost: 3.0,
+        related_items: [{ id: '999', title: 'Irrelevant Seller Catalog Item' }],
+        store_recommendations: [{ id: '888', title: 'Unwanted Cross Sell' }],
+        cross_sell: [{ id: '777' }],
+      };
+
+      const transformed = transformProductData(rawProduct);
+      expect(rawProduct.related_items).toBeUndefined();
+      expect(rawProduct.store_recommendations).toBeUndefined();
+      expect(transformed.product.metafields).toEqual([
+        {
+          namespace: 'custom',
+          key: 'aliexpress_item_id',
+          value: '1005006321458921',
+          type: 'single_line_text_field',
+        },
+      ]);
+      expect(transformed.product.tags).toContain('aliexpress_id:1005006321458921');
+      expect(transformed.product.variants[0].sku).toContain('AE-1005006321458921');
+    });
+  });
+
+  // ----------------------------------------------------
+  // 11. Sincronización Automática de Stock con Proveedor
+  // ----------------------------------------------------
+  describe('syncShopifyInventoryWithSupplier', () => {
+    it('pasa a draft en Shopify cuando el stock en China llega a 0', async () => {
+      const mockShopifyProducts = {
+        products: [
+          {
+            id: 123456,
+            title: 'Test Keyboard',
+            tags: 'aliexpress_id:3256812053422003, Dropshipping',
+            variants: [{ id: 1, sku: 'AE-3256812053422003-1' }],
+          },
+        ],
+      };
+
+      const mockAliExpressZeroStock = {
+        aliexpress_ds_product_get_response: {
+          result: {
+            ae_item_base_info_dto: { subject: 'Test Keyboard Out of Stock' },
+            ae_item_sku_info_dtos: {
+              ae_item_sku_info_d_t_o: [
+                { sku_available_stock: 0, ipm_sku_stock: 0, offer_sale_price: '50.00' },
+              ],
+            },
+          },
+        },
+      };
+
+      vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({
+          status: 200,
+          ok: true,
+          json: async () => mockShopifyProducts,
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          ok: true,
+          text: async () => JSON.stringify(mockAliExpressZeroStock),
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          ok: true,
+          json: async () => ({ product: { id: 123456, status: 'draft' } }),
+        });
+
+      const report = await syncShopifyInventoryWithSupplier();
+      expect(report.success).toBe(true);
+      expect(report.checkedCount).toBe(1);
+      expect(report.draftedCount).toBe(1);
+      expect(report.auditLogs[0].action).toBe('DRAFTED_OUT_OF_STOCK');
+    });
+
+    it('endpoint POST /api/shopify/sync-stock devuelve el reporte de sincronización', async () => {
+      const mockShopifyProducts = {
+        products: [],
+      };
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        status: 200,
+        ok: true,
+        json: async () => mockShopifyProducts,
+      });
+
+      const event = {
+        httpMethod: 'POST',
+        path: '/api/shopify/sync-stock',
+      };
+
+      const res = await handler(event);
+      expect(res.statusCode).toBe(200);
+      const parsed = JSON.parse(res.body);
+      expect(parsed.ok).toBe(true);
+      expect(parsed.data.checkedCount).toBe(0);
     });
   });
 });
