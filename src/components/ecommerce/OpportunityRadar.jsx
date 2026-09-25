@@ -55,15 +55,16 @@ export function OpportunityRadar() {
     setLoading(true);
     try {
       // Usar apiClient con fallback local inmediato de catálogo
-      const res = await apiClient.get('/shopify/opportunities', {
+      const res = await apiClient.get('/api/shopify/opportunities', {
         params: {
           category: selectedCategory,
           minMargin: minMarginFilter,
           search: searchQuery,
         },
       });
-      if (res?.data?.data) {
-        setOpportunities(res.data.data);
+      const list = res?.data || res?.opportunities;
+      if (Array.isArray(list) && list.length > 0) {
+        setOpportunities(list);
       } else {
         fallbackCatalog();
       }
@@ -103,13 +104,14 @@ export function OpportunityRadar() {
     setAuditResult(null);
 
     try {
-      const res = await apiClient.post('/shopify/opportunities/audit', {
+      const res = await apiClient.post('/api/shopify/opportunities/audit', {
         url: auditInput.trim(),
         productId: auditInput.trim(),
       });
 
-      if (res?.data?.data) {
-        setAuditResult(res.data.data);
+      const auditData = res?.data || res;
+      if (auditData?.complianceScore !== undefined) {
+        setAuditResult(auditData);
       } else {
         // Fallback local con auditoría directa
         const localAudit = auditProductForUSMarket({
@@ -122,7 +124,7 @@ export function OpportunityRadar() {
         setAuditResult(localAudit);
       }
     } catch (err) {
-      setAuditError(err.message || 'No se pudo completar la auditoría aduanera.');
+      setAuditError(err.data?.error || err.message || 'No se pudo completar la auditoría aduanera.');
     } finally {
       setIsAuditing(false);
     }
@@ -140,23 +142,24 @@ export function OpportunityRadar() {
         shipToCountry: 'US',
       };
 
-      const res = await apiClient.post('/shopify/sync-aliexpress', payload);
-      if (res?.data?.ok) {
+      const res = await apiClient.post('/api/shopify/sync-aliexpress', payload);
+      const resData = res?.data || res;
+      if (res?.ok || resData?.shopifyProduct) {
         setSyncSuccess((prev) => ({
           ...prev,
           [id]: {
-            shopifyUrl: res.data.data?.shopifyProduct?.admin_graphql_api_id
+            shopifyUrl: resData?.shopifyProduct?.admin_graphql_api_id
               ? `https://admin.shopify.com/store`
               : null,
-            sellingPrice: res.data.data?.pricing?.sellingPrice,
-            profit: res.data.data?.pricing?.estimatedProfit,
+            sellingPrice: resData?.pricing?.sellingPrice,
+            profit: resData?.pricing?.estimatedProfit,
           },
         }));
       }
     } catch (err) {
       setSyncError((prev) => ({
         ...prev,
-        [id]: err.response?.data?.error || err.message || 'Error al sincronizar con Shopify.',
+        [id]: err.data?.error || err.message || 'Error al sincronizar con Shopify.',
       }));
     } finally {
       setSyncingId(null);
@@ -168,12 +171,13 @@ export function OpportunityRadar() {
     setStockSyncError(null);
     setStockSyncReport(null);
     try {
-      const res = await apiClient.post('/shopify/sync-stock');
-      if (res?.data?.data) {
-        setStockSyncReport(res.data.data);
+      const res = await apiClient.post('/api/shopify/sync-stock');
+      const report = res?.data || res;
+      if (report?.checkedCount !== undefined) {
+        setStockSyncReport(report);
       }
     } catch (err) {
-      setStockSyncError(err.response?.data?.error || err.message || 'Error al sincronizar stock con el proveedor.');
+      setStockSyncError(err.data?.error || err.message || 'Error al sincronizar stock con el proveedor.');
     } finally {
       setIsSyncingStock(false);
     }

@@ -41,9 +41,14 @@ export async function apiClient(endpoint, options = {}) {
     headers,
   };
 
+  const cleanEndpoint =
+    typeof endpoint === 'string' && !endpoint.startsWith('http') && !endpoint.startsWith('/api')
+      ? `/api${endpoint.startsWith('/') ? '' : '/'}${endpoint}`
+      : endpoint;
+
   let response;
   try {
-    response = await fetch(endpoint, config);
+    response = await fetch(cleanEndpoint, config);
   } catch (networkErr) {
     throw new ApiError('Error de conexión con el servidor. Verifique su red.', 0, 'NETWORK_ERROR', null);
   }
