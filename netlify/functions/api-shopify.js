@@ -442,6 +442,23 @@ export async function handler(event) {
       });
     }
 
+    // ----------------------------------------------------
+    // GET /api/shopify/opportunities (Listado de Oportunidades Ganadoras Curadas)
+    // ----------------------------------------------------
+    if (action === 'opportunities' && method === 'GET') {
+      const category = event.queryStringParameters?.category || 'all';
+      const minMargin = parseFloat(event.queryStringParameters?.minMargin || '0');
+      const search = event.queryStringParameters?.search || '';
+
+      const list = getCuratedUSOpportunities({ category, minMargin, search });
+
+      return buildResponse(200, {
+        ok: true,
+        data: list,
+        count: list.length,
+      });
+    }
+
     // Ruta no encontrada
     return buildResponse(404, {
       ok: false,

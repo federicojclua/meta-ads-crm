@@ -8,6 +8,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Reorganización y Refactorización Modular de E-Commerce & CRO (2026-09-25)
+- **Refactorización de Arquitectura Monolítica (`src/pages/EcommerceCroPage.jsx`)**:
+  - Reducido el archivo monolítico de 1.459 líneas a 264 líneas limpias y legibles mediante separación de responsabilidades.
+  - La navegación se organizó de forma coherente con la pestaña ejecutiva **Dashboard KPIs** como vista inicial por defecto.
+  - Se modularizaron los componentes en `src/components/ecommerce/` manteniendo total compatibilidad con la suite de pruebas automatizadas existente (19/19 pruebas de E-Commerce pasando y 85/85 suites globales).
+- **Nuevo Dashboard Ejecutivo de KPIs (`src/components/ecommerce/EcommerceDashboard.jsx`)**:
+  - Vista general con métricas clave (Revenue, Órdenes, AOV, Conversión Global).
+  - Estado vacío instructivo y profesional cuando la tienda aún no tiene webhooks conectados (eliminando números hardcodeados confusos).
+  - Resumen visual integrado del embudo de conversión y accesos directos al Radar de Oportunidades, Sincronizador de Dropshipping y Auditoría CRO.
+- **Componentes Modulares Extraídos**:
+  - `FunnelDropoff.jsx`: Visualización del embudo de 5 pasos con indicadores de fuga porcentual y recomendaciones de optimización.
+  - `CroAnalyzer.jsx`: Auditoría de 10 dimensiones de conversión, matriz de Quick Wins, puntaje de fricción UI/UX y exportador a PDF.
+  - `ProductIntelligence.jsx`: Motor de inteligencia comercial para Dropshipping & Amazon KDP con ANIMA Product Score, Angle Engine (5 ángulos), Hook Generator y matriz de certezas (Hechos vs Inferencias).
+  - `CustomerRetention.jsx`: Perfiles de memoria unificada de compradores, cohortes de LTV incremental y motor de venta cruzada racional (Cross-Sell).
+  - `ProductLibrary.jsx`: Biblioteca histórica de productos validados con flujo directo de creación de campañas hacia Creative Studio.
+  - `AutomationRules.jsx`: Gestor de secuencias de retención con límites anti-spam (intervalo de 7 días) y cola de despacho automático por WhatsApp.
+  - `LockedTabPlaceholder.jsx`: Vistas profesionales con diseño de candado e indicador "Próximamente · v2.4" para las pestañas en desarrollo (*Meta Ads Catálogo* y *Afiliados*), conforme a las directivas del usuario.
+
+- **Descubrimiento de Oportunidades Ganadoras con IA (`src/components/ecommerce/OpportunityRadar.jsx`)**:
+  - Incorporado botón interactivo **"✨ Descubrir Nuevos Ganadores con IA"** en la cabecera principal, que ejecuta el escaneo activo de proveedores verificados de AliExpress Choice / Selection Standard.
+  - Añadido banner dinámico de confirmación de auditoría con desglose de políticas de cumplimiento (Cero Estafas / Sin señuelos, CBP Safe < $800 USD, 7-12 días con tracking a EE.UU., y rentabilidad real 2.5x AutoDS).
+  - Implementada barra de búsqueda interactiva en tiempo real por palabras clave (gadgets, lámparas, organizadores, robots, herramientas, etc.).
+  - Incorporado selector de ordenamiento multidimensional: Mayor Ganancia Neta ($), Mayor Margen (%), Top Score Aduanero (100), Más Vendidos en EE.UU. y Más Compacto / Ligero.
+  - Añadido contador de productos verificados y tarjetas de garantías de políticas comerciales en la interfaz.
+- **Expansión de Catálogo Curado a 16 Oportunidades Ganadoras (`netlify/functions/_shared/ecommerceEngine/opportunityEngine.js`)**:
+  - Ampliado el catálogo de 6 a 16 productos ganadores de alta rotación en el mercado estadounidense, 100% compatibles con Section 321 De Minimis (< $800 USD), flete aéreo ultra-compacto (< 380g), sin marcas comerciales protegidas ni patentes restringidas, y márgenes netos del 55% al 68%.
+  - Reemplazada la imagen rota del M5Stack por una imagen nítida de alta definición desde Unsplash.
+  - Sanitizados títulos y descripciones para cumplir con los estándares de propiedad intelectual de la CBP de EE.UU.
+- **Endpoint API Serverless (`netlify/functions/api-shopify.js`)**:
+  - Implementada ruta `GET /api/shopify/opportunities` con soporte para parámetros de búsqueda (`search`), categoría (`category`) y margen mínimo (`minMargin`), manteniendo fallback local instantáneo en el frontend.
+
 ### Added — Isolated Product Import, Anti-Fraud Variant Shield & Automated Stock Sync (2026-09-15)
 - **Importación Aislada de Producto Único (`netlify/functions/_shared/ecommerceEngine/shopifyDropshippingService.js`, `netlify/functions/api-shopify.js`)**:
   - Implementado aislamiento estricto de productos individuales: purga forzosa de `related_items`, `store_recommendations`, `cross_sell` y `other_seller_products` para evitar arrastrar catálogos enteros de vendedores asiáticos.

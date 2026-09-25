@@ -247,14 +247,14 @@ export function auditProductForUSMarket(product = {}) {
  * - Envío: 7-12 días con Choice / Special Line US
  * - Aduana: 100% libres de fricciones CBP / FDA / marcas
  */
-export function getCuratedUSOpportunities() {
+export function getCuratedUSOpportunities(filters = {}) {
   const catalog = [
     {
       productId: '3256812053422003',
       title: 'M5Stack Official StackChan: Kawaii Co-Created Open-Source AI Desktop Robot (ESP32-S3)',
       category: 'Tech Gadgets & AI',
       niche: 'Desk Setup & Smart Toys',
-      image: 'https://ae-pic-a1.aliexpress-media.com/kf/S7a1099ec17254aa7a8c3e86c06a3e5e6t.jpg',
+      image: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=500&q=80',
       costUsd: 136.13,
       shippingCostUsd: 12.97,
       weightGrams: 320,
@@ -351,13 +351,205 @@ export function getCuratedUSOpportunities() {
       inventory: 6700,
       description: 'Barra de luz LED inteligente con micrófono integrado de alta sensibilidad que sincroniza efectos luminosos con la música ambiental o el sonido del juego.',
     },
+    {
+      productId: '1005007324190821',
+      title: 'Desktop Ultrasonic Flame Aroma Diffuser & Air Humidifier with Nightlight',
+      category: 'Ergonomics & Desk Accessories',
+      niche: 'Wellness & Home Office',
+      image: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=500&q=80',
+      costUsd: 11.50,
+      shippingCostUsd: 3.20,
+      weightGrams: 280,
+      dimensions: '17 x 7.5 x 10 cm',
+      estimatedShippingDays: '7-11 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.8,
+      monthlySalesUSA: 4310,
+      inventory: 3800,
+      description: 'Difusor de aromaterapia ultrasónico silencioso con simulación visual de llama LED en dos colores. Apagado automático de seguridad al agotarse el agua.',
+    },
+    {
+      productId: '1005006981240319',
+      title: '360° Rotating Aluminum Alloy Laptop Riser with Ergonomic Heat Dissipation',
+      category: 'Office & Desk Organization',
+      niche: 'Ergonomics & Workstation',
+      image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&q=80',
+      costUsd: 8.90,
+      shippingCostUsd: 2.60,
+      weightGrams: 260,
+      dimensions: '24 x 23 x 3.5 cm',
+      estimatedShippingDays: '7-10 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.9,
+      monthlySalesUSA: 6200,
+      inventory: 7400,
+      description: 'Soporte plegable de aluminio reforzado con rotación 360 grados para notebooks y tablets de 11 a 17 pulgadas. Mejora la postura cervical y la ventilación.',
+    },
+    {
+      productId: '1005006421098412',
+      title: 'Smart Bluetooth Anti-Lost Key Finder & Wallet Tracking Locator',
+      category: 'Tech Gadgets & AI',
+      niche: 'Everyday Carry & Security',
+      image: 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=500&q=80',
+      costUsd: 3.90,
+      shippingCostUsd: 1.80,
+      weightGrams: 42,
+      dimensions: '3.8 x 3.8 x 0.7 cm',
+      estimatedShippingDays: '7-10 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.8,
+      monthlySalesUSA: 8400,
+      inventory: 12000,
+      description: 'Rastreador inteligente bluetooth ultra-liviano para llaves, billetera o mascotas con alarma sonora bidireccional y localización en mapa mediante app.',
+    },
+    {
+      productId: '1005007204918234',
+      title: 'USB-C Rechargeable Electric Fabric Shaver & Clothes Lint Defuzzer',
+      category: 'Office & Desk Organization',
+      niche: 'Home Essentials & Care',
+      image: 'https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=500&q=80',
+      costUsd: 6.40,
+      shippingCostUsd: 2.30,
+      weightGrams: 185,
+      dimensions: '13 x 7 x 7 cm',
+      estimatedShippingDays: '7-10 días hábiles',
+      shippingMethod: 'AliExpress Selection Standard US',
+      supplierRating: 4.8,
+      monthlySalesUSA: 3750,
+      inventory: 4900,
+      description: 'Removedor de pelusas eléctrico portátil con cuchillas de acero inoxidable de 6 hojas y rejilla de protección alveolar para prendas de lana y tapicería.',
+    },
+    {
+      productId: '1005006741290843',
+      title: 'Magnetic Levitation Floating LED World Globe Desk Lamp with C-Shape Base',
+      category: 'Gaming & Room Decor',
+      niche: 'Executive Gifts & Desk Decor',
+      image: 'https://images.unsplash.com/photo-1507499739999-097706ad8914?w=500&q=80',
+      costUsd: 22.50,
+      shippingCostUsd: 4.80,
+      weightGrams: 380,
+      dimensions: '18 x 17.5 x 8.5 cm',
+      estimatedShippingDays: '8-12 días hábiles',
+      shippingMethod: 'AliExpress Selection Standard US',
+      supplierRating: 4.9,
+      monthlySalesUSA: 1980,
+      inventory: 1650,
+      description: 'Globo terráqueo flotante con suspensión magnética activa y luces LED multicolor. Giro continuo de 360 grados sin fricción para oficina ejecutiva.',
+    },
+    {
+      productId: '1005007019284155',
+      title: 'Asymmetric Eye-Care Screenbar Monitor Light with Stepless Dimming Touch Control',
+      category: 'Office & Desk Organization',
+      niche: 'Home Office & Desk Setup',
+      image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=500&q=80',
+      costUsd: 16.80,
+      shippingCostUsd: 3.90,
+      weightGrams: 310,
+      dimensions: '45 x 9 x 3.5 cm',
+      estimatedShippingDays: '7-11 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.9,
+      monthlySalesUSA: 3450,
+      inventory: 2800,
+      description: 'Lámpara de barra para monitor con óptica asimétrica que ilumina el escritorio sin reflejos en la pantalla. Control táctil de 3 temperaturas de color.',
+    },
+    {
+      productId: '1005006612948102',
+      title: 'Manual Hand-Pressure Portable Espresso Maker for Travel & Outdoor Coffee',
+      category: 'EDC Tools & Hardware',
+      niche: 'Outdoor & Coffee Gear',
+      image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=500&q=80',
+      costUsd: 18.50,
+      shippingCostUsd: 4.20,
+      weightGrams: 335,
+      dimensions: '17.5 x 7 x 6 cm',
+      estimatedShippingDays: '8-12 días hábiles',
+      shippingMethod: 'AliExpress Selection Standard US',
+      supplierRating: 4.8,
+      monthlySalesUSA: 2600,
+      inventory: 2100,
+      description: 'Cafetera espresso portátil manual de 18 bares de presión sin baterías ni electricidad. Compatible con café molido y cápsulas para viajes y camping.',
+    },
+    {
+      productId: '1005007102948191',
+      title: 'Ergonomic Silent Vertical Wireless Mouse (Dual Bluetooth 5.2 + 2.4GHz)',
+      category: 'Tech Gadgets & AI',
+      niche: 'Ergonomics & Productivity',
+      image: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=500&q=80',
+      costUsd: 9.20,
+      shippingCostUsd: 2.50,
+      weightGrams: 125,
+      dimensions: '12 x 7.5 x 6.5 cm',
+      estimatedShippingDays: '7-10 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.8,
+      monthlySalesUSA: 5800,
+      inventory: 6300,
+      description: 'Mouse ergonómico vertical inalámbrico con ángulo de 57 grados para reducir la tensión muscular del antebrazo. Clic silencioso y selector DPI ajustable.',
+    },
+    {
+      productId: '1005006894012845',
+      title: 'Foldable 3-in-1 Magnetic Fast Wireless Charging Dock Station for Qi Devices',
+      category: 'Tech Gadgets & AI',
+      niche: 'Charging & Mobile Accessories',
+      image: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=500&q=80',
+      costUsd: 12.40,
+      shippingCostUsd: 3.10,
+      weightGrams: 175,
+      dimensions: '11 x 7 x 2.2 cm',
+      estimatedShippingDays: '7-11 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.9,
+      monthlySalesUSA: 4950,
+      inventory: 5100,
+      description: 'Estación de carga magnética inalámbrica plegable para teléfono, reloj y auriculares simultáneos. Diseño ultra-compacto apto para viajes con chip Qi inteligente.',
+    },
+    {
+      productId: '1005007184910294',
+      title: 'USB-C Rechargeable Automatic Electric Gravity Salt & Pepper Mill Grinder Set',
+      category: 'Office & Desk Organization',
+      niche: 'Modern Home & Kitchen Tech',
+      image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&q=80',
+      costUsd: 7.80,
+      shippingCostUsd: 2.60,
+      weightGrams: 260,
+      dimensions: '19 x 5 x 5 cm',
+      estimatedShippingDays: '7-10 días hábiles',
+      shippingMethod: 'AliExpress Choice Priority US',
+      supplierRating: 4.8,
+      monthlySalesUSA: 6700,
+      inventory: 8200,
+      description: 'Molinillo automático eléctrico recargable por USB con luz LED y activación con una sola mano. Grosor de molienda de cerámica ajustable para especias.',
+    },
   ];
 
-  return catalog.map((item) => {
+  let items = catalog.map((item) => {
     const audit = auditProductForUSMarket(item);
     return {
       ...item,
       ...audit,
     };
   });
+
+  const { category, minMargin, search } = filters;
+  if (category && category !== 'all') {
+    const c = category.toLowerCase();
+    items = items.filter((item) =>
+      item.category.toLowerCase().includes(c) || item.niche.toLowerCase().includes(c)
+    );
+  }
+  if (minMargin && !isNaN(minMargin) && minMargin > 0) {
+    items = items.filter((item) => item.financials.marginPct >= minMargin);
+  }
+  if (search && search.trim()) {
+    const q = search.trim().toLowerCase();
+    items = items.filter((item) =>
+      item.title.toLowerCase().includes(q) ||
+      item.description.toLowerCase().includes(q) ||
+      item.niche.toLowerCase().includes(q) ||
+      item.category.toLowerCase().includes(q)
+    );
+  }
+
+  return items;
 }
