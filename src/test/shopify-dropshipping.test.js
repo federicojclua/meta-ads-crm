@@ -561,6 +561,92 @@ describe('Shopify Dropshipping (AutoDS Simulator) Integration Tests', () => {
       // Verificación de Shopify
       expect(parsed.data.shopifyProduct.id).toBe(5544332211);
     });
+
+    it('POST /api/shopify/sync-aliexpress: activa fallback al catálogo curado si AliExpress devuelve ITEM_ID_NOT_FOUND (605)', async () => {
+      // Mock de respuesta de AliExpress indicando que el ID no se encuentra en el catálogo en vivo
+      const mockAliExpressNotFound = {
+        aliexpress_ds_product_get_response: {
+          rsp_code: 605,
+          rsp_msg: 'ITEM_ID_NOT_FOUND',
+        },
+      };
+
+      // Mock de respuesta exitosa de Shopify al exportar el producto curado
+      const mockShopifyResponse = {
+        product: {
+          id: 7788991122,
+          title: 'Wireless Inkless Pocket Thermal Label & Note Printer for iOS / Android',
+          handle: 'wireless-inkless-pocket-thermal-printer',
+          status: 'active',
+          variants: [{ id: 112233, price: '40.00', compare_at_price: '48.00' }],
+        },
+      };
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({
+          status: 200,
+          ok: true,
+          text: async () => JSON.stringify(mockAliExpressNotFound),
+        })
+        .mockResolvedValueOnce({
+          status: 201,
+          ok: true,
+          text: async () => JSON.stringify(mockShopifyResponse),
+        });
+
+      const event = {
+        httpMethod: 'POST',
+        path: '/api/shopify/sync-aliexpress',
+        body: JSON.stringify({
+          productId: '1005006845129033', // ID presente en getCuratedUSOpportunities()
+          shippingCost: 3.2,
+          shipToCountry: 'US',
+        }),
+      };
+
+      const res = await handler(event);
+      expect(res.statusCode).toBe(201);
+
+      const parsed = JSON.parse(res.body);
+      expect(parsed.ok).toBe(true);
+      expect(parsed.message).toContain('catálogo curado verificado');
+      expect(parsed.data.aliExpress.isCuratedFallback).toBe(true);
+      expect(parsed.data.aliExpress.productId).toBe('1005006845129033');
+      expect(parsed.data.shopifyProduct.id).toBe(7788991122);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('POST /api/shopify/sync-aliexpress: responde 404 si el producto no existe en AliExpress ni en el catálogo curado', async () => {
+      const mockAliExpressNotFound = {
+        aliexpress_ds_product_get_response: {
+          rsp_code: 605,
+          rsp_msg: 'ITEM_ID_NOT_FOUND',
+        },
+      };
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        status: 200,
+        ok: true,
+        text: async () => JSON.stringify(mockAliExpressNotFound),
+      });
+
+      const event = {
+        httpMethod: 'POST',
+        path: '/api/shopify/sync-aliexpress',
+        body: JSON.stringify({
+          productId: '999999999999', // ID desconocido
+          shippingCost: 0,
+        }),
+      };
+
+      const res = await handler(event);
+      expect(res.statusCode).toBe(404);
+
+      const parsed = JSON.parse(res.body);
+      expect(parsed.ok).toBe(false);
+      expect(parsed.code).toBe('ERR_ALIEXPRESS_ITEM_ID_NOT_FOUND');
+      expect(parsed.error).toContain('no fue encontrado');
+    });
   });
 
   // ----------------------------------------------------

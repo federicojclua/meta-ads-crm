@@ -191,9 +191,21 @@ export function OpportunityRadar() {
 
     try {
       const payload = {
+        productId: id,
         url: `https://www.aliexpress.com/item/${id}.html`,
         shippingCost: item.shippingCostUsd || item.financials?.shippingCostUsd || 0,
         shipToCountry: 'US',
+        product: {
+          productId: id,
+          title: item.title,
+          originalPrice: item.costUsd,
+          shippingCost: item.shippingCostUsd || 0,
+          images: item.image ? [item.image] : [],
+          description: item.description,
+          category: item.category,
+          inventory: item.inventory || 100,
+          vendor: 'AliExpress Choice Selection',
+        },
       };
 
       const res = await apiClient.post('/api/shopify/sync-aliexpress', payload);
@@ -202,9 +214,9 @@ export function OpportunityRadar() {
         setSyncSuccess((prev) => ({
           ...prev,
           [id]: {
-            shopifyUrl: resData?.shopifyProduct?.admin_graphql_api_id
-              ? `https://admin.shopify.com/store`
-              : null,
+            shopifyUrl:
+              resData?.shopifyProduct?.adminUrl ||
+              (resData?.shopifyProduct?.id ? `https://admin.shopify.com/store` : null),
             sellingPrice: resData?.pricing?.sellingPrice,
             profit: resData?.pricing?.estimatedProfit,
           },
@@ -648,7 +660,18 @@ export function OpportunityRadar() {
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>¡Publicado en Shopify! (${successData.sellingPrice} USD)</span>
                       </div>
-                      <span className="text-emerald-700 font-mono text-[10px]">Stock Sincronizado</span>
+                      {successData.shopifyUrl ? (
+                        <a
+                          href={successData.shopifyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:text-indigo-800 underline font-mono text-[10px]"
+                        >
+                          Ver en Admin ↗
+                        </a>
+                      ) : (
+                        <span className="text-emerald-700 font-mono text-[10px]">Stock Sincronizado</span>
+                      )}
                     </div>
                   )}
 

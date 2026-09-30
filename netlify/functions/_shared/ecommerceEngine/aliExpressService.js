@@ -319,8 +319,34 @@ export async function fetchAliExpressProduct(productId, options = {}) {
       throw apiErr;
     }
 
+    // 4b. Detección de errores específicos del protocolo TOP/IOP en aliexpress_ds_product_get_response
+    const dsResponse = data?.aliexpress_ds_product_get_response;
+    if (dsResponse && dsResponse.rsp_code && dsResponse.rsp_code !== 200 && dsResponse.rsp_code !== '200') {
+      const rspCode = dsResponse.rsp_code;
+      const rspMsg = dsResponse.rsp_msg || 'Error en la respuesta de AliExpress';
+      let friendlyMsg = `Error de AliExpress (${rspCode}): ${rspMsg}`;
+      let statusCode = 400;
+
+      if (
+        rspCode === 605 ||
+        rspCode === '605' ||
+        String(rspMsg).includes('ITEM_ID_NOT_FOUND') ||
+        String(rspMsg).includes('NOT_FOUND') ||
+        String(rspMsg).includes('ITEM_NOT_EXIST')
+      ) {
+        friendlyMsg = `El producto con ID ${cleanProductId} no fue encontrado o no está disponible para dropshipping en AliExpress.`;
+        statusCode = 404;
+      }
+
+      const apiErr = new Error(friendlyMsg);
+      apiErr.statusCode = statusCode;
+      apiErr.code = `ERR_ALIEXPRESS_${String(rspMsg).toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+      apiErr.details = data;
+      throw apiErr;
+    }
+
     // 5. Validar que la respuesta contenga el resultado del producto
-    const result = data?.aliexpress_ds_product_get_response?.result;
+    const result = dsResponse?.result || data?.result;
     if (!result) {
       const err = new Error(`AliExpress respondió sin datos válidos para el producto ID ${cleanProductId}.`);
       err.statusCode = 502;

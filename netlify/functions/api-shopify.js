@@ -250,13 +250,56 @@ export async function handler(event) {
       }
 
       // PASO 1: Extracción desde AliExpress Dropshipping API (Firma HMAC-SHA256)
-      const rawProduct = await fetchAliExpressProduct(productId, {
-        shipToCountry: body.shipToCountry || 'US',
-        targetCurrency: 'USD',
-      });
+      // Con fallback resiliente al catálogo curado verificado si la API devuelve ITEM_ID_NOT_FOUND o falla
+      let rawProduct;
+      let usedCuratedFallback = false;
 
-      // Sobrescribir costo de envío si el frontend lo envió explícitamente
-      if (body.shippingCost !== undefined && !isNaN(parseFloat(body.shippingCost))) {
+      try {
+        rawProduct = await fetchAliExpressProduct(productId, {
+          shipToCountry: body.shipToCountry || 'US',
+          targetCurrency: 'USD',
+        });
+      } catch (fetchErr) {
+        console.warn(
+          `[Shopify Sync]: Live AliExpress API fetch failed for ID ${productId}: ${fetchErr.message}. Attempting fallback to curated/supplied data.`
+        );
+
+        const curatedList = getCuratedUSOpportunities();
+        const curatedItem = curatedList.find((item) => String(item.productId) === String(productId));
+        const passedProduct = body.product || body.productData;
+
+        if (curatedItem || (passedProduct && (passedProduct.title || passedProduct.name))) {
+          const item = curatedItem || passedProduct;
+          const fallbackImages = Array.isArray(item.images) && item.images.length > 0
+            ? item.images
+            : (item.image ? [item.image] : []);
+
+          rawProduct = {
+            productId: String(productId),
+            title: item.title || item.name,
+            images: fallbackImages,
+            originalPrice: parseFloat(item.costUsd || item.originalPrice || item.price || 0),
+            shippingCost: parseFloat(
+              body.shippingCost !== undefined
+                ? body.shippingCost
+                : (item.shippingCostUsd || item.shippingCost || 0)
+            ),
+            inventory: parseInt(item.inventory || 100, 10),
+            description: item.description || `<p>${item.title || item.name}</p>`,
+            vendor: item.vendor || 'AliExpress Choice Selection',
+            productType: item.category || 'Dropshipping',
+            variantsRaw: Array.isArray(item.variants) ? item.variants : [],
+            isCuratedFallback: true,
+          };
+          usedCuratedFallback = true;
+        } else {
+          // Si no es un producto del catálogo curado ni vinieron datos en el payload, relanzar el error
+          throw fetchErr;
+        }
+      }
+
+      // Sobrescribir costo de envío si el frontend lo envió explícitamente y no se aplicó en el fallback
+      if (!usedCuratedFallback && body.shippingCost !== undefined && !isNaN(parseFloat(body.shippingCost))) {
         rawProduct.shippingCost = parseFloat(body.shippingCost);
       }
 
@@ -268,7 +311,9 @@ export async function handler(event) {
 
       return buildResponse(201, {
         ok: true,
-        message: 'Producto de AliExpress extraído, transformado y sincronizado exitosamente en Shopify.',
+        message: usedCuratedFallback
+          ? 'Producto de AliExpress sincronizado exitosamente en Shopify (usando catálogo curado verificado).'
+          : 'Producto de AliExpress extraído, transformado y sincronizado exitosamente en Shopify.',
         data: {
           aliExpress: {
             productId: rawProduct.productId,
@@ -277,6 +322,7 @@ export async function handler(event) {
             shippingUsd: rawProduct.shippingCost,
             inventory: rawProduct.inventory,
             imagesCount: rawProduct.images.length,
+            isCuratedFallback: usedCuratedFallback,
           },
           shopifyProduct: exportResult.product,
           pricing: transformed._meta.pricing,

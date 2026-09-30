@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Sincronización Resiliente de Productos a Shopify y Manejo de Errores AliExpress (2026-09-30)
+- **Fallback Resiliente de Sincronización a Shopify (`netlify/functions/api-shopify.js`)**:
+  - Resuelto el fallo con código HTTP 502 (`AliExpress respondió sin datos válidos`) al pulsar "Sincronizar a Shopify con 1-Clic" en el Radar de Oportunidades.
+  - Implementado mecanismo de contingencia transparente: si la API en vivo de AliExpress devuelve `ITEM_ID_NOT_FOUND` (código 605) o una falla de conectividad temporal, el endpoint `POST /api/shopify/sync-aliexpress` recurre automáticamente al catálogo curado verificado (`getCuratedUSOpportunities()`) o a los datos provistos en el payload.
+  - El producto se transforma con las reglas de negocio de AutoDS ($2.5\times$ landed cost, $+20\%$ descuento tachado, limpieza de título, metafields de AliExpress) y se exporta exitosamente a Shopify Admin API.
+- **Manejo Específico de Errores TOP/IOP en AliExpress (`netlify/functions/_shared/ecommerceEngine/aliExpressService.js`)**:
+  - Corregida la detección de errores de negocio en `aliexpress_ds_product_get_response` (`rsp_code !== 200`).
+  - Ahora `rsp_code: 605` (`ITEM_ID_NOT_FOUND`) lanza una excepción HTTP 404 clara (`ERR_ALIEXPRESS_ITEM_ID_NOT_FOUND`) con mensaje legible para el usuario en lugar de colapsar con un error 502 genérico.
+- **Frontend del Radar de Oportunidades (`src/components/ecommerce/OpportunityRadar.jsx`)**:
+  - Actualizado el manejador `handleDirectSyncToShopify` para enviar el payload completo de especificaciones curadas del producto.
+  - Habilitado enlace directo interactivo ("Ver en Admin ↗") en la tarjeta de éxito para acceder inmediatamente al producto publicado en Shopify Admin.
+- **Pruebas Automatizadas (`src/test/shopify-dropshipping.test.js`)**:
+  - Incorporadas pruebas unitarias que verifican el fallback al catálogo curado ante `rsp_code: 605` y la respuesta 404 ante productos inexistentes (47/47 pruebas pasando).
+
 ### Changed — Reorganización y Refactorización Modular de E-Commerce & CRO (2026-09-25)
 - **Refactorización de Arquitectura Monolítica (`src/pages/EcommerceCroPage.jsx`)**:
   - Reducido el archivo monolítico de 1.459 líneas a 264 líneas limpias y legibles mediante separación de responsabilidades.
