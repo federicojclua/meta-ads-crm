@@ -231,7 +231,7 @@ export function LeadDetailModal({
           <form onSubmit={handleConfirmLost} className="p-4 bg-rose-50 border border-rose-300 rounded-lg space-y-3">
             <div className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
               <AlertTriangle className="w-4 h-4 text-rose-600" />
-              <span>Indique el motivo de pérdida obligatorio:</span>
+              <span>Indique el motivo obligatorio de pérdida:</span>
             </div>
 
             <div className="space-y-2">
@@ -268,7 +268,7 @@ export function LeadDetailModal({
                 type="text"
                 required
                 maxLength={500}
-                placeholder="Especifique comentarios del cliente o contexto..."
+                placeholder="Precio fuera de presupuesto, o especifique comentarios del cliente..."
                 value={lostReasonInput}
                 onChange={(e) => setLostReasonInput(e.target.value)}
                 className="w-full h-9 px-3 text-xs rounded border border-rose-300 bg-white text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-rose-500"

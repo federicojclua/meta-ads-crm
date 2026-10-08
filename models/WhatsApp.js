@@ -1,4 +1,4 @@
-export const CHANNELS = ['whatsapp', 'instagram', 'facebook'];
+export const CHANNELS = ['whatsapp', 'instagram', 'facebook', 'telegram', 'tiktok', 'twitter'];
 export const WA_LINE_STATUSES = ['active', 'disconnected', 'pending_verification'];
 export const WA_CHAT_STATUSES = ['active', 'archived'];
 export const WA_CONVERSATION_STATUSES = ['abierta', 'en_curso', 'esperando', 'resuelta'];

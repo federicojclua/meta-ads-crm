@@ -22,6 +22,9 @@ import {
   MapPin,
   Clock,
   Layers,
+  Package,
+  ShieldAlert,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
@@ -31,7 +34,7 @@ import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { apiClient } from '../lib/api';
 import { formatDate } from '../lib/utils';
-import { DEFAULT_AI_BRAIN } from '../../models/AiBrain.js';
+import { DEFAULT_AI_BRAIN, BUSINESS_PRESETS } from '../../models/AiBrain.js';
 import { FAQ_CATEGORIES, FAQ_CATEGORY_LABELS } from '../../models/KnowledgeFaq.js';
 
 export function AssistantConfigPage() {
@@ -235,6 +238,103 @@ export function AssistantConfigPage() {
     }
   };
 
+  // 9B. Apply Business Preset (Universal Model 1-Click Template)
+  const handleApplyPreset = (presetKey) => {
+    const preset = BUSINESS_PRESETS[presetKey];
+    if (!preset) return;
+
+    setBrainConfig((prev) => ({
+      ...prev,
+      businessName: preset.businessName,
+      businessDescription: preset.businessDescription,
+      tone: preset.tone,
+      industryAndTone: preset.industryAndTone,
+      coverageZone: preset.coverageZone,
+      contactInfo: preset.contactInfo || prev.contactInfo,
+      productsCatalog: preset.productsCatalog || [],
+      commercialPlan: preset.commercialPlan || [],
+      objectionPlaybook: preset.objectionPlaybook || [],
+      rules: preset.rules || prev.rules,
+      activePreset: presetKey,
+    }));
+
+    setSimulatorMessages([
+      {
+        role: 'model',
+        text:
+          presetKey === 'electro_lavarropas'
+            ? '¡Hola! Soy el asesor de ElectroHogar. Tenemos modelos automáticos de carga frontal y superior con hasta 12 cuotas sin interés y flete bonificado. ¿Cuántas personas son en tu familia y qué tipo de carga buscás?'
+            : '¡Hola! Soy el asistente virtual de Grupo Novati en Tucumán. ¿En qué te puedo asesorar hoy?',
+      },
+    ]);
+
+    setFeedback({
+      type: 'success',
+      message: `Plantilla comercial "${preset.name}" cargada. Podés probar el modelo en el simulador o guardar los cambios.`,
+    });
+  };
+
+  const handleAddProduct = () => {
+    const newProd = {
+      id: `prod_${Date.now()}`,
+      name: 'Nuevo Producto / Modelo',
+      category: 'General',
+      price: '$0 (o cuotas fijas)',
+      highlights: 'Descripción y beneficios clave',
+      bestFor: 'Público objetivo',
+    };
+    setBrainConfig((prev) => ({
+      ...prev,
+      productsCatalog: [...(prev.productsCatalog || []), newProd],
+    }));
+  };
+
+  const handleUpdateProduct = (index, field, value) => {
+    setBrainConfig((prev) => {
+      const list = [...(prev.productsCatalog || [])];
+      list[index] = { ...list[index], [field]: value };
+      return { ...prev, productsCatalog: list };
+    });
+  };
+
+  const handleRemoveProduct = (index) => {
+    setBrainConfig((prev) => {
+      const list = [...(prev.productsCatalog || [])];
+      list.splice(index, 1);
+      return { ...prev, productsCatalog: list };
+    });
+  };
+
+  const handleAddObjection = () => {
+    const newObj = {
+      id: `obj_${Date.now()}`,
+      trigger: 'objecion_comun',
+      objection: 'Objeción frecuente del cliente (ej. precio o competencia)',
+      strategy: 'Estrategia comercial para rebatir',
+      recommendedResponse: 'Respuesta sugerida con astucia comercial',
+    };
+    setBrainConfig((prev) => ({
+      ...prev,
+      objectionPlaybook: [...(prev.objectionPlaybook || []), newObj],
+    }));
+  };
+
+  const handleUpdateObjection = (index, field, value) => {
+    setBrainConfig((prev) => {
+      const list = [...(prev.objectionPlaybook || [])];
+      list[index] = { ...list[index], [field]: value };
+      return { ...prev, objectionPlaybook: list };
+    });
+  };
+
+  const handleRemoveObjection = (index) => {
+    setBrainConfig((prev) => {
+      const list = [...(prev.objectionPlaybook || [])];
+      list.splice(index, 1);
+      return { ...prev, objectionPlaybook: list };
+    });
+  };
+
   // 10. Teach Response to Unanswered Query ("Lo que no supo")
   const handleTeachResponse = async (e) => {
     e.preventDefault();
@@ -283,6 +383,7 @@ export function AssistantConfigPage() {
         message: text,
         chatHistory: simulatorMessages,
         clientId: activeClientId,
+        brainOverride: brainConfig,
       });
 
       if (res?.reply) {
@@ -400,38 +501,101 @@ export function AssistantConfigPage() {
         {/* LEFT COLUMN (7 COLS): TABS CONFIG, FAQS & UNANSWERED                      */}
         {/* ========================================================================= */}
         <div className="lg:col-span-7 space-y-4">
+          {/* Preset Selector Banner (Universal Model 1-Click Templates) */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-xl p-3.5 text-white shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-indigo-800/40">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Modelo Comercial Universal (Plantillas de 1-Clic)</span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Copiá la astucia vendedora para cualquier rubro (ej. Terminales Clover vs Electrodomésticos / Lavarropas).
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('novati_posberry')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                  brainConfig.businessName?.includes('Novati')
+                    ? 'bg-emerald-600 border-emerald-400 text-white shadow-xs'
+                    : 'bg-white/10 border-white/20 text-slate-200 hover:bg-white/20'
+                }`}
+              >
+                🟢 POSBerry / Clover
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('electro_lavarropas')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                  brainConfig.businessName?.includes('Electro')
+                    ? 'bg-indigo-600 border-indigo-400 text-white shadow-xs'
+                    : 'bg-white/10 border-white/20 text-slate-200 hover:bg-white/20'
+                }`}
+              >
+                🔵 Electro / Lavarropas
+              </button>
+            </div>
+          </div>
+
           {/* Tabs Switcher */}
-          <div className="flex border-b border-brand-border bg-white rounded-t-xl px-4 pt-2 shadow-xs">
+          <div className="flex border-b border-brand-border bg-white rounded-t-xl px-4 pt-2 shadow-xs overflow-x-auto">
             <button
               type="button"
               onClick={() => setActiveTab('config')}
-              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'config'
                   ? 'border-emerald-600 text-emerald-800'
                   : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
               }`}
             >
               <Bot className="w-4 h-4" />
-              <span>Personalidad & Promos</span>
+              <span>Personalidad</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('products')}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'products'
+                  ? 'border-emerald-600 text-emerald-800'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
+              }`}
+            >
+              <Package className="w-4 h-4 text-indigo-600" />
+              <span>Catálogo ({(brainConfig.productsCatalog || []).length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('objections')}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'objections'
+                  ? 'border-emerald-600 text-emerald-800'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 text-purple-600" />
+              <span>Objeciones ({(brainConfig.objectionPlaybook || []).length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('faqs')}
-              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'faqs'
                   ? 'border-emerald-600 text-emerald-800'
                   : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
               }`}
             >
               <HelpCircle className="w-4 h-4" />
-              <span>Base de Preguntas ({faqs.length})</span>
+              <span>Preguntas ({faqs.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('unanswered')}
-              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'unanswered'
                   ? 'border-emerald-600 text-emerald-800'
                   : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
@@ -638,6 +802,241 @@ export function AssistantConfigPage() {
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>{isSaving ? 'Guardando...' : 'Guardar Configuración'}</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: CATÁLOGO DE PRODUCTOS / SERVICIOS */}
+          {activeTab === 'products' && (
+            <div className="bg-white border border-brand-border rounded-b-xl p-5 shadow-xs space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-text-primary flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-indigo-600" />
+                    Catálogo de Productos y Soluciones (Modelo Universal)
+                  </h3>
+                  <p className="text-[11px] text-brand-text-secondary mt-0.5">
+                    Definí los productos, precios y facilidades de pago para que el bot los ofrezca con precisión y astucia.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleAddProduct}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Agregar Producto</span>
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {(brainConfig.productsCatalog || []).length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-brand-border rounded-xl text-brand-text-secondary space-y-2">
+                    <Package className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-xs font-medium">No hay productos cargados en el catálogo.</p>
+                    <p className="text-[11px] text-slate-400">Podés agregar productos manualmente o cargar una plantilla predefinida.</p>
+                  </div>
+                ) : (
+                  (brainConfig.productsCatalog || []).map((product, pIdx) => (
+                    <div
+                      key={product.id || pIdx}
+                      className="border border-brand-border rounded-xl p-4 bg-slate-50/70 hover:bg-slate-50 transition-colors space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-brand-border/60 pb-2">
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="font-extrabold text-indigo-700 text-xs">#{pIdx + 1}</span>
+                          <input
+                            type="text"
+                            value={product.name || ''}
+                            onChange={(e) => handleUpdateProduct(pIdx, 'name', e.target.value)}
+                            placeholder="Nombre del producto (ej: Lavarropas 8kg Inverter)"
+                            className="font-bold text-xs text-brand-text-primary bg-white border border-brand-border rounded-md px-2 py-1 flex-1 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProduct(pIdx)}
+                          className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
+                          title="Eliminar producto"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Categoría / Rubro
+                          </label>
+                          <input
+                            type="text"
+                            value={product.category || ''}
+                            onChange={(e) => handleUpdateProduct(pIdx, 'category', e.target.value)}
+                            placeholder="ej: Carga Frontal / Terminales Móviles"
+                            className="w-full bg-white border border-brand-border rounded-md px-2.5 py-1.5 text-xs text-slate-700"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Precio y Financiación / Cuotas
+                          </label>
+                          <input
+                            type="text"
+                            value={product.price || ''}
+                            onChange={(e) => handleUpdateProduct(pIdx, 'price', e.target.value)}
+                            placeholder="ej: $890.000 / 12 cuotas fijas / 15% OFF contado"
+                            className="w-full bg-white border border-brand-border rounded-md px-2.5 py-1.5 text-xs text-slate-700"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Características Clave y Diferenciales
+                          </label>
+                          <input
+                            type="text"
+                            value={product.highlights || ''}
+                            onChange={(e) => handleUpdateProduct(pIdx, 'highlights', e.target.value)}
+                            placeholder="ej: Motor Inverter 10 años garantía, ahorro A+++, flete bonificado"
+                            className="w-full bg-white border border-brand-border rounded-md px-2.5 py-1.5 text-xs text-slate-700"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Para quién es ideal (Perfil del cliente)
+                          </label>
+                          <input
+                            type="text"
+                            value={product.bestFor || ''}
+                            onChange={(e) => handleUpdateProduct(pIdx, 'bestFor', e.target.value)}
+                            placeholder="ej: Familias de 3 a 5 personas que buscan mínimo consumo"
+                            className="w-full bg-white border border-brand-border rounded-md px-2.5 py-1.5 text-xs text-slate-700"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-brand-border">
+                <Button
+                  type="button"
+                  onClick={handleSaveConfig}
+                  disabled={isSaving}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 text-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Guardando...' : 'Guardar Catálogo'}</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: PLAYBOOK DE MANEJO DE OBJECIONES */}
+          {activeTab === 'objections' && (
+            <div className="bg-white border border-brand-border rounded-b-xl p-5 shadow-xs space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-text-primary flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-purple-600" />
+                    Playbook de Manejo de Objeciones (Astucia Comercial)
+                  </h3>
+                  <p className="text-[11px] text-brand-text-secondary mt-0.5">
+                    Cómo reacciona el bot cuando el cliente dice que es caro, que prefiere la competencia o que lo tiene que pensar.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleAddObjection}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Agregar Objeción</span>
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {(brainConfig.objectionPlaybook || []).length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-brand-border rounded-xl text-brand-text-secondary space-y-2">
+                    <ShieldAlert className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-xs font-medium">No hay objeciones configuradas en el playbook.</p>
+                  </div>
+                ) : (
+                  (brainConfig.objectionPlaybook || []).map((obj, oIdx) => (
+                    <div
+                      key={obj.id || oIdx}
+                      className="border border-brand-border rounded-xl p-4 bg-slate-50/70 hover:bg-slate-50 transition-colors space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-brand-border/60 pb-2">
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="font-extrabold text-purple-700 text-xs">#{oIdx + 1}</span>
+                          <input
+                            type="text"
+                            value={obj.objection || ''}
+                            onChange={(e) => handleUpdateObjection(oIdx, 'objection', e.target.value)}
+                            placeholder="Objeción del cliente (ej: Es muy caro / Me parece caro)"
+                            className="font-bold text-xs text-brand-text-primary bg-white border border-brand-border rounded-md px-2 py-1 flex-1 focus:outline-hidden focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveObjection(oIdx)}
+                          className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
+                          title="Eliminar objeción"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Estrategia de Venta (El ángulo de persuasión)
+                          </label>
+                          <input
+                            type="text"
+                            value={obj.strategy || ''}
+                            onChange={(e) => handleUpdateObjection(oIdx, 'strategy', e.target.value)}
+                            placeholder="ej: Destacar las 12 cuotas fijas y el ahorro en luz y agua"
+                            className="w-full bg-white border border-brand-border rounded-md px-2.5 py-1.5 text-xs text-slate-700"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Respuesta Astuta Sugerida al Cliente
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={obj.recommendedResponse || ''}
+                            onChange={(e) => handleUpdateObjection(oIdx, 'recommendedResponse', e.target.value)}
+                            placeholder="Texto o argumento que el bot utilizará para rebatir con empatía y cerrar..."
+                            className="w-full bg-white border border-brand-border rounded-md px-2.5 py-1.5 text-xs text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-brand-border">
+                <Button
+                  type="button"
+                  onClick={handleSaveConfig}
+                  disabled={isSaving}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5 text-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Guardando...' : 'Guardar Objeciones'}</span>
                 </Button>
               </div>
             </div>

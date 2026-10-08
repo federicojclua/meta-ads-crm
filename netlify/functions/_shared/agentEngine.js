@@ -85,6 +85,43 @@ const AGENT_TOOLS = [
 ];
 
 /**
+ * Formats products catalog for the system prompt.
+ */
+function formatProductsCatalog(products = []) {
+  if (!Array.isArray(products) || products.length === 0) return '';
+  return `\n═══════════════════════════════════════════\n` +
+    `CATÁLOGO DE PRODUCTOS / SERVICIOS DISPONIBLES:\n` +
+    products
+      .map(
+        (p, i) =>
+          `${i + 1}. [${p.name}] (${p.category || 'General'})\n` +
+          `   - Precio y Cuotas: ${p.price || 'A consultar'}\n` +
+          `   - Características destacadas: ${p.highlights || p.description || ''}\n` +
+          `   - Perfil ideal: ${p.bestFor || 'Todo público'}`
+      )
+      .join('\n\n') +
+    '\n';
+}
+
+/**
+ * Formats objection playbook for the system prompt.
+ */
+function formatObjectionPlaybook(playbook = []) {
+  if (!Array.isArray(playbook) || playbook.length === 0) return '';
+  return `\n═══════════════════════════════════════════\n` +
+    `PLAYBOOK DE MANEJO DE OBJECIONES (Astucia Comercial):\n` +
+    playbook
+      .map(
+        (obj, i) =>
+          `${i + 1}. Objeción: "${obj.objection}"\n` +
+          `   - Estrategia: ${obj.strategy}\n` +
+          `   - Respuesta recomendada: ${obj.recommendedResponse}`
+      )
+      .join('\n\n') +
+    '\n';
+}
+
+/**
  * Builds the full system prompt for the assistant.
  */
 function buildSystemPrompt(brain, ragContext) {
@@ -95,6 +132,8 @@ function buildSystemPrompt(brain, ragContext) {
   const tone = brain.industryAndTone || DEFAULT_AI_BRAIN.industryAndTone;
   const zone = brain.coverageZone || DEFAULT_AI_BRAIN.coverageZone;
   const qualRules = brain.qualificationRules || DEFAULT_AI_BRAIN.qualificationRules;
+  const productsSection = formatProductsCatalog(brain.productsCatalog || DEFAULT_AI_BRAIN.productsCatalog);
+  const objectionsSection = formatObjectionPlaybook(brain.objectionPlaybook || DEFAULT_AI_BRAIN.objectionPlaybook);
 
   return `Sos el asistente virtual de ${businessName}.
 ${businessDesc}
@@ -114,7 +153,7 @@ REGLA DE ORO CONVERSACIONAL:
 
 PLAN COMERCIAL (El orden importa: si a un cliente le corresponden dos ofertas, ofrecé primero la de más arriba. Primero indagá si le corresponde SIN nombrar la oferta.):
 ${plan}
-
+${productsSection}${objectionsSection}
 REGLAS DE CALIFICACIÓN DE LEADS:
 ${qualRules}
 
@@ -132,7 +171,7 @@ HERRAMIENTAS:
 - Usá "prometer_contacto" SIEMPRE que le digas al cliente que alguien lo va a contactar.
 
 IMPORTANTE:
-- Respondé SOLO con información de la base de conocimiento. NO inventes datos.
+- Respondé SOLO con información de la base de conocimiento y el catálogo. NO inventes datos ni precios.
 - Si no tenés la respuesta, decilo honestamente y ofrecé derivar a un asesor.
 - Respondé en español argentino, tuteo con "vos".
 - Mensajes cortos y directos. Máximo 2-3 párrafos breves.`;
@@ -405,15 +444,18 @@ export async function evaluateAutonomousAgent({
 
   // 2. Detect commercial interest / budget / equipment inquiry (Implicit & Explicit Lead Detection)
   const mentionsMarketingGoals = /(campaña|pauta|meta ads|google ads|publicidad|leads|anuncio)/i.test(lower);
-  const mentionsCommercial = /(presupuesto|\$|inversion|inversión|cuanto sale|cuánto sale|precio|costo|clover|posnet|posberry|terminal|monotributista|equipo|comprar|instalar|adquirir|cuotas)/i.test(lower);
+  const mentionsCommercial = /(presupuesto|\$|inversion|inversión|cuanto sale|cuánto sale|precio|costo|clover|posnet|posberry|terminal|monotributista|equipo|comprar|instalar|adquirir|cuotas|lavarropa|secarropa|electro|garantía|flete|envío)/i.test(lower);
 
   if (mentionsMarketingGoals || mentionsCommercial) {
     let fallbackReply = '';
-    let interes = 'Terminal de cobro / Solución de pago';
+    let interes = 'Consulta Comercial';
 
     if (mentionsMarketingGoals) {
       fallbackReply = '¡Excelente! Para evaluar tu caso en detalle y armar la propuesta a medida, podemos coordinar una breve llamada de diagnóstico de 15 minutos. ¿Te queda cómodo mañana por la mañana o por la tarde?';
       interes = 'Pauta publicitaria y captación de leads';
+    } else if (/lavarropa|secarropa|electro|bazar/i.test(lower) || effectiveBrain.businessName?.toLowerCase().includes('electro')) {
+      fallbackReply = '¡Hola! Te cuento que tenemos modelos automáticos de carga frontal y superior con hasta 12 cuotas sin interés y flete bonificado. Para pasarte la mejor opción para tu casa, ¿cuántas personas son en tu familia y qué espacio tenés disponible?';
+      interes = 'Lavarropas / Electrodomésticos';
     } else if (/monotributista/i.test(lower)) {
       fallbackReply = 'Para comercios monotributistas que no operan con Fiserv tenemos la propuesta especial con QR $0 los primeros 3 meses, débito 0% y terminal bonificada. ¿Hoy ya trabajás con Fiserv o tenés PosNet o Clover?';
       interes = 'Propuesta Monotributista';
@@ -421,7 +463,8 @@ export async function evaluateAutonomousAgent({
       fallbackReply = '¡Hola! Trabajamos con terminales Clover Mini (mostrador), Flex (movilidad con impresora) y Flex Pocket integradas con POSBerry y cobro Fiserv. ¿Qué rubro es tu comercio?';
       interes = 'Clover / POSBerry';
     } else {
-      fallbackReply = '¡Hola! Con gusto te pasamos toda la información de terminales PosNet, Clover y sistema POSBerry. ¿Para qué rubro de comercio lo estás buscando?';
+      fallbackReply = `¡Hola! Con gusto te pasamos toda la información de productos y opciones de ${effectiveBrain.businessName || 'nuestra empresa'}. ¿Qué modelo o necesidad puntual estás buscando resolver?`;
+      interes = 'Consulta General de Productos';
     }
 
     return {
@@ -432,7 +475,7 @@ export async function evaluateAutonomousAgent({
       leadData: {
         name: '',
         rubro: '',
-        ubicacion: 'Tucumán',
+        ubicacion: effectiveBrain.coverageZone || 'Argentina',
         interes,
         tamano: 'chico',
         condicionFiscal: /monotributista/i.test(lower) ? 'monotributista' : 'desconocido',

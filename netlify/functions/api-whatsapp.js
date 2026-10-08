@@ -74,6 +74,73 @@ export async function handler(event) {
 
   try {
     // ----------------------------------------------------
+    // ROUTE 0: /api/whatsapp/channels (GET, POST, PUT) — Hub Omnicanal
+    // ----------------------------------------------------
+    if (segments[0] === 'channels') {
+      const targetClientId = isGlobal ? (event.queryStringParameters?.clientId || clientScope) : clientScope;
+      const tenantChannelsCollection = db.collection('omnichannel_accounts');
+
+      if (method === 'GET') {
+        const queryFilter = buildTenantFilter({});
+        let storedAccounts = await tenantChannelsCollection.find(queryFilter).toArray();
+
+        const defaultChannels = [
+          { id: 'whatsapp', name: 'WhatsApp Cloud API', channel: 'whatsapp', status: 'connected', identifier: '+54 9 11 5829-4400', lastSyncAt: now },
+          { id: 'instagram', name: 'Instagram Direct', channel: 'instagram', status: 'connected', identifier: '@novati.oficial', lastSyncAt: now },
+          { id: 'telegram', name: 'Telegram Bot', channel: 'telegram', status: 'connected', identifier: '@NovatiSalesBot', lastSyncAt: now },
+          { id: 'facebook', name: 'Facebook Messenger', channel: 'facebook', status: 'connected', identifier: 'Novati Soluciones', lastSyncAt: now },
+          { id: 'tiktok', name: 'TikTok Direct Messages', channel: 'tiktok', status: 'connected', identifier: '@novati_oficial', lastSyncAt: now },
+          { id: 'twitter', name: 'X / Twitter Direct Messages', channel: 'twitter', status: 'connected', identifier: '@NovatiMkt', lastSyncAt: now },
+        ];
+
+        const merged = defaultChannels.map((dc) => {
+          const stored = storedAccounts.find((sa) => sa.channel === dc.channel);
+          return stored ? { ...dc, ...stored, id: stored._id?.toString() || dc.id } : dc;
+        });
+
+        return jsonResponse(200, {
+          ok: true,
+          channels: merged,
+        });
+      }
+
+      if (method === 'POST' || method === 'PUT') {
+        let body = {};
+        try {
+          body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body || {};
+        } catch {
+          return errorResponse(400, 'Payload JSON inválido.', 'INVALID_JSON');
+        }
+
+        const channelKey = body.channel;
+        if (!channelKey || !['whatsapp', 'instagram', 'facebook', 'telegram', 'tiktok', 'twitter'].includes(channelKey)) {
+          return errorResponse(400, 'Canal omnicanal inválido o requerido.', 'INVALID_CHANNEL');
+        }
+
+        const channelDoc = {
+          clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
+          channel: channelKey,
+          name: body.name || channelKey,
+          status: body.status || 'connected',
+          identifier: body.identifier || '',
+          updatedAt: now,
+        };
+
+        await tenantChannelsCollection.updateOne(
+          { clientId: channelDoc.clientId, channel: channelKey },
+          { $set: channelDoc, $setOnInsert: { createdAt: now } },
+          { upsert: true }
+        );
+
+        return jsonResponse(200, {
+          ok: true,
+          message: `Canal ${channelKey} actualizado exitosamente.`,
+          channel: channelDoc,
+        });
+      }
+    }
+
+    // ----------------------------------------------------
     // ROUTE 1: /api/whatsapp/lines (GET, POST)
     // ----------------------------------------------------
     if (segments[0] === 'lines') {
@@ -186,6 +253,10 @@ export async function handler(event) {
         ];
       }
 
+      if (params.channel && params.channel !== 'all') {
+        baseFilter.channel = params.channel;
+      }
+
       const query = buildTenantFilter(baseFilter);
       let rawChats = await chatsCollection.find(query).sort({ lastMessageAt: -1 }).toArray();
 
@@ -196,18 +267,20 @@ export async function handler(event) {
           const sampleChat1 = {
             clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
             lineDisplayNumber: '+54 9 11 5829-4400',
+            channel: 'whatsapp',
             contactPhone: '+5491144556677',
             contactName: 'Lucía Fernández',
+            conversationStatus: 'abierta',
             unreadCount: 2,
             lastMessage: {
-              text: 'Hola, me interesó el anuncio de perfumes. ¿Tienen stock del Sauvage?',
+              text: 'Hola, me interesó la propuesta comercial. ¿Qué opciones de financiación tienen?',
               type: 'text',
               direction: 'inbound',
               status: 'received',
               timestamp: new Date(Date.now() - 1000 * 60 * 12),
             },
             lastMessageAt: new Date(Date.now() - 1000 * 60 * 12),
-            tags: ['Meta Ads', 'Perfumería'],
+            tags: ['WhatsApp Directo', 'Interés Comercial'],
             status: 'active',
             createdAt: new Date(Date.now() - 1000 * 3600 * 24),
             updatedAt: new Date(Date.now() - 1000 * 60 * 12),
@@ -215,29 +288,128 @@ export async function handler(event) {
 
           const sampleChat2 = {
             clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
-            lineDisplayNumber: '+54 9 11 5829-4400',
-            contactPhone: '+5491199887766',
-            contactName: 'Martín Gómez',
+            lineDisplayNumber: 'Instagram Direct',
+            channel: 'instagram',
+            contactPhone: 'ig_9928374',
+            contactName: 'Sofía Valenzuela (@sofia.val)',
+            conversationStatus: 'en_curso',
             unreadCount: 0,
             lastMessage: {
-              text: 'Perfecto, les confirmo el pedido para entrega el viernes.',
+              text: '¡Hola! Vi el reel en Instagram. ¿Tienen cuotas fijas y envíos?',
               type: 'text',
-              direction: 'outbound',
+              direction: 'inbound',
               status: 'read',
-              timestamp: new Date(Date.now() - 1000 * 3600 * 3),
+              timestamp: new Date(Date.now() - 1000 * 3600 * 1),
             },
-            lastMessageAt: new Date(Date.now() - 1000 * 3600 * 3),
-            tags: ['Venta Cerrada'],
+            lastMessageAt: new Date(Date.now() - 1000 * 3600 * 1),
+            tags: ['Instagram Direct', 'Reels'],
             status: 'active',
-            createdAt: new Date(Date.now() - 1000 * 3600 * 48),
-            updatedAt: new Date(Date.now() - 1000 * 3600 * 3),
+            createdAt: new Date(Date.now() - 1000 * 3600 * 30),
+            updatedAt: new Date(Date.now() - 1000 * 3600 * 1),
+          };
+
+          const sampleChat3 = {
+            clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
+            lineDisplayNumber: 'Telegram Bot',
+            channel: 'telegram',
+            contactPhone: 'tg_8829102',
+            contactName: 'Gastón Rivas (@gaston_r)',
+            conversationStatus: 'esperando',
+            unreadCount: 1,
+            lastMessage: {
+              text: 'Buenas! Me pasaron el contacto de su bot por Telegram. ¿Cómo es la entrega?',
+              type: 'text',
+              direction: 'inbound',
+              status: 'received',
+              timestamp: new Date(Date.now() - 1000 * 3600 * 4),
+            },
+            lastMessageAt: new Date(Date.now() - 1000 * 3600 * 4),
+            tags: ['Telegram Bot'],
+            status: 'active',
+            createdAt: new Date(Date.now() - 1000 * 3600 * 12),
+            updatedAt: new Date(Date.now() - 1000 * 3600 * 4),
+          };
+
+          const sampleChat4 = {
+            clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
+            lineDisplayNumber: 'Facebook Messenger',
+            channel: 'facebook',
+            contactPhone: 'fb_11029384',
+            contactName: 'Carlos Benítez',
+            conversationStatus: 'abierta',
+            unreadCount: 0,
+            lastMessage: {
+              text: 'Hola, consulto desde la página de Facebook. ¿Tienen stock disponible?',
+              type: 'text',
+              direction: 'inbound',
+              status: 'read',
+              timestamp: new Date(Date.now() - 1000 * 3600 * 6),
+            },
+            lastMessageAt: new Date(Date.now() - 1000 * 3600 * 6),
+            tags: ['Facebook Page'],
+            status: 'active',
+            createdAt: new Date(Date.now() - 1000 * 3600 * 18),
+            updatedAt: new Date(Date.now() - 1000 * 3600 * 6),
+          };
+
+          const sampleChat5 = {
+            clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
+            lineDisplayNumber: 'TikTok DM',
+            channel: 'tiktok',
+            contactPhone: 'tt_7718293',
+            contactName: 'Micaela Rossi (@mikarossi)',
+            conversationStatus: 'esperando',
+            unreadCount: 1,
+            lastMessage: {
+              text: 'Hola! Vi el TikTok que subieron ayer. ¿Me pasan precio y formas de pago?',
+              type: 'text',
+              direction: 'inbound',
+              status: 'received',
+              timestamp: new Date(Date.now() - 1000 * 3600 * 8),
+            },
+            lastMessageAt: new Date(Date.now() - 1000 * 3600 * 8),
+            tags: ['TikTok DM', 'Viral'],
+            status: 'active',
+            createdAt: new Date(Date.now() - 1000 * 3600 * 20),
+            updatedAt: new Date(Date.now() - 1000 * 3600 * 8),
+          };
+
+          const sampleChat6 = {
+            clientId: ObjectId.isValid(targetClientId) ? new ObjectId(targetClientId) : targetClientId,
+            lineDisplayNumber: 'X / Twitter Direct',
+            channel: 'twitter',
+            contactPhone: 'tw_4491029',
+            contactName: 'Esteban Paz (@esteban_paz)',
+            conversationStatus: 'resuelta',
+            unreadCount: 0,
+            lastMessage: {
+              text: 'Muchas gracias por la atención y el asesoramiento rápido!',
+              type: 'text',
+              direction: 'inbound',
+              status: 'read',
+              timestamp: new Date(Date.now() - 1000 * 3600 * 14),
+            },
+            lastMessageAt: new Date(Date.now() - 1000 * 3600 * 14),
+            tags: ['X Direct'],
+            status: 'active',
+            createdAt: new Date(Date.now() - 1000 * 3600 * 40),
+            updatedAt: new Date(Date.now() - 1000 * 3600 * 14),
           };
 
           const ins1 = await chatsCollection.insertOne(sampleChat1);
           const ins2 = await chatsCollection.insertOne(sampleChat2);
+          const ins3 = await chatsCollection.insertOne(sampleChat3);
+          const ins4 = await chatsCollection.insertOne(sampleChat4);
+          const ins5 = await chatsCollection.insertOne(sampleChat5);
+          const ins6 = await chatsCollection.insertOne(sampleChat6);
+
           rawChats = [
             { _id: ins1.insertedId, ...sampleChat1 },
             { _id: ins2.insertedId, ...sampleChat2 },
+            { _id: ins3.insertedId, ...sampleChat3 },
+            { _id: ins4.insertedId, ...sampleChat4 },
+            { _id: ins5.insertedId, ...sampleChat5 },
+            { _id: ins6.insertedId, ...sampleChat6 },
           ];
 
           // Seed messages for sampleChat1

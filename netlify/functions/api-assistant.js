@@ -100,6 +100,9 @@ export async function handler(event) {
         qualificationRules: body.qualificationRules || DEFAULT_AI_BRAIN.qualificationRules,
         commercialPlan: Array.isArray(body.commercialPlan) ? body.commercialPlan : DEFAULT_AI_BRAIN.commercialPlan,
         rules: Array.isArray(body.rules) ? body.rules : DEFAULT_AI_BRAIN.rules,
+        productsCatalog: Array.isArray(body.productsCatalog) ? body.productsCatalog : (DEFAULT_AI_BRAIN.productsCatalog || []),
+        objectionPlaybook: Array.isArray(body.objectionPlaybook) ? body.objectionPlaybook : (DEFAULT_AI_BRAIN.objectionPlaybook || []),
+        activePreset: body.activePreset || 'custom',
         autoQualifyEnabled: body.autoQualifyEnabled !== undefined ? Boolean(body.autoQualifyEnabled) : true,
         autoSetterEnabled: body.autoSetterEnabled !== undefined ? Boolean(body.autoSetterEnabled) : true,
         followUpEnabled: body.followUpEnabled !== undefined ? Boolean(body.followUpEnabled) : false,
@@ -239,12 +242,12 @@ export async function handler(event) {
         return errorResponse(400, 'El mensaje para el simulador no puede estar vacío.', 'EMPTY_MESSAGE');
       }
 
-      const brainDoc = (await brainsCollection.findOne({ clientId: tenantFilter })) || DEFAULT_AI_BRAIN;
+      const brainDoc = body.brainOverride || (await brainsCollection.findOne({ clientId: tenantFilter })) || DEFAULT_AI_BRAIN;
       const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory : [];
 
       const decision = await evaluateAutonomousAgent({
-        lead: body.lead || { name: 'Comercio Simulador', phone: '+5493815000000', stage: 'new' },
-        chat: { lineDisplayName: 'Simulador Novati' },
+        lead: body.lead || { name: 'Cliente Simulador', phone: '+5491122334455', stage: 'new' },
+        chat: { lineDisplayName: brainDoc.businessName ? `Simulador ${brainDoc.businessName}` : 'Simulador Comercial' },
         chatHistory,
         inboundMessage: userMessage,
         aiBrain: brainDoc,

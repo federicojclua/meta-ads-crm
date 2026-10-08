@@ -8,6 +8,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Fase 6: Modelo Comercial Universal ("Sales Machine Engine") & Hub Omnicanal (6 Redes) (2026-10-08)
+- **Motor Comercial Universal Replicable Multi-Rubro (`models/AiBrain.js`, `netlify/functions/_shared/agentEngine.js`)**:
+  - Desacoplada la astucia de venta de un rubro específico (Clover / terminales de cobro) para que sea un modelo de ventas universal y clonable a cualquier negocio (ej. venta de lavarropas, electrodomésticos, servicios, etc.).
+  - **Catálogo de Productos Estructurado (`productsCatalog`)**: especificación de producto, nombre, precio, condiciones de pago (ej. 12 cuotas fijas), propuesta de valor, envío y enlaces.
+  - **Playbook de Objeciones (`objectionPlaybook`)**: matriz estratégica de objeciones comerciales (`precio_alto`, `duda_garantia`, `competencia`, etc.) con estrategia de encuadre y respuesta sugerida de alta conversión.
+  - **Astucia Consultiva e Indagación Previa**: regla cognitiva en el System Prompt de Gemini para que el bot nunca arroje precios a secas; primero califica la necesidad del cliente (ej. para cuántas personas es el lavado, volumen de operaciones, espacio disponible), ofrece facilidades de pago (12 cuotas sin interés) e indaga para cerrar.
+  - **Captura Implícita de Leads Agnóstica**: herramienta `registrar_lead` adaptada para clasificar prospectos de cualquier industria con datos de contacto, interés, rubro y notas.
+- **Selector de Plantillas de Negocio de 1 Clic (`BUSINESS_PRESETS`)**:
+  - Incorporados presets visuales listos para usar:
+    - 🟢 **Terminales POSBerry / Clover**: cobros con tarjetas, comisiones bajas, acreditación en 24hs.
+    - 🔵 **ElectroHogar / Lavarropas**: venta de electrodomésticos de alta gama, motores Inverter, 12 cuotas fijas y flete bonificado.
+  - Banner en `src/pages/AssistantConfigPage.jsx` con botón de carga instantánea de catálogo, personalidad, objeciones y disparadores.
+  - Nuevas pestañas de gestión interactiva: **"Catálogo de Productos"** y **"Playbook de Objeciones"** con formularios para agregar y editar items dinámicamente.
+  - Simulador de conversación en tiempo real con soporte de `brainOverride` para probar el bot antes de guardar cambios.
+- **Hub Omnicanal Unificado — 6 Redes Sociales en el Mismo Dashboard (`models/WhatsApp.js`, `netlify/functions/api-whatsapp.js`, `src/pages/WhatsAppInboxPage.jsx`)**:
+  - Soporte integrado para las 6 plataformas conversacionales líderes:
+    - 🟢 **WhatsApp**
+    - 🟣 **Instagram Direct**
+    - 🔷 **Telegram**
+    - 🔵 **Facebook Messenger**
+    - ⚫ **TikTok DM**
+    - 🐦 **X (Twitter) DM**
+  - **Endpoints Omnicanal**:
+    - `GET /api/whatsapp/channels`: consulta el estado de conexión de las 6 cuentas.
+    - `PUT /api/whatsapp/channels`: configuración y vinculación de tokens, webhooks e identificadores.
+  - **Bandeja Unificada Multi-Red**:
+    - Selector desplegable de canal en filtros secundarios para segmentar conversaciones por plataforma o ver todas unificadas.
+    - Badges distintivos de red social en cada tarjeta de chat (`WA`, `IG`, `TG`, `FB`, `TT`, `X`) y en la cabecera activa.
+    - Modal de gestión de cuentas conectado: **"Hub Omnicanal — 6 Redes Conectadas"** con estados `🟢 Conectado` / `⚪ Pendiente de vincular`.
+    - Compositor adaptativo: detecta la red social activa y personaliza los placeholders y etiquetas de envío (`Mensaje Instagram`, `Mensaje Telegram`, etc.).
+- **Suite de Pruebas Automatizadas (`src/test/universal-sales-engine.test.js`)**:
+  - 8 pruebas de validación que verifican presets de negocio, sanitización y esquemas de catálogos y objeciones, respuestas inteligentes con indagación previa en electrodomésticos/lavarropas, validación de líneas de las 6 redes, endpoints backend de canales y simulador en tiempo real.
+
 ### Added — Fase 5: Conversaciones para Trabajar, Handover y Notas Internas (2026-10-08)
 - **Estados de Conversación Operativos (`models/WhatsApp.js`, `src/lib/constants.js`)**:
   - Incorporados 4 estados de ciclo de vida del chat: `abierta` (esperando atención humana), `en_curso` (tomada por asesor), `esperando` (en manos del cliente o asistente) y `resuelta` (caso cerrado).

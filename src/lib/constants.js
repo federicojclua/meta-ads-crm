@@ -200,3 +200,24 @@ export const CONVERSATION_STATUS_COLORS = {
   resuelta: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-700 border-slate-200' },
 };
 
+export const CHANNELS = ['whatsapp', 'instagram', 'facebook', 'telegram', 'tiktok', 'twitter'];
+
+export const CHANNEL_LABELS = {
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram Direct',
+  facebook: 'Facebook Messenger',
+  telegram: 'Telegram',
+  tiktok: 'TikTok DM',
+  twitter: 'X / Twitter DM',
+};
+
+export const CHANNEL_COLORS = {
+  whatsapp: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800' },
+  instagram: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200', badge: 'bg-pink-100 text-pink-800' },
+  facebook: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-800' },
+  telegram: { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', badge: 'bg-sky-100 text-sky-800' },
+  tiktok: { bg: 'bg-slate-900', text: 'text-white', border: 'border-slate-800', badge: 'bg-slate-900 text-white' },
+  twitter: { bg: 'bg-neutral-800', text: 'text-neutral-100', border: 'border-neutral-700', badge: 'bg-neutral-800 text-white' },
+};
+
+

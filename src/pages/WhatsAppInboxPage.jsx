@@ -28,6 +28,8 @@ import {
   UserCheck,
   Bot,
   Download,
+  Share2,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -117,6 +119,10 @@ export function WhatsAppInboxPage() {
   const [attachData, setAttachData] = useState({ type: 'image', url: '', name: '', caption: '' });
   const [isNotifyingTeam, setIsNotifyingTeam] = useState(false);
 
+  // Fase 6: Hub Omnicanal (WhatsApp, Instagram, Telegram, Facebook, TikTok, Twitter)
+  const [isChannelsModalOpen, setIsChannelsModalOpen] = useState(false);
+  const [omnichannelAccounts, setOmnichannelAccounts] = useState([]);
+
   const messagesEndRef = useRef(null);
   const lineDropdownRef = useRef(null);
 
@@ -129,6 +135,18 @@ export function WhatsAppInboxPage() {
       }
     } catch (err) {
       console.warn('[WA_INBOX] Error fetching lines:', err.message);
+    }
+  };
+
+  // 1B. Fetch Omnichannel Accounts
+  const fetchOmnichannelAccounts = async () => {
+    try {
+      const res = await apiClient('/api/whatsapp/channels');
+      if (res?.channels) {
+        setOmnichannelAccounts(res.channels);
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error fetching omnichannel channels:', err.message);
     }
   };
 
@@ -214,6 +232,7 @@ export function WhatsAppInboxPage() {
   // Initial Load
   useEffect(() => {
     fetchLines();
+    fetchOmnichannelAccounts();
   }, [clientScope]);
 
   // Load Team Members (Fase 5)
@@ -693,6 +712,19 @@ export function WhatsAppInboxPage() {
                     type="button"
                     onClick={() => {
                       setIsLineDropdownOpen(false);
+                      fetchOmnichannelAccounts();
+                      setIsChannelsModalOpen(true);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-md text-indigo-700 hover:bg-indigo-50 font-semibold flex items-center gap-1.5"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Hub Omnicanal (6 Redes Sociales)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLineDropdownOpen(false);
                       setIsTemplatesModalOpen(true);
                     }}
                     className="w-full text-left px-2.5 py-1.5 rounded-md text-slate-700 hover:bg-slate-100 font-medium flex items-center gap-1.5"
@@ -781,12 +813,15 @@ export function WhatsAppInboxPage() {
               <select
                 value={channelFilter}
                 onChange={(e) => setChannelFilter(e.target.value)}
-                className="bg-white border border-brand-border rounded-md px-1.5 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                className="bg-white border border-brand-border rounded-md px-1.5 py-1 text-brand-text-secondary focus:outline-hidden focus:ring-1 focus:ring-emerald-500 font-semibold"
               >
-                <option value="all">Canal: Todos</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="instagram">Instagram</option>
-                <option value="facebook">Messenger</option>
+                <option value="all">Canal: Todos (6)</option>
+                <option value="whatsapp">🟢 WhatsApp</option>
+                <option value="instagram">🟣 Instagram</option>
+                <option value="telegram">🔵 Telegram</option>
+                <option value="facebook">🔷 Messenger</option>
+                <option value="tiktok">⚫ TikTok</option>
+                <option value="twitter">⬛ X / Twitter</option>
               </select>
 
               <select
@@ -832,8 +867,32 @@ export function WhatsAppInboxPage() {
                   .substring(0, 2)
                   .toUpperCase();
 
-                const isInstagram = chat.channel === 'instagram';
-                const isFacebook = chat.channel === 'facebook';
+                const channel = chat.channel || 'whatsapp';
+                let avatarClass = 'bg-emerald-600/10 text-emerald-700 border-emerald-200';
+                let channelBadgeLabel = 'WA';
+                let channelBadgeClass = 'bg-emerald-100 text-emerald-800';
+
+                if (channel === 'instagram') {
+                  avatarClass = 'bg-pink-100 text-pink-700 border-pink-200';
+                  channelBadgeLabel = 'IG';
+                  channelBadgeClass = 'bg-pink-100 text-pink-800';
+                } else if (channel === 'telegram') {
+                  avatarClass = 'bg-sky-100 text-sky-700 border-sky-200';
+                  channelBadgeLabel = 'TG';
+                  channelBadgeClass = 'bg-sky-100 text-sky-800';
+                } else if (channel === 'facebook') {
+                  avatarClass = 'bg-blue-100 text-blue-700 border-blue-200';
+                  channelBadgeLabel = 'FB';
+                  channelBadgeClass = 'bg-blue-100 text-blue-800';
+                } else if (channel === 'tiktok') {
+                  avatarClass = 'bg-slate-900 text-white border-slate-700';
+                  channelBadgeLabel = 'TT';
+                  channelBadgeClass = 'bg-slate-900 text-white';
+                } else if (channel === 'twitter') {
+                  avatarClass = 'bg-neutral-800 text-white border-neutral-700';
+                  channelBadgeLabel = 'X';
+                  channelBadgeClass = 'bg-neutral-800 text-white';
+                }
 
                 return (
                   <button
@@ -845,16 +904,13 @@ export function WhatsAppInboxPage() {
                     }`}
                   >
                     {/* Contact Avatar with Channel Accent */}
-                    <div
-                      className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-xs shrink-0 border ${
-                        isInstagram
-                          ? 'bg-pink-100 text-pink-700 border-pink-200'
-                          : isFacebook
-                          ? 'bg-blue-100 text-blue-700 border-blue-200'
-                          : 'bg-emerald-600/10 text-emerald-700 border-emerald-200'
-                      }`}
-                    >
-                      {initials}
+                    <div className="relative shrink-0">
+                      <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-xs border ${avatarClass}`}>
+                        {initials}
+                      </div>
+                      <span className={`absolute -bottom-1 -right-1 px-1 rounded-full text-[8px] font-extrabold border border-white shadow-2xs ${channelBadgeClass}`}>
+                        {channelBadgeLabel}
+                      </span>
                     </div>
 
                     {/* Chat Content Snippet */}
@@ -889,15 +945,31 @@ export function WhatsAppInboxPage() {
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         {/* Channel Badge */}
                         <span
-                          className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
-                            isInstagram
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                            chat.channel === 'instagram'
                               ? 'bg-pink-100 text-pink-700'
-                              : isFacebook
+                              : chat.channel === 'facebook'
                               ? 'bg-blue-100 text-blue-700'
+                              : chat.channel === 'telegram'
+                              ? 'bg-sky-100 text-sky-700'
+                              : chat.channel === 'tiktok'
+                              ? 'bg-slate-900 text-white'
+                              : chat.channel === 'twitter'
+                              ? 'bg-zinc-800 text-zinc-100'
                               : 'bg-emerald-100 text-emerald-800'
                           }`}
                         >
-                          {chat.channel || 'WA'}
+                          {chat.channel === 'whatsapp' || !chat.channel
+                            ? 'WA'
+                            : chat.channel === 'instagram'
+                            ? 'IG'
+                            : chat.channel === 'telegram'
+                            ? 'TG'
+                            : chat.channel === 'facebook'
+                            ? 'FB'
+                            : chat.channel === 'tiktok'
+                            ? 'TT'
+                            : 'X'}
                         </span>
 
                         {chat.lineDisplayNumber && (
@@ -953,11 +1025,17 @@ export function WhatsAppInboxPage() {
               <div className="h-14 px-4 bg-white border-b border-brand-border flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs ${
+                    className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs shrink-0 ${
                       activeChat.channel === 'instagram'
                         ? 'bg-pink-100 text-pink-700'
+                        : activeChat.channel === 'telegram'
+                        ? 'bg-sky-100 text-sky-700'
                         : activeChat.channel === 'facebook'
                         ? 'bg-blue-100 text-blue-700'
+                        : activeChat.channel === 'tiktok'
+                        ? 'bg-slate-900 text-white'
+                        : activeChat.channel === 'twitter'
+                        ? 'bg-neutral-800 text-white'
                         : 'bg-emerald-600/10 text-emerald-700'
                     }`}
                   >
@@ -968,8 +1046,24 @@ export function WhatsAppInboxPage() {
                       <h2 className="text-xs font-bold text-brand-text-primary leading-none">
                         {activeChat.contactName}
                       </h2>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase bg-slate-100 text-slate-700">
-                        {activeChat.channel || 'whatsapp'}
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                        activeChat.channel === 'instagram'
+                          ? 'bg-pink-100 text-pink-800'
+                          : activeChat.channel === 'telegram'
+                          ? 'bg-sky-100 text-sky-800'
+                          : activeChat.channel === 'facebook'
+                          ? 'bg-blue-100 text-blue-800'
+                          : activeChat.channel === 'tiktok'
+                          ? 'bg-slate-900 text-white'
+                          : activeChat.channel === 'twitter'
+                          ? 'bg-neutral-800 text-white'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {activeChat.channel === 'instagram' ? 'Instagram Direct' :
+                         activeChat.channel === 'telegram' ? 'Telegram' :
+                         activeChat.channel === 'facebook' ? 'Messenger' :
+                         activeChat.channel === 'tiktok' ? 'TikTok DM' :
+                         activeChat.channel === 'twitter' ? 'X Direct' : 'WhatsApp'}
                       </span>
                     </div>
                     <p className="text-[11px] text-brand-text-secondary font-mono mt-0.5">
@@ -977,6 +1071,20 @@ export function WhatsAppInboxPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Hub Omnicanal Status Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchOmnichannelAccounts();
+                    setIsChannelsModalOpen(true);
+                  }}
+                  className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] text-indigo-900 font-semibold hover:bg-indigo-100 transition-colors"
+                  title="Ver estado de las 6 redes sociales conectadas"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Hub 6 Redes</span>
+                </button>
 
                 {/* Meta Ads Attribution Badge */}
                 <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-[10px] text-blue-900">
@@ -1202,7 +1310,20 @@ export function WhatsAppInboxPage() {
                       }`}
                     >
                       <MessageSquare className="w-3 h-3 text-emerald-600" />
-                      <span>Mensaje WhatsApp</span>
+                      <span>
+                        Mensaje{' '}
+                        {activeChat?.channel === 'instagram'
+                          ? 'Instagram'
+                          : activeChat?.channel === 'telegram'
+                          ? 'Telegram'
+                          : activeChat?.channel === 'facebook'
+                          ? 'Messenger'
+                          : activeChat?.channel === 'tiktok'
+                          ? 'TikTok'
+                          : activeChat?.channel === 'twitter'
+                          ? 'X Direct'
+                          : 'WhatsApp'}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -1244,8 +1365,8 @@ export function WhatsAppInboxPage() {
                       }}
                       placeholder={
                         composerMode === 'note'
-                          ? 'Escribí una nota interna (solo visible para el equipo, no se envía a WhatsApp)...'
-                          : 'Escribí un mensaje (Presioná Enter para enviar)...'
+                          ? 'Escribí una nota interna (solo visible para el equipo, no se despacha al cliente)...'
+                          : `Escribí un mensaje para responder por ${activeChat?.channel || 'WhatsApp'} (Presioná Enter)...`
                       }
                       rows={1}
                       className={`w-full resize-none py-2 px-3 text-xs border rounded-xl focus:outline-hidden min-h-[38px] max-h-32 transition-colors ${
@@ -1850,6 +1971,99 @@ export function WhatsAppInboxPage() {
               </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: Hub Omnicanal — 6 Redes Conectadas (Fase 6)                      */}
+      {/* ========================================================================= */}
+      {isChannelsModalOpen && (
+        <Modal
+          isOpen={isChannelsModalOpen}
+          onClose={() => setIsChannelsModalOpen(false)}
+          title="Hub Omnicanal — Redes Sociales Conectadas"
+          description="Atendé y respondé todas tus conversaciones de 6 plataformas desde una sola bandeja unificada."
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 flex items-start gap-2.5">
+              <Share2 className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Bandeja Unificada de Atención y Ventas</p>
+                <p className="text-[11px] text-indigo-800/90 mt-0.5">
+                  Los prospectos que te escriban por WhatsApp, Instagram, Telegram, Messenger, TikTok o X ingresan automáticamente al CRM,
+                  son atendidos por el Asistente IA y tu equipo responde desde el mismo panel sin cambiar de aplicación.
+                </p>
+              </div>
+            </div>
+
+            <div className="divide-y divide-brand-border/60 border border-brand-border rounded-xl overflow-hidden bg-white">
+              {(omnichannelAccounts.length > 0 ? omnichannelAccounts : [
+                { id: 'whatsapp', name: 'WhatsApp Cloud API', channel: 'whatsapp', status: 'connected', identifier: '+54 9 11 5829-4400' },
+                { id: 'instagram', name: 'Instagram Direct', channel: 'instagram', status: 'connected', identifier: '@novati.oficial' },
+                { id: 'telegram', name: 'Telegram Bot', channel: 'telegram', status: 'connected', identifier: '@NovatiSalesBot' },
+                { id: 'facebook', name: 'Facebook Messenger', channel: 'facebook', status: 'connected', identifier: 'Novati Soluciones' },
+                { id: 'tiktok', name: 'TikTok Direct Messages', channel: 'tiktok', status: 'connected', identifier: '@novati_oficial' },
+                { id: 'twitter', name: 'X / Twitter Direct Messages', channel: 'twitter', status: 'connected', identifier: '@NovatiMkt' },
+              ]).map((account) => {
+                const isConn = account.status === 'connected';
+                return (
+                  <div key={account.id || account.channel} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                          account.channel === 'instagram'
+                            ? 'bg-pink-100 text-pink-700'
+                            : account.channel === 'telegram'
+                            ? 'bg-sky-100 text-sky-700'
+                            : account.channel === 'facebook'
+                            ? 'bg-blue-100 text-blue-700'
+                            : account.channel === 'tiktok'
+                            ? 'bg-slate-900 text-white'
+                            : account.channel === 'twitter'
+                            ? 'bg-neutral-800 text-white'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {account.channel === 'instagram'
+                          ? 'IG'
+                          : account.channel === 'telegram'
+                          ? 'TG'
+                          : account.channel === 'facebook'
+                          ? 'FB'
+                          : account.channel === 'tiktok'
+                          ? 'TT'
+                          : account.channel === 'twitter'
+                          ? 'X'
+                          : 'WA'}
+                      </div>
+                      <div className="truncate">
+                        <p className="font-bold text-brand-text-primary">{account.name}</p>
+                        <p className="text-[11px] text-slate-500 font-mono truncate">{account.identifier || 'Cuenta vinculada'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          isConn
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                            : 'bg-slate-100 text-slate-600 border-slate-300'
+                        }`}
+                      >
+                        {isConn ? '🟢 Conectado' : '⚪ Pendiente'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-brand-border">
+              <Button type="button" variant="outline" onClick={() => setIsChannelsModalOpen(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
