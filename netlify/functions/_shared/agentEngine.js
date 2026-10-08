@@ -267,17 +267,22 @@ async function callGemini(systemPrompt, history, userMessage) {
  */
 export async function evaluateAutonomousAgent({
   messageText = '',
+  inboundMessage = '',
+  message = '',
   chatHistory = [],
-  brain = DEFAULT_AI_BRAIN,
+  brain = null,
+  aiBrain = null,
   lead = null,
   channel = 'whatsapp',
 }) {
-  const text = (messageText || '').trim();
+  const text = (messageText || inboundMessage || message || '').trim();
+  const effectiveBrain = brain || aiBrain || DEFAULT_AI_BRAIN;
 
   // Empty message — no response
   if (!text) {
     return {
       replyText: '',
+      responseMessage: '',
       shouldRegisterLead: false,
       leadData: null,
       shouldHandOff: false,
@@ -298,7 +303,7 @@ export async function evaluateAutonomousAgent({
   }
 
   // Build system prompt
-  const systemPrompt = buildSystemPrompt(brain, ragContext);
+  const systemPrompt = buildSystemPrompt(effectiveBrain, ragContext);
 
   // Format chat history
   const history = formatChatHistory(chatHistory);
@@ -356,8 +361,10 @@ export async function evaluateAutonomousAgent({
       if (shouldRegisterLead) reason = 'Lead detectado con interés comercial';
       if (shouldHandOff) reason = `Escalación: ${handOffData?.motivo || 'solicitud de humano'}`;
 
+      const generatedReply = responseText || '¡Hola! Gracias por comunicarte con Grupo Novati. ¿En qué podemos ayudarte?';
       return {
-        replyText: responseText || '¡Hola! Gracias por comunicarte con Grupo Novati. ¿En qué podemos ayudarte?',
+        replyText: generatedReply,
+        responseMessage: generatedReply,
         shouldRegisterLead,
         shouldQualify: Boolean(shouldRegisterLead),
         leadData,
@@ -381,9 +388,10 @@ export async function evaluateAutonomousAgent({
   // 1. Detect frustration / human request / complaints
   const wantsHuman = /(persona|humano|vendedor|asesor|hablar con alguien|llamar|llamame|estafa|queja|enojado|denuncia)/i.test(lower);
   if (wantsHuman) {
+    const humanReply = 'Entiendo perfectamente. En este momento transfiero tu consulta con uno de nuestros ejecutivos de cuenta para que te atienda personalmente a la brevedad.';
     return {
-      replyText:
-        'Entiendo perfectamente. En este momento transfiero tu consulta con uno de nuestros ejecutivos de cuenta para que te atienda personalmente a la brevedad.',
+      replyText: humanReply,
+      responseMessage: humanReply,
       shouldRegisterLead: false,
       shouldQualify: false,
       leadData: null,
@@ -418,6 +426,7 @@ export async function evaluateAutonomousAgent({
 
     return {
       replyText: fallbackReply,
+      responseMessage: fallbackReply,
       shouldRegisterLead: true,
       shouldQualify: true,
       leadData: {
@@ -439,10 +448,13 @@ export async function evaluateAutonomousAgent({
   }
 
   // 3. Generic greeting fallback
+  const greetingReply =
+    '¡Hola! Soy el asistente de Grupo Novati 👋 Vendemos terminales de cobro PosNet y Clover con POSBerry en Tucumán. ' +
+    '¿En qué puedo ayudarte? Podés preguntarme por equipos, comisiones, medios de pago o lo que necesites.';
+
   return {
-    replyText:
-      '¡Hola! Soy el asistente de Grupo Novati 👋 Vendemos terminales de cobro PosNet y Clover con POSBerry en Tucumán. ' +
-      '¿En qué puedo ayudarte? Podés preguntarme por equipos, comisiones, medios de pago o lo que necesites.',
+    replyText: greetingReply,
+    responseMessage: greetingReply,
     shouldRegisterLead: false,
     shouldQualify: false,
     leadData: null,

@@ -12,6 +12,8 @@ import {
   sanitizeWaMessage,
   normalizePhoneNumber,
 } from '../../models/WhatsApp.js';
+import { DEFAULT_AI_BRAIN } from '../../models/AiBrain.js';
+import { evaluateAutonomousAgent } from './_shared/agentEngine.js';
 
 export async function handler(event) {
   const auth = await verifyAuthorizedUser(event);
@@ -562,6 +564,61 @@ export async function handler(event) {
         ok: true,
         isBotMuted: newMutedState,
         message: newMutedState ? 'Bot IA silenciado para este chat.' : 'Bot IA reactivado para este chat.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // ROUTE 6.1: /api/whatsapp/chats/:chatId/suggest (POST)
+    // ----------------------------------------------------
+    if (segments[0] === 'chats' && segments[2] === 'suggest' && method === 'POST') {
+      const chatIdRaw = segments[1];
+      if (!ObjectId.isValid(chatIdRaw)) {
+        return errorResponse(400, 'ID de chat inválido.', 'INVALID_CHAT_ID');
+      }
+
+      const chatId = new ObjectId(chatIdRaw);
+      const chatQuery = buildTenantFilter({ _id: chatId });
+      const chat = await chatsCollection.findOne(chatQuery);
+
+      if (!chat) {
+        return errorResponse(404, 'Chat no encontrado.', 'CHAT_NOT_FOUND');
+      }
+
+      // Fetch last 10 messages of the conversation
+      const rawMessages = await messagesCollection
+        .find({ chatId })
+        .sort({ timestamp: -1 })
+        .limit(10)
+        .toArray();
+      const recentMessages = rawMessages.reverse();
+
+      const lastCustomerMsg = [...recentMessages]
+        .reverse()
+        .find((m) => m.direction === 'inbound')?.text || chat.lastMessage?.text || 'Hola';
+
+      // Read tenant's AI brain config or default
+      const brainDoc = (await db.collection('ai_brains').findOne({ clientId: chat.clientId })) ||
+                       (await db.collection('ai_brain').findOne({ clientId: chat.clientId })) ||
+                       DEFAULT_AI_BRAIN;
+
+      const chatHistory = recentMessages.map((m) => ({
+        role: m.direction === 'inbound' ? 'user' : 'model',
+        text: m.text,
+      }));
+
+      // Generate suggested draft response using agentEngine
+      const decision = await evaluateAutonomousAgent({
+        lead: chat.leadId ? await leadsCollection.findOne({ _id: chat.leadId }) : { name: chat.contactName, phone: chat.contactPhone },
+        chat: { lineDisplayName: chat.lineDisplayNumber },
+        chatHistory,
+        inboundMessage: lastCustomerMsg,
+        aiBrain: brainDoc,
+      });
+
+      return jsonResponse(200, {
+        ok: true,
+        suggestion: decision.replyText || decision.responseMessage || '',
+        decision,
       });
     }
 

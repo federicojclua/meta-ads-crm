@@ -440,6 +440,23 @@ export function WhatsAppInboxPage() {
     }
   };
 
+  // Handle AI Suggest Response (Fase 3)
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const handleSuggestResponse = async () => {
+    if (!activeChatId) return;
+    setIsSuggesting(true);
+    try {
+      const res = await apiClient.post(`/api/whatsapp/chats/${activeChatId}/suggest`, {});
+      if (res?.suggestion) {
+        setMessageInput(res.suggestion);
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error getting AI suggestion:', err.message);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
   const activeChat = chats.find((c) => c.id === activeChatId);
   const activeLine = lines.find((l) => l.id === selectedLineId);
 
@@ -906,6 +923,17 @@ export function WhatsAppInboxPage() {
                       className="w-full resize-none py-2 px-3 text-xs bg-slate-50 border border-brand-border rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 focus:bg-white min-h-[38px] max-h-32"
                     />
                   </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleSuggestResponse}
+                    disabled={isSuggesting || !activeChatId}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 h-[38px] px-3 rounded-xl shrink-0 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                    title="El asistente analiza la conversación y la base de conocimiento para redactar una respuesta sugerida"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isSuggesting ? 'animate-spin' : 'text-indigo-600'}`} />
+                    <span className="hidden sm:inline">{isSuggesting ? 'Pensando...' : 'Sugerir'}</span>
+                  </Button>
 
                   <Button
                     type="submit"

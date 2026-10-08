@@ -8,6 +8,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Fase 3: Centro de Configuración del Asistente, Base de Conocimiento con "Lo que no supo" & Sugerencias en Chat (2026-10-08)
+- **Página de Configuración del Asistente (`src/pages/AssistantConfigPage.jsx`)**:
+  - Formulario visual para configurar qué sabe y cómo habla el bot sin necesidad de escribir código ni prompts en crudo.
+  - Edición de identidad comercial (Grupo Novati), zona de cobertura (Tucumán) y selector de tono de voz (cercano y de vos).
+  - Gestor visual de Planes Comerciales y Promociones Activas con switches On/Off para la propuesta Monotributista Nuevo y Reactivación PosNet/Clover.
+  - Lista dinámica de Reglas de Oro y Comportamiento con capacidad de agregar y quitar reglas en caliente.
+  - Pestaña de Preguntas Frecuentes (FAQs) con buscador por palabra clave y alta rápida por categoría.
+  - Bandeja interactiva **"Lo que no supo"**: auditoría de consultas de clientes donde el bot requirió asistencia, con botón de 1 clic para "Enseñar respuesta" y transformarla en FAQ automática.
+  - **Simulador en Vivo**: panel lateral de chat interactivo para probar consultas en tiempo real y visualizar la detección de leads y ofertas antes de impactar en WhatsApp.
+- **Modelo de Preguntas Frecuentes y Consultas Huérfanas (`models/KnowledgeFaq.js`)**:
+  - Validación de campos requeridos y categorías (`validateFaqDocument`).
+  - Sanitizadores seguros `sanitizeFaq` y `sanitizeUnansweredQuery`.
+- **Endpoint Serverless del Asistente (`netlify/functions/api-assistant.js`)**:
+  - `GET /api/assistant`: recuperación de cerebro del tenant y catálogo de FAQs.
+  - `PUT /api/assistant`: persistencia de cambios de configuración en la colección `ai_brains`.
+  - `GET /api/assistant/unanswered`: listado de dudas pendientes.
+  - `POST /api/assistant/teach`: alta de FAQ y marcado automático de la duda como aprendida.
+  - `POST /api/assistant/test`: evaluación en memoria para el simulador interactivo.
+- **Sugerencias de Respuesta en el Chat de WhatsApp (`netlify/functions/api-whatsapp.js` & `src/pages/WhatsAppInboxPage.jsx`)**:
+  - Sub-ruta `POST /api/whatsapp/chats/:id/suggest` que analiza los últimos mensajes del cliente, aplica el motor RAG y redacta una respuesta sugerida basada en los documentos de Novati.
+  - Botón "✨ Sugerir" en la barra de mensajes del chat que rellena el borrador con un solo clic para revisión o envío inmediato por parte del asesor.
+- **Rutas, Menú y Redirecciones**:
+  - Ruta lazy-loaded `/app/assistant` en `src/App.jsx`.
+  - Enlace "Asistente IA" con ícono `Bot` en `src/components/layout/Sidebar.jsx`.
+  - Reglas de redirección en `netlify.toml` para `/api/assistant` y `/api/assistant/*`.
+- **Suite de Pruebas Automatizadas (`src/test/assistant-config.test.js`)**:
+  - 9 pruebas automatizadas pasando al 100% que validan el ciclo de configuración, FAQs, "Lo que no supo", simulador y sugerencias.
+
 ### Added — Fase 2: Gestión de Casos de Posventa y Soporte Técnico (2026-10-08)
 - **Modelo de Casos (`models/Case.js`)**:
   - Definición de tipos de caso operativos para Grupo Novati: `soporte_tecnico`, `insumos_rollos`, `cobros_liquidaciones`, `bajas`, `otro`.

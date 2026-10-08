@@ -77,6 +77,18 @@
   force = true
 
 [[redirects]]
+  from = "/api/assistant"
+  to = "/.netlify/functions/api-assistant"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/assistant/*"
+  to = "/.netlify/functions/api-assistant"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/dashboard"
   to = "/.netlify/functions/api-dashboard"
   status = 200

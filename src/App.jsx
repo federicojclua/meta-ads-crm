@@ -17,6 +17,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 const SocialAnalyzerPage = lazy(() => import('./pages/SocialAnalyzerPage').then(m => ({ default: m.SocialAnalyzerPage })));
 const GoogleIntelligencePage = lazy(() => import('./pages/GoogleIntelligencePage').then(m => ({ default: m.GoogleIntelligencePage })));
 const CopilotPage = lazy(() => import('./pages/CopilotPage').then(m => ({ default: m.CopilotPage })));
+const AssistantConfigPage = lazy(() => import('./pages/AssistantConfigPage').then(m => ({ default: m.AssistantConfigPage })));
 const WhatsAppInboxPage = lazy(() => import('./pages/WhatsAppInboxPage').then(m => ({ default: m.WhatsAppInboxPage })));
 const CasesPage = lazy(() => import('./pages/CasesPage').then(m => ({ default: m.CasesPage })));
 const EcommerceCroPage = lazy(() => import('./pages/EcommerceCroPage').then(m => ({ default: m.EcommerceCroPage })));
@@ -62,6 +63,7 @@ export function App() {
           <Route path="clients" element={<Navigate to="/app/admin" replace />} />
           <Route path="whatsapp" element={<WhatsAppInboxPage />} />
           <Route path="cases" element={<CasesPage />} />
+          <Route path="assistant" element={<AssistantConfigPage />} />
           <Route path="ecommerce" element={<EcommerceCroPage />} />
           <Route path="creative-studio" element={<CreativeStudioPage />} />
           <Route path="video-studio" element={<VideoStudioPage />} />
