@@ -8,7 +8,12 @@ import {
   sanitizeUnansweredQuery,
 } from '../../models/KnowledgeFaq.js';
 import { evaluateAutonomousAgent } from './_shared/agentEngine.js';
-import { buildRAGContext } from './_shared/knowledgeBase.js';
+import {
+  buildRAGContext,
+  validateKnowledgeFormat,
+  MASTER_SALES_DOC_TEMPLATE,
+  parseDocumentMetadata,
+} from './_shared/knowledgeBase.js';
 
 export async function handler(event) {
   const auth = await verifyAuthorizedUser(event);
@@ -102,6 +107,7 @@ export async function handler(event) {
         rules: Array.isArray(body.rules) ? body.rules : DEFAULT_AI_BRAIN.rules,
         productsCatalog: Array.isArray(body.productsCatalog) ? body.productsCatalog : (DEFAULT_AI_BRAIN.productsCatalog || []),
         objectionPlaybook: Array.isArray(body.objectionPlaybook) ? body.objectionPlaybook : (DEFAULT_AI_BRAIN.objectionPlaybook || []),
+        knowledgeDocuments: Array.isArray(body.knowledgeDocuments) ? body.knowledgeDocuments : (DEFAULT_AI_BRAIN.knowledgeDocuments || []),
         activePreset: body.activePreset || 'custom',
         autoQualifyEnabled: body.autoQualifyEnabled !== undefined ? Boolean(body.autoQualifyEnabled) : true,
         autoSetterEnabled: body.autoSetterEnabled !== undefined ? Boolean(body.autoSetterEnabled) : true,
@@ -227,7 +233,141 @@ export async function handler(event) {
     }
 
     // ----------------------------------------------------
-    // 6. POST /api/assistant/test — Live Simulator / Tester
+    // 6. GET /api/assistant/documents — List KB Documents & Master Template
+    // ----------------------------------------------------
+    if (segments.length === 1 && segments[0] === 'documents' && method === 'GET') {
+      const brain = await brainsCollection.findOne({ clientId: tenantFilter });
+      const documents = brain?.knowledgeDocuments || DEFAULT_AI_BRAIN.knowledgeDocuments || [];
+
+      return jsonResponse(200, {
+        ok: true,
+        documents,
+        masterTemplate: MASTER_SALES_DOC_TEMPLATE,
+      });
+    }
+
+    // ----------------------------------------------------
+    // 7. POST /api/assistant/documents/validate — Validate Markdown Document Format
+    // ----------------------------------------------------
+    if (segments.length === 2 && segments[0] === 'documents' && segments[1] === 'validate' && method === 'POST') {
+      let body = {};
+      try {
+        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body || {};
+      } catch {
+        return errorResponse(400, 'Payload JSON inválido.', 'INVALID_JSON');
+      }
+
+      const content = body.content || '';
+      const audit = validateKnowledgeFormat(content);
+
+      return jsonResponse(200, {
+        ok: true,
+        audit,
+      });
+    }
+
+    // ----------------------------------------------------
+    // 8. POST /api/assistant/documents — Create / Update KB Document
+    // ----------------------------------------------------
+    if (segments.length === 1 && segments[0] === 'documents' && method === 'POST') {
+      let body = {};
+      try {
+        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body || {};
+      } catch {
+        return errorResponse(400, 'Payload JSON inválido.', 'INVALID_JSON');
+      }
+
+      const rawContent = (body.content || '').trim();
+      if (!rawContent) {
+        return errorResponse(400, 'El contenido del documento no puede estar vacío.', 'EMPTY_CONTENT');
+      }
+
+      const { metadata } = parseDocumentMetadata(rawContent, body.filename || 'documento.md');
+      const audit = validateKnowledgeFormat(rawContent);
+
+      const titleMatch = rawContent.match(/^#\s+(.+)$/m);
+      const title = (body.title || (titleMatch ? titleMatch[1].trim() : '') || 'Documento Comercial').trim();
+      const docId = body.id || `doc_${Date.now()}`;
+
+      const newDoc = {
+        id: docId,
+        title,
+        filename: body.filename || `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.md`,
+        category: body.category || metadata.documentCategory || 'ventas',
+        audience: body.audience || metadata.audience || 'comercial',
+        allowedFor: Array.isArray(body.allowedFor) ? body.allowedFor : (metadata.allowedFor || ['sales', 'support']),
+        priority: typeof body.priority === 'number' ? body.priority : (metadata.priority || 10),
+        formatScore: audit.score,
+        formatStatus: audit.statusText,
+        content: rawContent,
+        updatedAt: now.toISOString(),
+      };
+
+      const brain = await brainsCollection.findOne({ clientId: tenantFilter });
+      let currentDocs = brain?.knowledgeDocuments || [...(DEFAULT_AI_BRAIN.knowledgeDocuments || [])];
+
+      const existingIndex = currentDocs.findIndex((d) => d.id === docId);
+      if (existingIndex >= 0) {
+        currentDocs[existingIndex] = { ...currentDocs[existingIndex], ...newDoc };
+      } else {
+        currentDocs.push(newDoc);
+      }
+
+      await brainsCollection.updateOne(
+        { clientId: tenantFilter },
+        {
+          $set: {
+            knowledgeDocuments: currentDocs,
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            createdAt: now,
+            ...DEFAULT_AI_BRAIN,
+          },
+        },
+        { upsert: true }
+      );
+
+      return jsonResponse(200, {
+        ok: true,
+        success: true,
+        document: newDoc,
+        audit,
+        message: 'Documento de base de conocimiento guardado con éxito.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // 9. DELETE /api/assistant/documents/:id — Delete KB Document
+    // ----------------------------------------------------
+    if (segments.length === 2 && segments[0] === 'documents' && method === 'DELETE') {
+      const docId = segments[1];
+      if (!docId) {
+        return errorResponse(400, 'ID de documento requerido.', 'MISSING_DOC_ID');
+      }
+
+      const brain = await brainsCollection.findOne({ clientId: tenantFilter });
+      const currentDocs = brain?.knowledgeDocuments || [...(DEFAULT_AI_BRAIN.knowledgeDocuments || [])];
+      const filtered = currentDocs.filter((d) => d.id !== docId);
+
+      await brainsCollection.updateOne(
+        { clientId: tenantFilter },
+        {
+          $set: {
+            knowledgeDocuments: filtered,
+            updatedAt: now,
+          },
+        }
+      );
+
+      return jsonResponse(200, {
+        ok: true,
+        message: 'Documento eliminado de la base de conocimiento.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // 10. POST /api/assistant/test — Live Simulator / Tester
     // ----------------------------------------------------
     if (segments.length === 1 && segments[0] === 'test' && method === 'POST') {
       let body = {};

@@ -5,6 +5,42 @@
  * these defaults via the database. The DEFAULT_AI_BRAIN below is configured for Grupo Novati
  * (authorized Fiserv/PosNet/Clover representative in Tucumán, Argentina).
  */
+export const MASTER_SALES_DOC_TEMPLATE = `# [Nombre del Producto o Negocio] — Argumentario Comercial y Guía de Venta
+
+> **Metadata**
+> - source: Documento Oficial de Ventas
+> - country: AR · industry: General
+> - audience: comprador, comercial · allowed_for: sales, support
+> - priority: 10
+> - last_checked: 2026-10-08
+
+## 1. Pitch Comercial Corto
+[Explica en 2 oraciones qué resuelve el producto o servicio y cuál es su mayor valor diferencial para despertar interés de inmediato.]
+
+## 2. Beneficios Concretos a Comunicar
+- **Beneficio Principal 1**: [Ahorro directo, tiempo, velocidad o conveniencia]
+- **Beneficio Principal 2**: [Garantía, respaldo de marca, calidad o soporte postventa]
+- **Condiciones y Facilidades**: [Planes de cuotas sin interés, promociones activas, envíos gratis o bonificaciones]
+
+## 3. Objeciones Frecuentes y Cómo Responder
+### "¿Por qué debería elegir esto y no a la competencia?"
+- **Estrategia**: Resaltar la calidad integral, garantía oficial y atención personalizada.
+- **Respuesta**: [Argumento contundente destacando la durabilidad, servicio postventa y facilidades de pago].
+
+### "¿Tienen financiación o cuotas?"
+- **Estrategia**: Ofrecer inmediatamente el plan de cuotas y facilidades de pago.
+- **Respuesta**: [Detalle de las opciones de pago en cuotas fijas o medios de pago disponibles].
+
+### "Me parece caro / Estoy evaluando otras opciones"
+- **Estrategia**: Reencuadrar la inversión respecto al ahorro o rendimiento.
+- **Respuesta**: [Comparación costo-beneficio y propuesta de asesoramiento a medida].
+
+## 4. Flujo de Calificación e Indagación Previa
+Antes de dar precio final o cerrar:
+1. Indagar la necesidad puntual del cliente (ej. para qué uso lo requiere, tamaño de familia o negocio).
+2. Preguntar su medio de pago preferido para aplicar la mejor promoción disponible.
+3. Proponer el cierre o la derivación inmediata a un asesor humano si requiere atención personalizada.
+`;
 
 export const DEFAULT_AI_BRAIN = {
   // --- Identity ---
@@ -148,6 +184,22 @@ export const DEFAULT_AI_BRAIN = {
   followUpEnabled: false,
   followUpSchedule: { days: 'lun-sab', startHour: 9, endHour: 20 },
 
+  // --- Dynamic Knowledge Base Documents (Universal Model) ---
+  knowledgeDocuments: [
+    {
+      id: 'doc_maestro_ventas',
+      title: 'Guía Maestra y Argumentario de Ventas',
+      filename: 'guia_maestra_ventas.md',
+      category: 'ventas',
+      audience: 'comprador',
+      allowedFor: ['sales', 'support'],
+      priority: 10,
+      formatScore: 100,
+      content: MASTER_SALES_DOC_TEMPLATE,
+      updatedAt: new Date().toISOString(),
+    },
+  ],
+
   // --- Legacy fields (backward compat) ---
   idealCustomerProfile: {
     targetAudience: 'Comercios de todos los rubros que necesitan cobrar con tarjeta, QR o modernizar su punto de venta.',
@@ -262,6 +314,20 @@ export const BUSINESS_PRESETS = {
       'Si el cliente pide hablar con una persona, derivar inmediatamente sin insistir.',
       'Avisar siempre a los grupos si se promete contacto.',
     ],
+    knowledgeDocuments: [
+      {
+        id: 'doc_preset_novati',
+        title: 'POSBerry sobre Clover — Guía Comercial y Argumentario',
+        filename: 'posberry_argumentario_ventas.md',
+        category: 'ventas',
+        audience: 'comercio',
+        allowedFor: ['sales', 'support'],
+        priority: 10,
+        formatScore: 100,
+        content: `# POSBerry sobre Clover — Argumentario de Ventas y Objeciones\n\n> **Metadata**\n> - source: Documentación Oficial POSBerry / Novati\n> - country: AR · industry: Medios de Pago y Cobro\n> - audience: comercio · allowed_for: sales, support\n> - priority: 10\n> - last_checked: 2026-10-08\n\n## 1. Pitch Comercial Corto\nPOSBerry sobre Clover unifica venta, cobro con tarjetas/QR y facturación AFIP en una sola terminal inteligente sin doble carga de datos ni PCs adicionales.\n\n## 2. Beneficios Concretos a Comunicar\n- **Cero doble carga**: el cajero registra la venta y dispara el cobro directo en Clover.\n- **Acreditación en 24hs**: cobros con débito al 0% y QR al 0% los primeros 3 meses.\n- **3 cuotas sin interés**: habilitadas todos los días en tarjetas de crédito.\n\n## 3. Objeciones Frecuentes y Cómo Responder\n### "Ya tengo una caja registradora o uso otra terminal"\n- **Estrategia**: Destacar que con POSBerry todo queda conciliado en el mismo ticket sin errores de caja.\n- **Respuesta**: La diferencia es que con nosotros no tenés que pasar la tarjeta por un lado y cargar el sistema por el otro. Todo queda registrado y facturado al instante.\n\n### "¿Cuánto sale?"\n- **Estrategia**: Indagar el rubro del comercio y ofrecer la terminal bonificada.\n- **Respuesta**: Depende del rubro de tu comercio y de si necesitás movilidad (Flex) o mostrador (Mini). Contame qué vendés y te paso la propuesta bonificada.\n\n## 4. Flujo de Calificación\n1. Preguntar si ya cobra con Fiserv o tiene terminal actualmente.\n2. Confirmar si es monotributista o responsable inscripto.\n3. Registrar el lead para que un asesor le active la bonificación.`,
+        updatedAt: new Date().toISOString(),
+      },
+    ],
   },
 
   electro_lavarropas: {
@@ -353,6 +419,20 @@ export const BUSINESS_PRESETS = {
       'Si el cliente pide hablar con alguien de ventas o delivery, transferir con resumen de necesidad.',
       'Garantizar aviso inmediato al equipo cuando el cliente esté listo para comprar o coordinar envío.',
     ],
+    knowledgeDocuments: [
+      {
+        id: 'doc_preset_electro',
+        title: 'ElectroHogar — Catálogo y Guía Comercial de Lavarropas',
+        filename: 'lavarropas_guia_ventas.md',
+        category: 'ventas',
+        audience: 'hogar',
+        allowedFor: ['sales', 'support'],
+        priority: 10,
+        formatScore: 100,
+        content: `# ElectroHogar — Catálogo y Guía Comercial de Lavarropas Inverter\n\n> **Metadata**\n> - source: Catálogo Oficial ElectroHogar\n> - country: AR · industry: Electrodomésticos y Bazar\n> - audience: comprador hogar · allowed_for: sales, support\n> - priority: 10\n> - last_checked: 2026-10-08\n\n## 1. Pitch Comercial Corto\nLavarropas automáticos de última generación con motor Inverter silencioso de bajo consumo, 10 años de garantía oficial en motor, 12 cuotas fijas sin interés y entrega a domicilio bonificada.\n\n## 2. Beneficios Concretos a Comunicar\n- **Ahorro energético A+++**: tecnología Inverter que ahorra 40% de electricidad y 30% de agua.\n- **Financiación transparente**: 12 cuotas fijas sin interés con todas las tarjetas o 15% de descuento por transferencia/efectivo.\n- **Tranquilidad asegurada**: 10 años de garantía en motor y entrega rápida en 24 a 48 hs.\n\n## 3. Objeciones Frecuentes y Cómo Responder\n### "¿Por qué sale más que otras marcas convencionales?"\n- **Estrategia**: Reencuadrar en durabilidad, ahorro de luz mensual y garantía de 10 años.\n- **Respuesta**: Es una inversión que te dura el triple: los motores Inverter no llevan escobillas, no vibran y consumen la mitad de energía, además de tener 10 años de garantía oficial.\n\n### "¿Tienen cuotas y flete?"\n- **Estrategia**: Ofrecer las 12 cuotas fijas y preguntar zona de entrega.\n- **Respuesta**: Sí, tenés 12 cuotas fijas sin interés y flete sin cargo en toda el área metropolitana. ¿A qué localidad sería el envío?\n\n## 4. Flujo de Calificación e Indagación Previa\n1. NUNCA tirar el precio sin preguntar cuántas personas son en la casa o si buscan carga frontal o superior.\n2. Confirmar qué espacio tienen y si prefieren pago en 12 cuotas o contado con descuento.\n3. Registrar datos de entrega y coordinar reserva inmediata.`,
+        updatedAt: new Date().toISOString(),
+      },
+    ],
   },
 };
 
@@ -396,6 +476,10 @@ export function validateAiBrain(data) {
     errors.push('objectionPlaybook debe ser un arreglo de objeciones y respuestas.');
   }
 
+  if (data.knowledgeDocuments && !Array.isArray(data.knowledgeDocuments)) {
+    errors.push('knowledgeDocuments debe ser un arreglo de documentos.');
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -425,6 +509,20 @@ export function sanitizeAiBrain(doc) {
     rules: doc.rules || DEFAULT_AI_BRAIN.rules,
     productsCatalog: doc.productsCatalog || DEFAULT_AI_BRAIN.productsCatalog || [],
     objectionPlaybook: doc.objectionPlaybook || DEFAULT_AI_BRAIN.objectionPlaybook || [],
+    knowledgeDocuments: Array.isArray(doc.knowledgeDocuments)
+      ? doc.knowledgeDocuments.map((d, idx) => ({
+          id: d.id || `doc_${idx + 1}`,
+          title: d.title || 'Documento sin título',
+          filename: d.filename || `${d.title || 'documento'}.md`,
+          category: d.category || 'ventas',
+          audience: d.audience || 'comercial',
+          allowedFor: Array.isArray(d.allowedFor) ? d.allowedFor : ['sales', 'support'],
+          priority: typeof d.priority === 'number' ? d.priority : 8,
+          formatScore: typeof d.formatScore === 'number' ? d.formatScore : 100,
+          content: d.content || '',
+          updatedAt: d.updatedAt || new Date().toISOString(),
+        }))
+      : DEFAULT_AI_BRAIN.knowledgeDocuments || [],
     activePreset: doc.activePreset || 'custom',
     autoQualifyEnabled: doc.autoQualifyEnabled !== undefined ? Boolean(doc.autoQualifyEnabled) : true,
     autoSetterEnabled: doc.autoSetterEnabled !== undefined ? Boolean(doc.autoSetterEnabled) : true,

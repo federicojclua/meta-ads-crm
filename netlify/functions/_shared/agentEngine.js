@@ -125,15 +125,15 @@ function formatObjectionPlaybook(playbook = []) {
  * Builds the full system prompt for the assistant.
  */
 function buildSystemPrompt(brain, ragContext) {
-  const plan = formatCommercialPlan(brain.commercialPlan || DEFAULT_AI_BRAIN.commercialPlan);
-  const rules = (brain.rules || DEFAULT_AI_BRAIN.rules).map((r, i) => `${i + 1}. ${r}`).join('\n');
-  const businessName = brain.businessName || DEFAULT_AI_BRAIN.businessName;
-  const businessDesc = brain.businessDescription || DEFAULT_AI_BRAIN.businessDescription;
-  const tone = brain.industryAndTone || DEFAULT_AI_BRAIN.industryAndTone;
-  const zone = brain.coverageZone || DEFAULT_AI_BRAIN.coverageZone;
-  const qualRules = brain.qualificationRules || DEFAULT_AI_BRAIN.qualificationRules;
-  const productsSection = formatProductsCatalog(brain.productsCatalog || DEFAULT_AI_BRAIN.productsCatalog);
-  const objectionsSection = formatObjectionPlaybook(brain.objectionPlaybook || DEFAULT_AI_BRAIN.objectionPlaybook);
+  const plan = formatCommercialPlan(brain.commercialPlan || DEFAULT_AI_BRAIN?.commercialPlan || []);
+  const rules = (brain.rules || DEFAULT_AI_BRAIN?.rules || []).map((r, i) => `${i + 1}. ${r}`).join('\n');
+  const businessName = brain.businessName || DEFAULT_AI_BRAIN?.businessName || 'Asistente Comercial';
+  const businessDesc = brain.businessDescription || DEFAULT_AI_BRAIN?.businessDescription || '';
+  const tone = brain.industryAndTone || DEFAULT_AI_BRAIN?.industryAndTone || 'Cercano y profesional';
+  const zone = brain.coverageZone || DEFAULT_AI_BRAIN?.coverageZone || 'Nacional';
+  const qualRules = brain.qualificationRules || DEFAULT_AI_BRAIN?.qualificationRules || '';
+  const productsSection = formatProductsCatalog(brain.productsCatalog || DEFAULT_AI_BRAIN?.productsCatalog || []);
+  const objectionsSection = formatObjectionPlaybook(brain.objectionPlaybook || DEFAULT_AI_BRAIN?.objectionPlaybook || []);
 
   return `Sos el asistente virtual de ${businessName}.
 ${businessDesc}
@@ -335,7 +335,11 @@ export async function evaluateAutonomousAgent({
   // Build RAG context from knowledge base using the user's message as query
   let ragContext = '';
   try {
-    ragContext = buildRAGContext(text, { topK: 5, context: 'sales' });
+    ragContext = buildRAGContext(text, {
+      tenantDocuments: effectiveBrain.knowledgeDocuments || [],
+      topK: 5,
+      context: 'sales',
+    });
   } catch (ragErr) {
     console.warn('[AGENT_ENGINE] RAG context build failed:', ragErr.message);
     ragContext = '(No se pudo cargar la base de conocimiento.)';
@@ -402,6 +406,7 @@ export async function evaluateAutonomousAgent({
 
       const generatedReply = responseText || '¡Hola! Gracias por comunicarte con Grupo Novati. ¿En qué podemos ayudarte?';
       return {
+        reply: generatedReply,
         replyText: generatedReply,
         responseMessage: generatedReply,
         shouldRegisterLead,
@@ -429,6 +434,7 @@ export async function evaluateAutonomousAgent({
   if (wantsHuman) {
     const humanReply = 'Entiendo perfectamente. En este momento transfiero tu consulta con uno de nuestros ejecutivos de cuenta para que te atienda personalmente a la brevedad.';
     return {
+      reply: humanReply,
       replyText: humanReply,
       responseMessage: humanReply,
       shouldRegisterLead: false,
@@ -456,6 +462,11 @@ export async function evaluateAutonomousAgent({
     } else if (/lavarropa|secarropa|electro|bazar/i.test(lower) || effectiveBrain.businessName?.toLowerCase().includes('electro')) {
       fallbackReply = '¡Hola! Te cuento que tenemos modelos automáticos de carga frontal y superior con hasta 12 cuotas sin interés y flete bonificado. Para pasarte la mejor opción para tu casa, ¿cuántas personas son en tu familia y qué espacio tenés disponible?';
       interes = 'Lavarropas / Electrodomésticos';
+    } else if (ragContext && ragContext.includes('[Documento del Negocio]')) {
+      const docTitleMatch = ragContext.match(/###\s+([^\n\[]+)/);
+      const docTitle = docTitleMatch ? docTitleMatch[1].trim() : effectiveBrain.businessName;
+      interes = docTitle;
+      fallbackReply = `¡Hola! Con gusto te paso información sobre ${docTitle}. Para asesorarte con la opción más conveniente y adaptada a tu negocio, ¿cuál es tu objetivo principal o qué necesidad puntual estás buscando resolver?`;
     } else if (/monotributista/i.test(lower)) {
       fallbackReply = 'Para comercios monotributistas que no operan con Fiserv tenemos la propuesta especial con QR $0 los primeros 3 meses, débito 0% y terminal bonificada. ¿Hoy ya trabajás con Fiserv o tenés PosNet o Clover?';
       interes = 'Propuesta Monotributista';
@@ -468,6 +479,7 @@ export async function evaluateAutonomousAgent({
     }
 
     return {
+      reply: fallbackReply,
       replyText: fallbackReply,
       responseMessage: fallbackReply,
       shouldRegisterLead: true,
@@ -496,6 +508,7 @@ export async function evaluateAutonomousAgent({
     '¿En qué puedo ayudarte? Podés preguntarme por equipos, comisiones, medios de pago o lo que necesites.';
 
   return {
+    reply: greetingReply,
     replyText: greetingReply,
     responseMessage: greetingReply,
     shouldRegisterLead: false,

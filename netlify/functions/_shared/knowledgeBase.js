@@ -17,7 +17,9 @@
 
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join, extname } from 'path';
-import { DEFAULT_AI_BRAIN } from '../../../models/AiBrain.js';
+import { DEFAULT_AI_BRAIN, MASTER_SALES_DOC_TEMPLATE } from '../../../models/AiBrain.js';
+
+export { MASTER_SALES_DOC_TEMPLATE };
 
 // Cache for loaded knowledge base (survives within a single Lambda invocation)
 let _cachedKB = null;
@@ -50,40 +52,62 @@ function resolveKBPath() {
  * Parses the metadata block from a markdown/text document.
  * Returns { metadata, content } where content is the document without the metadata block.
  */
-function parseDocumentMetadata(rawContent, filename) {
-  const lines = rawContent.split('\n');
+export function parseDocumentMetadata(rawContent, filename = 'documento.md') {
+  const raw = String(rawContent || '');
+  const lines = raw.split('\n');
   const metadata = {
+    title: '',
     source: '',
     country: 'AR',
     brand: '',
     company: '',
     audience: 'comercio',
+    category: 'ventas',
     allowedFor: ['sales', 'support'],
     priority: 5,
+    tags: [],
     lastChecked: '',
     documentCategory: '',
     filename,
   };
 
-  let contentStartIndex = 0;
+  // Extract title from H1 anywhere in the document
+  const titleMatch = raw.match(/^#\s+([^\n]+)/m);
+  if (titleMatch) {
+    metadata.title = titleMatch[1].trim();
+  }
+
   let inMetadataBlock = false;
+  const nonMetadataLines = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = lines[i];
+    const trimmed = line.trim();
 
-    // Detect metadata block start
-    if (line.includes('**Metadata**') || line.includes('Metadata')) {
+    if (trimmed.includes('**Metadata**') || trimmed.includes('Metadata')) {
       inMetadataBlock = true;
-      contentStartIndex = i + 1;
       continue;
     }
 
     if (inMetadataBlock) {
-      // Metadata lines start with > - key: value
-      const metaMatch = line.match(/^>?\s*-\s*(\w[\w_]*)\s*:\s*(.+)$/);
+      if (trimmed === '' || (!trimmed.startsWith('>') && !trimmed.startsWith('-'))) {
+        inMetadataBlock = false;
+        nonMetadataLines.push(line);
+        continue;
+      }
+
+      // Match key: value inside metadata block (e.g., "> category: electrodomesticos" or "> - allowed_for: [sales]")
+      const metaMatch = trimmed.match(/^>?(?:\s*-\s*|\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.+)$/);
       if (metaMatch) {
-        const key = metaMatch[1].trim();
+        const key = metaMatch[1].trim().toLowerCase();
         const value = metaMatch[2].trim();
+
+        const parseList = (str) =>
+          str
+            .replace(/^\[|\]$/g, '')
+            .split(',')
+            .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
 
         switch (key) {
           case 'source': metadata.source = value; break;
@@ -91,26 +115,105 @@ function parseDocumentMetadata(rawContent, filename) {
           case 'brand': metadata.brand = value; break;
           case 'company': metadata.company = value; break;
           case 'audience': metadata.audience = value; break;
+          case 'category':
+          case 'document_category':
+            metadata.category = value;
+            metadata.documentCategory = value;
+            break;
           case 'allowed_for':
-            metadata.allowedFor = value.split(',').map((s) => s.trim());
+            metadata.allowedFor = parseList(value);
+            break;
+          case 'tags':
+            metadata.tags = parseList(value);
             break;
           case 'priority':
             metadata.priority = parseInt(value, 10) || 5;
             break;
           case 'last_checked': metadata.lastChecked = value; break;
-          case 'document_category': metadata.documentCategory = value; break;
           default: break;
         }
-        contentStartIndex = i + 1;
-      } else if (line === '' || (!line.startsWith('>') && !line.startsWith('-'))) {
-        // End of metadata block
-        inMetadataBlock = false;
       }
+      continue;
     }
+
+    nonMetadataLines.push(line);
   }
 
-  const content = lines.slice(contentStartIndex).join('\n').trim();
-  return { metadata, content };
+  const content = nonMetadataLines.join('\n').trim();
+
+  return {
+    metadata,
+    content,
+    ...metadata,
+  };
+}
+
+/**
+ * Valida si un documento Markdown cumple con la estructura comercial requerida
+ * para que el chatbot venda con coherencia y astucia.
+ */
+export function validateKnowledgeFormat(rawContent = '') {
+  const content = String(rawContent || '');
+  const issues = [];
+  const suggestions = [];
+
+  const hasH1 = /^#\s+[^\n]+/m.test(content);
+  if (!hasH1) {
+    issues.push('Falta un título principal (# Nombre del Producto/Negocio).');
+  }
+
+  const hasMetadata = /Metadata/i.test(content) && /allowed_for/i.test(content);
+  if (!hasMetadata) {
+    issues.push('Falta el bloque de Metadata (> **Metadata** con audience y allowed_for).');
+    suggestions.push('Agregá un encabezado de Metadata para que el RAG identifique la prioridad y el contexto de venta.');
+  }
+
+  const hasBenefits = /beneficio|ventaja|propuesta de valor|característica|pitch/i.test(content);
+  if (!hasBenefits) {
+    issues.push('Falta una sección de Beneficios Concretos a comunicar.');
+    suggestions.push('Incluí una lista con al menos 2 o 3 beneficios comerciales clave.');
+  }
+
+  const hasObjections = /objeci[oó]n|cómo responder|dudas|pregunta|competencia|caro/i.test(content);
+  if (!hasObjections) {
+    issues.push('Falta una sección de Objeciones Frecuentes y Respuestas.');
+    suggestions.push('Agregá cómo responder cuando el cliente duda sobre precio, garantía o competencia.');
+  }
+
+  const hasIndagacion = /indagaci[oó]n|calificaci[oó]n|flujo|antes de|cerrar/i.test(content);
+  if (!hasIndagacion) {
+    suggestions.push('Recomendado: Añadir qué preguntas de indagación debe hacer el bot antes de arrojar un precio.');
+  }
+
+  // Scoring
+  let score = 100;
+  if (!hasH1) score -= 20;
+  if (!hasMetadata) score -= 25;
+  if (!hasBenefits) score -= 25;
+  if (!hasObjections) score -= 20;
+  if (!hasIndagacion) score -= 10;
+  score = Math.max(0, score);
+
+  return {
+    isValid: score >= 60,
+    score,
+    hasH1,
+    hasMetadata,
+    hasBenefits,
+    hasObjections,
+    hasIndagacion,
+    checks: {
+      hasH1,
+      hasMetadata,
+      hasBenefits,
+      hasObjections,
+      hasIndagacion,
+    },
+    issues,
+    suggestions,
+    recommendations: suggestions,
+    statusText: score >= 90 ? 'Formato Comercial Óptimo' : score >= 60 ? 'Formato Aceptable' : 'Formato Incompleto',
+  };
 }
 
 /**
@@ -217,14 +320,74 @@ export function loadKnowledgeBase() {
  * @param {string} [options.context='sales'] - Filter by allowed_for context.
  * @returns {Array<{ title: string, filename: string, content: string, score: number }>}
  */
-export function searchKnowledge(query, { topK = 5, context = 'sales' } = {}) {
-  const documents = loadKnowledgeBase();
-  if (documents.length === 0) return [];
-
+/**
+ * Searches the knowledge base for the most relevant documents to a given query.
+ * Supports dynamic multi-tenant documents (tenantDocuments) and falls back to
+ * default disk documents.
+ *
+ * @param {string} query - The user's message or search query.
+ * @param {Object} options
+ * @param {Array} [options.tenantDocuments=[]] - Custom documents uploaded by the tenant/business.
+ * @param {number} [options.topK=5] - Max number of documents to return.
+ * @param {string} [options.context='sales'] - Filter by allowed_for context.
+ * @returns {Array<{ title: string, filename: string, content: string, score: number, source: 'tenant'|'disk' }>}
+ */
+export function searchKnowledge(query, { tenantDocuments = [], topK = 5, context = 'sales' } = {}) {
   const queryTokens = tokenize(query);
   if (queryTokens.length === 0) return [];
 
-  const scored = documents
+  const candidateDocs = [];
+
+  // 1. Process custom tenant documents if provided
+  if (Array.isArray(tenantDocuments) && tenantDocuments.length > 0) {
+    for (const tDoc of tenantDocuments) {
+      if (!tDoc) continue;
+      let title = tDoc.title || 'Documento Comercial';
+      let content = tDoc.content || tDoc.rawContent || '';
+      let metadata = tDoc.metadata;
+
+      // If document has raw content with metadata block, parse it
+      if (!metadata || typeof metadata !== 'object') {
+        const parsed = parseDocumentMetadata(content, tDoc.filename || `${title}.md`);
+        metadata = parsed.metadata;
+        content = parsed.content;
+      }
+
+      // Check title from content if still generic
+      if (title === 'Documento Comercial' || !title) {
+        const titleMatch = (tDoc.content || '').match(/^#\s+(.+)$/m);
+        if (titleMatch) title = titleMatch[1].trim();
+      }
+
+      candidateDocs.push({
+        title,
+        filename: tDoc.filename || 'tenant_document.md',
+        category: metadata?.category || metadata?.documentCategory || tDoc.category || 'ventas',
+        metadata: {
+          ...metadata,
+          priority: Math.max(metadata?.priority || 5, tDoc.priority || 7), // Boost tenant doc priority
+        },
+        content,
+        isTenantDoc: true,
+      });
+    }
+  }
+
+  // 2. If no tenant documents provided, load from disk
+  if (candidateDocs.length === 0) {
+    const diskDocs = loadKnowledgeBase();
+    for (const d of diskDocs) {
+      candidateDocs.push({
+        ...d,
+        category: d.metadata?.category || d.metadata?.documentCategory || 'general',
+        isTenantDoc: false,
+      });
+    }
+  }
+
+  if (candidateDocs.length === 0) return [];
+
+  const scored = candidateDocs
     .filter((doc) => {
       // Filter by context if specified
       if (context && doc.metadata.allowedFor && doc.metadata.allowedFor.length > 0) {
@@ -232,12 +395,22 @@ export function searchKnowledge(query, { topK = 5, context = 'sales' } = {}) {
       }
       return true;
     })
-    .map((doc) => ({
-      title: doc.title,
-      filename: doc.filename,
-      content: doc.content,
-      score: scoreDocument(queryTokens, doc),
-    }))
+    .map((doc) => {
+      let score = scoreDocument(queryTokens, doc);
+      // Give 25% boost to custom tenant documents so business-specific instructions win
+      if (doc.isTenantDoc && score > 0) {
+        score *= 1.25;
+      }
+      return {
+        title: doc.title,
+        filename: doc.filename,
+        category: doc.category || doc.metadata?.category || doc.metadata?.documentCategory || 'ventas',
+        content: doc.content,
+        score,
+        source: doc.isTenantDoc ? 'tenant' : 'disk',
+        isTenantDoc: Boolean(doc.isTenantDoc),
+      };
+    })
     .filter((d) => d.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
@@ -251,13 +424,14 @@ export function searchKnowledge(query, { topK = 5, context = 'sales' } = {}) {
  *
  * @param {string} query - The user's message.
  * @param {Object} options
+ * @param {Array} [options.tenantDocuments=[]]
  * @param {number} [options.topK=5]
  * @param {number} [options.maxCharsPerDoc=2000]
  * @param {string} [options.context='sales']
  * @returns {string} Formatted context block for the system prompt.
  */
-export function buildRAGContext(query, { topK = 5, maxCharsPerDoc = 2000, context = 'sales' } = {}) {
-  const results = searchKnowledge(query, { topK, context });
+export function buildRAGContext(query, { tenantDocuments = [], topK = 5, maxCharsPerDoc = 2000, context = 'sales' } = {}) {
+  const results = searchKnowledge(query, { tenantDocuments, topK, context });
 
   if (results.length === 0) {
     return '(No se encontraron documentos relevantes en la base de conocimiento para esta consulta.)';
@@ -268,7 +442,8 @@ export function buildRAGContext(query, { topK = 5, maxCharsPerDoc = 2000, contex
       ? doc.content.slice(0, maxCharsPerDoc) + '\n[... documento truncado]'
       : doc.content;
 
-    return `### ${doc.title}\n${truncatedContent}`;
+    const sourceTag = doc.source === 'tenant' ? ' [Documento del Negocio]' : '';
+    return `### ${doc.title}${sourceTag}\n${truncatedContent}`;
   });
 
   return blocks.join('\n\n---\n\n');

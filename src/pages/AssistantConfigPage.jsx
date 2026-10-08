@@ -25,6 +25,9 @@ import {
   Package,
   ShieldAlert,
   ShoppingBag,
+  BookOpen,
+  FileText,
+  CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
@@ -36,6 +39,69 @@ import { apiClient } from '../lib/api';
 import { formatDate } from '../lib/utils';
 import { DEFAULT_AI_BRAIN, BUSINESS_PRESETS } from '../../models/AiBrain.js';
 import { FAQ_CATEGORIES, FAQ_CATEGORY_LABELS } from '../../models/KnowledgeFaq.js';
+
+const FRONTEND_MASTER_DOC_TEMPLATE = `# [Nombre del Producto o Negocio] — Argumentario Comercial y Guía de Venta
+
+> **Metadata**
+> - source: Documento Oficial de Ventas
+> - country: AR · industry: General
+> - audience: comprador, comercial · allowed_for: sales, support
+> - priority: 10
+> - last_checked: 2026-10-08
+
+## 1. Pitch Comercial Corto
+[Explica en 2 oraciones qué resuelve el producto o servicio y cuál es su mayor valor diferencial para despertar interés de inmediato.]
+
+## 2. Beneficios Concretos a Comunicar
+- **Beneficio Principal 1**: [Ahorro directo, tiempo, velocidad o conveniencia]
+- **Beneficio Principal 2**: [Garantía, respaldo de marca, calidad o soporte postventa]
+- **Condiciones y Facilidades**: [Planes de cuotas sin interés, promociones activas, envíos gratis o bonificaciones]
+
+## 3. Objeciones Frecuentes y Cómo Responder
+### "¿Por qué debería elegir esto y no a la competencia?"
+- **Estrategia**: Resaltar la calidad integral, garantía oficial y atención personalizada.
+- **Respuesta**: [Argumento contundente destacando la durabilidad, servicio postventa y facilidades de pago].
+
+### "¿Tienen financiación o cuotas?"
+- **Estrategia**: Ofrecer inmediatamente el plan de cuotas y facilidades de pago.
+- **Respuesta**: [Detalle de las opciones de pago en cuotas fijas o medios de pago disponibles].
+
+### "Me parece caro / Estoy evaluando otras opciones"
+- **Estrategia**: Reencuadrar la inversión respecto al ahorro o rendimiento.
+- **Respuesta**: [Comparación costo-beneficio y propuesta de asesoramiento a medida].
+
+## 4. Flujo de Calificación e Indagación Previa
+Antes de dar precio final o cerrar:
+1. Indagar la necesidad puntual del cliente (ej. para qué uso lo requiere, tamaño de familia o negocio).
+2. Preguntar su medio de pago preferido para aplicar la mejor promoción disponible.
+3. Proponer el cierre o la derivación inmediata a un asesor humano si requiere atención personalizada.
+`;
+
+function auditDocumentFormat(content = '') {
+  const hasH1 = /^#\s+[^\n]+/m.test(content);
+  const hasMetadata = /Metadata/i.test(content) && /allowed_for/i.test(content);
+  const hasBenefits = /beneficio|ventaja|propuesta de valor|característica|pitch/i.test(content);
+  const hasObjections = /objeci[oó]n|cómo responder|dudas|pregunta|competencia|caro/i.test(content);
+  const hasIndagacion = /indagaci[oó]n|calificaci[oó]n|flujo|antes de|cerrar/i.test(content);
+
+  let score = 100;
+  if (!hasH1) score -= 20;
+  if (!hasMetadata) score -= 25;
+  if (!hasBenefits) score -= 25;
+  if (!hasObjections) score -= 20;
+  if (!hasIndagacion) score -= 10;
+  score = Math.max(0, score);
+
+  return {
+    score,
+    hasH1,
+    hasMetadata,
+    hasBenefits,
+    hasObjections,
+    hasIndagacion,
+    statusText: score >= 90 ? 'Formato Comercial Óptimo' : score >= 60 ? 'Formato Aceptable' : 'Incompleto',
+  };
+}
 
 export function AssistantConfigPage() {
   const [searchParams] = useSearchParams();
@@ -76,6 +142,18 @@ export function AssistantConfigPage() {
   const [teachingQuery, setTeachingQuery] = useState(null);
   const [teachAnswer, setTeachAnswer] = useState('');
   const [teachCategory, setTeachCategory] = useState('general');
+
+  // Knowledge Documents State (Universal Model)
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docFormData, setDocFormData] = useState({
+    id: '',
+    title: '',
+    filename: '',
+    category: 'ventas',
+    priority: 10,
+    content: '',
+  });
+  const [docFilterSearch, setDocFilterSearch] = useState('');
 
   // Simulator State
   const [simulatorMessages, setSimulatorMessages] = useState([
@@ -417,6 +495,100 @@ export function AssistantConfigPage() {
     }
   }, [simulatorMessages]);
 
+  // Knowledge Documents Handlers (Universal Model)
+  const handleOpenNewDoc = (useTemplate = false) => {
+    setDocFormData({
+      id: '',
+      title: useTemplate ? 'Guía Comercial del Producto' : '',
+      filename: useTemplate ? 'guia_comercial.md' : '',
+      category: 'ventas',
+      priority: 10,
+      content: useTemplate ? FRONTEND_MASTER_DOC_TEMPLATE : '',
+    });
+    setIsDocModalOpen(true);
+  };
+
+  const handleEditDoc = (doc) => {
+    setDocFormData({
+      id: doc.id,
+      title: doc.title || '',
+      filename: doc.filename || '',
+      category: doc.category || 'ventas',
+      priority: typeof doc.priority === 'number' ? doc.priority : 10,
+      content: doc.content || '',
+    });
+    setIsDocModalOpen(true);
+  };
+
+  const handleSaveDoc = async (e) => {
+    if (e) e.preventDefault();
+    if (!docFormData.content.trim()) return;
+
+    const audit = auditDocumentFormat(docFormData.content);
+    const titleMatch = docFormData.content.match(/^#\s+(.+)$/m);
+    const title = (docFormData.title || (titleMatch ? titleMatch[1].trim() : '') || 'Documento Comercial').trim();
+    const docId = docFormData.id || `doc_${Date.now()}`;
+
+    const newDoc = {
+      id: docId,
+      title,
+      filename: docFormData.filename || `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.md`,
+      category: docFormData.category || 'ventas',
+      audience: 'comprador',
+      allowedFor: ['sales', 'support'],
+      priority: Number(docFormData.priority) || 10,
+      formatScore: audit.score,
+      formatStatus: audit.statusText,
+      content: docFormData.content,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const currentDocs = [...(brainConfig.knowledgeDocuments || [])];
+    const existingIdx = currentDocs.findIndex((d) => d.id === docId);
+    if (existingIdx >= 0) {
+      currentDocs[existingIdx] = newDoc;
+    } else {
+      currentDocs.push(newDoc);
+    }
+
+    const updatedBrain = {
+      ...brainConfig,
+      knowledgeDocuments: currentDocs,
+    };
+    setBrainConfig(updatedBrain);
+    setIsDocModalOpen(false);
+
+    try {
+      const q = activeClientId ? `?clientId=${encodeURIComponent(activeClientId)}` : '';
+      await apiClient.post(`/api/assistant/documents${q}`, newDoc);
+      setFeedback({
+        type: 'success',
+        message: `Documento "${title}" guardado con ${audit.statusText} (${audit.score}%).`,
+      });
+    } catch (err) {
+      console.warn('[ASSISTANT] Error saving doc via API, saved in local brain state:', err.message);
+    }
+  };
+
+  const handleDeleteDoc = async (docId) => {
+    const currentDocs = (brainConfig.knowledgeDocuments || []).filter((d) => d.id !== docId);
+    setBrainConfig({
+      ...brainConfig,
+      knowledgeDocuments: currentDocs,
+    });
+
+    try {
+      const q = activeClientId ? `?clientId=${encodeURIComponent(activeClientId)}` : '';
+      await apiClient.delete(`/api/assistant/documents/${docId}${q}`);
+      setFeedback({
+        type: 'success',
+        message: 'Documento eliminado de la base de conocimiento.',
+      });
+    } catch (err) {
+      console.warn('[ASSISTANT] Error deleting doc via API:', err.message);
+    }
+  };
+
   const filteredFaqs = faqs.filter((f) => {
     if (!faqSearch.trim()) return true;
     const q = faqSearch.toLowerCase();
@@ -577,6 +749,19 @@ export function AssistantConfigPage() {
             >
               <ShieldAlert className="w-4 h-4 text-purple-600" />
               <span>Objeciones ({(brainConfig.objectionPlaybook || []).length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('knowledge')}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'knowledge'
+                  ? 'border-emerald-600 text-emerald-800'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 text-emerald-600" />
+              <span>Base de Conocimiento ({(brainConfig.knowledgeDocuments || []).length})</span>
             </button>
 
             <button
@@ -1042,6 +1227,151 @@ export function AssistantConfigPage() {
             </div>
           )}
 
+          {/* TAB: BASE DE CONOCIMIENTO DINÁMICA (UNIVERSAL SALES ENGINE) */}
+          {activeTab === 'knowledge' && (
+            <div className="bg-white border border-brand-border rounded-b-xl p-5 shadow-xs space-y-5">
+              {/* Educational Banner: The Proven Format */}
+              <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-emerald-800" />
+                    <h4 className="text-xs font-bold text-emerald-950">
+                      Base de Conocimiento Comercial — Formato de Alta Conversión
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-200/70 text-emerald-900">
+                    RAG Multi-Tenant Activo
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-900 leading-relaxed">
+                  Cualquier producto o servicio que cargues aquí (ej. lavarropas, seguros, servicios profesionales o posberry) será aprendido por el asistente manteniendo la misma coherencia y astucia vendedora. Respetá las 4 secciones recomendadas (Pitch, Beneficios, Objeciones y Flujo de Calificación).
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    onClick={() => handleOpenNewDoc(true)}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Crear desde Plantilla Maestra de Venta</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleOpenNewDoc(false)}
+                    className="text-xs gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Nuevo Documento en Blanco</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Document Search / Filter */}
+              <div className="flex items-center justify-between gap-3">
+                <input
+                  type="text"
+                  value={docFilterSearch}
+                  onChange={(e) => setDocFilterSearch(e.target.value)}
+                  placeholder="Buscar en documentos por título o contenido..."
+                  className="w-full h-8 px-3 text-xs bg-slate-50 border border-brand-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+
+              {/* Documents List */}
+              <div className="space-y-3">
+                {(brainConfig.knowledgeDocuments || []).length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-brand-border rounded-xl text-brand-text-secondary space-y-2">
+                    <FileText className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-xs font-medium">No hay documentos cargados en la base de conocimiento.</p>
+                    <p className="text-[11px] text-slate-500">Usá el botón de Plantilla Maestra para arrancar con el formato probado.</p>
+                  </div>
+                ) : (
+                  (brainConfig.knowledgeDocuments || [])
+                    .filter((d) => {
+                      if (!docFilterSearch.trim()) return true;
+                      const q = docFilterSearch.toLowerCase();
+                      return (
+                        (d.title || '').toLowerCase().includes(q) ||
+                        (d.content || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map((doc, dIdx) => {
+                      const audit = auditDocumentFormat(doc.content);
+                      return (
+                        <div
+                          key={doc.id || dIdx}
+                          className="border border-brand-border rounded-xl p-4 bg-slate-50/60 hover:bg-white hover:border-emerald-300 transition-all space-y-2.5 shadow-xs"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-emerald-700" />
+                                <h4 className="font-bold text-xs text-brand-text-primary">
+                                  {doc.title || 'Documento sin título'}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ({doc.filename || 'documento.md'})
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold uppercase">
+                                  {doc.category || 'ventas'}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold">
+                                  Prioridad {doc.priority || 10}
+                                </span>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1 ${
+                                    audit.score >= 90
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : audit.score >= 60
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                  <span>{audit.statusText} ({audit.score}%)</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditDoc(doc)}
+                                className="h-7 px-2.5 text-xs font-semibold"
+                              >
+                                Editar / Ver
+                              </Button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDoc(doc.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1.5 transition-colors"
+                                title="Eliminar documento"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick preview snippets */}
+                          <p className="text-[11px] text-slate-600 line-clamp-2 bg-white/80 p-2 rounded-md border border-slate-200/60 font-mono">
+                            {doc.content?.slice(0, 200)}...
+                          </p>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB 2: PREGUNTAS FRECUENTES (FAQS) */}
           {activeTab === 'faqs' && (
             <div className="bg-white border border-brand-border rounded-b-xl p-5 shadow-xs space-y-4">
@@ -1426,6 +1756,159 @@ export function AssistantConfigPage() {
                 className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
               >
                 Guardar y Enseñar
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDITOR DE DOCUMENTO DE CONOCIMIENTO (FORMATO MAESTRO)             */}
+      {/* ========================================================================= */}
+      {isDocModalOpen && (
+        <Modal
+          isOpen={isDocModalOpen}
+          onClose={() => setIsDocModalOpen(false)}
+          title={docFormData.id ? 'Editar Documento de Conocimiento' : 'Nuevo Documento de Conocimiento'}
+          description="Estructurá la información siguiendo el formato probado para que el bot responda con astucia comercial en cualquier rubro."
+          maxWidth="max-w-4xl"
+        >
+          <form onSubmit={handleSaveDoc} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-brand-text-primary mb-1">Título del Documento *</label>
+                <Input
+                  value={docFormData.title}
+                  onChange={(e) => setDocFormData({ ...docFormData, title: e.target.value })}
+                  placeholder="Ej: Lavarropas Automáticos Inverter / Guía Comercial"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-brand-text-primary mb-1">Nombre de Archivo (.md)</label>
+                <Input
+                  value={docFormData.filename}
+                  onChange={(e) => setDocFormData({ ...docFormData, filename: e.target.value })}
+                  placeholder="ej: lavarropas_inverter.md"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-brand-text-primary mb-1">Categoría</label>
+                <select
+                  value={docFormData.category}
+                  onChange={(e) => setDocFormData({ ...docFormData, category: e.target.value })}
+                  className="w-full text-xs bg-slate-50 border border-brand-border rounded-lg px-2.5 py-2 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="ventas">Ventas / Catálogo</option>
+                  <option value="servicios">Servicios & Soporte</option>
+                  <option value="objeciones">Objeciones & Financiación</option>
+                  <option value="general">Información General</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-brand-text-primary mb-1">
+                  Prioridad en Búsquedas (RAG)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={docFormData.priority}
+                  onChange={(e) => setDocFormData({ ...docFormData, priority: parseInt(e.target.value, 10) || 10 })}
+                  className="w-full text-xs bg-slate-50 border border-brand-border rounded-lg px-2.5 py-2 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            {/* Audit panel */}
+            {(() => {
+              const audit = auditDocumentFormat(docFormData.content);
+              return (
+                <div className="p-3 bg-slate-50 border border-brand-border rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-700" />
+                      <span className="font-bold text-brand-text-primary">Auditoría Comercial del Formato:</span>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[11px] font-extrabold ${
+                        audit.score >= 90
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : audit.score >= 60
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}
+                    >
+                      {audit.statusText} ({audit.score}/100 pts)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px]">
+                    <div className={`p-1.5 rounded border ${audit.hasH1 ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                      {audit.hasH1 ? '✓' : '✗'} Título (#)
+                    </div>
+                    <div className={`p-1.5 rounded border ${audit.hasMetadata ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                      {audit.hasMetadata ? '✓' : '✗'} Metadatos
+                    </div>
+                    <div className={`p-1.5 rounded border ${audit.hasBenefits ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                      {audit.hasBenefits ? '✓' : '✗'} Beneficios
+                    </div>
+                    <div className={`p-1.5 rounded border ${audit.hasObjections ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                      {audit.hasObjections ? '✓' : '✗'} Objeciones
+                    </div>
+                    <div className={`p-1.5 rounded border ${audit.hasIndagacion ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                      {audit.hasIndagacion ? '✓' : '✗'} Indagación
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-brand-text-primary">
+                  Contenido Markdown del Documento *
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDocFormData((prev) => ({
+                      ...prev,
+                      content: FRONTEND_MASTER_DOC_TEMPLATE,
+                      title: prev.title || 'Guía Comercial del Negocio',
+                    }))
+                  }
+                  className="text-[11px] text-emerald-700 hover:text-emerald-800 font-semibold underline flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Cargar Plantilla Maestra
+                </button>
+              </div>
+              <textarea
+                value={docFormData.content}
+                onChange={(e) => setDocFormData({ ...docFormData, content: e.target.value })}
+                placeholder="Pegá o escribí la información del producto siguiendo la estructura..."
+                rows={14}
+                required
+                className="w-full text-xs font-mono p-3 bg-slate-900 text-slate-100 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-500 leading-relaxed resize-y"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
+              <Button type="button" variant="outline" onClick={() => setIsDocModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={!docFormData.content.trim()}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
+              >
+                Guardar Documento en Base de Conocimiento
               </Button>
             </div>
           </form>

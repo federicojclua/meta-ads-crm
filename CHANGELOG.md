@@ -8,6 +8,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Fase 7: Motor Dinámico de Base de Conocimiento Multi-Tenant y Plantilla Maestra Universal (2026-10-08)
+- **Motor RAG Dinámico Multi-Tenant (`netlify/functions/_shared/knowledgeBase.js`, `netlify/functions/_shared/agentEngine.js`)**:
+  - Incorporada búsqueda semántica y léxica sobre documentos propios por cliente/tenant (`tenantDocuments`), con prioridad automática sobre los archivos estáticos en disco.
+  - Normalización transparente de metadatos YAML embebidos (`source`, `allowed_for`, `category`, `priority`, `tags`) y etiquetado contextual enriquecido `[Documento del Negocio]` para el System Prompt del LLM.
+  - El bot puede vender cualquier producto o servicio cargado en su base (ej. lavarropas, servicios profesionales, seguros, bienes raíces, capacitaciones) con la misma astucia comercial probada.
+- **Plantilla Maestra Universal & Validador de Calidad Comercial (`models/AiBrain.js`, `netlify/functions/_shared/knowledgeBase.js`)**:
+  - `MASTER_SALES_DOC_TEMPLATE`: Estructura comercial probada extraída de los 26 documentos de alta conversión existentes:
+    1. Encabezado de metadatos YAML con permisos de audiencia y prioridad.
+    2. Pitch comercial corto (2 oraciones directas al valor diferencial).
+    3. Beneficios concretos a comunicar (ahorro, conveniencia, garantía, facilidades).
+    4. Matriz de objeciones frecuentes y cómo responder (precio alto, competencia, dudas de garantía).
+    5. Flujo de indagación previa y calificación (preguntas clave antes de arrojar precio o condiciones).
+  - Validador sintáctico y comercial `validateKnowledgeFormat(content)`: audita documentos Markdown asignando un puntaje (0 a 100%) y checklist de 5 pilares comerciales con sugerencias de mejora en tiempo real.
+- **Endpoints Backend de Gestión Documental (`netlify/functions/api-assistant.js`)**:
+  - `GET /api/assistant/documents`: Lista los documentos de la base de conocimiento del tenant e incluye la plantilla maestra.
+  - `POST /api/assistant/documents/validate`: Audita el formato comercial de un texto y devuelve el score y recomendaciones.
+  - `POST /api/assistant/documents`: Crea o actualiza un documento en la base de conocimiento con scoring automático.
+  - `DELETE /api/assistant/documents/:id`: Elimina un documento específico del tenant.
+- **Gestor Visual de Base de Conocimiento en Frontend (`src/pages/AssistantConfigPage.jsx`)**:
+  - Nueva pestaña **"Base de Conocimiento"** con contador de documentos cargados.
+  - Banner explicativo del formato comercial probado con botón de creación desde la Plantilla Maestra y botón de documento en blanco.
+  - Barra de búsqueda y filtrado en tiempo real de documentos por título y contenido.
+  - Tarjetas de documento con badges de calidad comercial (`🟢 100% Formato Comercial Óptimo`, `🟡 Formato Aceptable`, `🔴 Incompleto`), categoría y prioridad.
+  - Modal interactivo de creación y edición (`isDocModalOpen`) con editor Markdown en tipografía monoespaciada y panel de auditoría comercial en vivo que chequea los 5 pilares mientras el usuario redacta.
+- **Suite de Pruebas Automatizadas (`src/test/dynamic-knowledge-rag.test.js`)**:
+  - 8 pruebas de validación al 100% que verifican: plantilla maestra, heurística de penalización, parser de metadatos YAML, búsqueda y ranking de documentos tenant, construcción del bloque RAG, indagación comercial en rubros inéditos, y endpoints backend `/validate` y CRUD de documentos.
+
 ### Added — Fase 6: Modelo Comercial Universal ("Sales Machine Engine") & Hub Omnicanal (6 Redes) (2026-10-08)
 - **Motor Comercial Universal Replicable Multi-Rubro (`models/AiBrain.js`, `netlify/functions/_shared/agentEngine.js`)**:
   - Desacoplada la astucia de venta de un rubro específico (Clover / terminales de cobro) para que sea un modelo de ventas universal y clonable a cualquier negocio (ej. venta de lavarropas, electrodomésticos, servicios, etc.).
