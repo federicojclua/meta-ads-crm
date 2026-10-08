@@ -3,6 +3,7 @@ import { getDb } from './_shared/db.js';
 import { normalizePhoneNumber } from '../../models/WhatsApp.js';
 import { evaluateAutonomousAgent } from './_shared/agentEngine.js';
 import { DEFAULT_AI_BRAIN } from '../../models/AiBrain.js';
+import { notifyGroup } from './_shared/whatsappGroupNotifier.js';
 
 export async function handler(event) {
   const method = event.httpMethod;
@@ -136,6 +137,8 @@ export async function handler(event) {
                 else if (msgType === 'video') messageText = msg.video?.caption || '🎥 [Video recibido]';
                 else messageText = `[Mensaje ${msgType}]`;
 
+                const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
                 let chat = await chatsCollection.findOne({
                   clientId,
                   contactPhone: senderPhone,
@@ -144,49 +147,25 @@ export async function handler(event) {
                 let leadId = chat?.leadId || null;
                 let currentLead = null;
 
-                if (!leadId) {
+                if (leadId) {
+                  currentLead = await leadsCollection.findOne({ _id: leadId });
+                }
+
+                // 30-day deduplication window: look for existing lead for this phone
+                if (!currentLead) {
                   const existingLead = await leadsCollection.findOne({
                     clientId,
                     $or: [{ phone: senderPhone }, { phone: rawSenderPhone }],
+                    $or: [
+                      { updatedAt: { $gte: thirtyDaysAgo } },
+                      { createdAt: { $gte: thirtyDaysAgo } },
+                      { status: 'active' },
+                    ],
                   });
-
                   if (existingLead) {
                     leadId = existingLead._id;
                     currentLead = existingLead;
-                  } else {
-                    const newLeadDoc = {
-                      clientId,
-                      name: contactProfile || `WhatsApp ${senderPhone}`,
-                      email: null,
-                      phone: senderPhone,
-                      stage: 'new',
-                      source: 'whatsapp',
-                      status: 'active',
-                      tags: ['WhatsApp Inbound'],
-                      valueEstimateMinor: 0,
-                      currency: 'ARS',
-                      notes: `Lead creado automáticamente desde WhatsApp Inbound (${new Date().toLocaleString()}). Mensaje inicial: "${messageText.slice(0, 150)}"`,
-                      acquiredAt: now,
-                      createdAt: now,
-                      updatedAt: now,
-                    };
-
-                    const leadInsert = await leadsCollection.insertOne(newLeadDoc);
-                    leadId = leadInsert.insertedId;
-                    currentLead = { _id: leadId, ...newLeadDoc };
-
-                    await activitiesCollection.insertOne({
-                      clientId,
-                      leadId,
-                      type: 'whatsapp_created',
-                      description: `Nuevo prospecto generado automáticamente desde WhatsApp (${senderPhone}).`,
-                      performedBy: { id: 'system_webhook', email: 'system@animamkt.com', displayName: 'WhatsApp Cloud Webhook' },
-                      data: { initialMessage: messageText, receptorLine: receptorDisplayNumber },
-                      createdAt: now,
-                    });
                   }
-                } else {
-                  currentLead = await leadsCollection.findOne({ _id: leadId });
                 }
 
                 // Create or Update Chat Thread
@@ -217,7 +196,7 @@ export async function handler(event) {
                     {
                       $set: {
                         contactName: chat.contactName || contactProfile || senderPhone,
-                        leadId,
+                        leadId: leadId || chat.leadId,
                         channel: 'whatsapp',
                         lastMessage: { text: messageText, type: msgType, direction: 'inbound', status: 'received', timestamp: now },
                         lastMessageAt: now,
@@ -246,14 +225,36 @@ export async function handler(event) {
                 });
 
                 // ----------------------------------------------------
-                // Subetapa 14.2: Autonomous AI Agent Qualification
+                // Autonomous AI Agent Evaluation & Mutual Exclusion
                 // ----------------------------------------------------
                 const brainDoc = brainCollection ? await brainCollection.findOne({ clientId }) : null;
                 const brain = brainDoc || DEFAULT_AI_BRAIN;
 
-                if (brain.autoQualifyEnabled && !chat.isBotMuted && currentLead?.stage === 'new') {
+                // Mutual exclusion: bot does not reply if muted or assigned to human agent
+                const isBotEligible = Boolean(brain.autoQualifyEnabled && !chat.isBotMuted && !chat.assignedToUserId);
+
+                if (isBotEligible) {
+                  // Retrieve last 10 messages for conversation context
+                  let chatHistory = [];
+                  if (typeof messagesCollection?.find === 'function') {
+                    try {
+                      const recentMsgs = await messagesCollection
+                        .find({ chatId: chat._id })
+                        .sort({ timestamp: -1 })
+                        .limit(10)
+                        .toArray();
+                      chatHistory = recentMsgs.reverse().map((m) => ({
+                        direction: m.direction,
+                        text: m.text || '',
+                      }));
+                    } catch (histErr) {
+                      console.warn('[WEBHOOK] Could not load chat history:', histErr.message);
+                    }
+                  }
+
                   const decision = await evaluateAutonomousAgent({
                     messageText,
+                    chatHistory,
                     brain,
                     lead: currentLead,
                     channel: 'whatsapp',
@@ -271,10 +272,35 @@ export async function handler(event) {
                       text: decision.replyText,
                       status: 'sent',
                       timestamp: new Date(Date.now() + 1000),
-                      senderName: 'IA Comercial (Calificador)',
+                      senderName: 'Asistente Grupo Novati',
                       createdAt: now,
                     };
                     await messagesCollection.insertOne(botMsgDoc);
+
+                    // Dispatch to Meta WhatsApp Cloud API if configured
+                    const metaApiKey = process.env.WHATSAPP_API_TOKEN;
+                    const outgoingPhoneId = receptorPhoneNumberId || line?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+                    if (metaApiKey && outgoingPhoneId && !process.env.VITEST) {
+                      try {
+                        await fetch(`https://graph.facebook.com/v19.0/${outgoingPhoneId}/messages`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${metaApiKey}`,
+                          },
+                          body: JSON.stringify({
+                            messaging_product: 'whatsapp',
+                            recipient_type: 'individual',
+                            to: senderPhone,
+                            type: 'text',
+                            text: { preview_url: false, body: decision.replyText },
+                          }),
+                        });
+                      } catch (sendErr) {
+                        console.warn('[WEBHOOK] WhatsApp outbound dispatch failed:', sendErr.message);
+                      }
+                    }
 
                     await chatsCollection.updateOne(
                       { _id: chat._id },
@@ -296,36 +322,132 @@ export async function handler(event) {
                     );
                   }
 
-                  // Mutate Pipeline: Promote to 'qualified' if criteria met
-                  if (decision.shouldQualify && typeof leadsCollection?.updateOne === 'function') {
-                    await leadsCollection.updateOne(
-                      { _id: leadId },
-                      { $set: { stage: 'qualified', updatedAt: now } }
-                    );
-
-                    if (typeof activitiesCollection?.insertOne === 'function') {
-                      await activitiesCollection.insertOne({
+                  // 1. Lead Detection: Create or update lead only when commercial interest is detected
+                  if (decision.shouldRegisterLead) {
+                    if (currentLead) {
+                      // Update existing lead
+                      const updateDoc = { updatedAt: now };
+                      if (decision.leadData?.rubro) updateDoc.rubro = decision.leadData.rubro;
+                      if (decision.leadData?.interes) updateDoc.interes = decision.leadData.interes;
+                      if (decision.leadData?.tamano) updateDoc.tamano = decision.leadData.tamano;
+                      if (decision.leadData?.condicionFiscal && decision.leadData.condicionFiscal !== 'desconocido') {
+                        updateDoc.condicionFiscal = decision.leadData.condicionFiscal;
+                      }
+                      if (decision.leadData?.esClienteFiserv && decision.leadData.esClienteFiserv !== 'desconocido') {
+                        updateDoc.esClienteFiserv = decision.leadData.esClienteFiserv;
+                      }
+                      await leadsCollection.updateOne({ _id: currentLead._id }, { $set: updateDoc });
+                    } else {
+                      // Create new lead in CRM
+                      const newLeadDoc = {
                         clientId,
-                        leadId,
-                        type: 'stage_change',
-                        description: 'Prospecto calificado automáticamente por el Agente de IA comercial.',
-                        performedBy: { id: 'ai_qualifier', displayName: 'Agente Calificador IA', email: 'bot@animamkt.com' },
-                        data: { newStage: 'qualified', reason: decision.reason },
+                        name: decision.leadData?.name || contactProfile || `WhatsApp ${senderPhone}`,
+                        email: null,
+                        phone: senderPhone,
+                        stage: 'new',
+                        source: 'whatsapp',
+                        status: 'active',
+                        tags: ['WhatsApp Inbound', 'Lead Detectado IA'],
+                        valueEstimateMinor: 0,
+                        currency: 'ARS',
+                        rubro: decision.leadData?.rubro || null,
+                        interes: decision.leadData?.interes || null,
+                        tamano: decision.leadData?.tamano || 'chico',
+                        condicionFiscal: decision.leadData?.condicionFiscal || 'desconocido',
+                        esClienteFiserv: decision.leadData?.esClienteFiserv || 'desconocido',
+                        notes: `Lead detectado automáticamente desde WhatsApp Inbound (${new Date().toLocaleString()}). ${decision.leadData?.notas || ''}`.trim(),
+                        acquiredAt: now,
                         createdAt: now,
+                        updatedAt: now,
+                      };
+
+                      const leadInsert = await leadsCollection.insertOne(newLeadDoc);
+                      leadId = leadInsert.insertedId;
+                      currentLead = { _id: leadId, ...newLeadDoc };
+
+                      // Link lead to chat
+                      await chatsCollection.updateOne({ _id: chat._id }, { $set: { leadId } });
+
+                      if (typeof activitiesCollection?.insertOne === 'function') {
+                        await activitiesCollection.insertOne({
+                          clientId,
+                          leadId,
+                          type: 'whatsapp_created',
+                          description: `Nuevo prospecto detectado con interés comercial desde WhatsApp (${senderPhone}).`,
+                          performedBy: { id: 'assistant_ai', displayName: 'Asistente Grupo Novati', email: 'asistente@novati.com' },
+                          data: { initialMessage: messageText, leadData: decision.leadData },
+                          createdAt: now,
+                        });
+                      }
+
+                      // Dispatch guaranteed notification to WhatsApp group
+                      await notifyGroup('new_lead', {
+                        name: currentLead.name,
+                        phone: senderPhone,
+                        rubro: decision.leadData?.rubro,
+                        ubicacion: decision.leadData?.ubicacion || 'Tucumán',
+                        interes: decision.leadData?.interes,
+                        tamano: decision.leadData?.tamano,
+                        condicionFiscal: decision.leadData?.condicionFiscal,
+                        esClienteFiserv: decision.leadData?.esClienteFiserv,
+                        notas: decision.leadData?.notas,
                       });
                     }
                   }
 
-                  // If Hand-off triggered, log alert for human team
-                  if (decision.shouldHandOff && typeof activitiesCollection?.insertOne === 'function') {
-                    await activitiesCollection.insertOne({
-                      clientId,
-                      leadId,
-                      type: 'handoff_triggered',
-                      description: 'Agente de IA derivó la conversación a un ejecutivo humano.',
-                      performedBy: { id: 'ai_setter', displayName: 'Agente IA', email: 'bot@animamkt.com' },
-                      data: { reason: decision.reason },
-                      createdAt: now,
+                  // 2. Escalation / Human Hand-off
+                  if (decision.shouldHandOff) {
+                    await chatsCollection.updateOne(
+                      { _id: chat._id },
+                      {
+                        $set: {
+                          isBotMuted: true,
+                          handOffReason: decision.handOffData?.motivo || 'Solicitud de atención humana',
+                          updatedAt: now,
+                        },
+                      }
+                    );
+
+                    if (leadId && typeof activitiesCollection?.insertOne === 'function') {
+                      await activitiesCollection.insertOne({
+                        clientId,
+                        leadId,
+                        type: 'handoff_triggered',
+                        description: 'Asistente derivó la conversación a un asesor humano.',
+                        performedBy: { id: 'assistant_ai', displayName: 'Asistente Grupo Novati', email: 'asistente@novati.com' },
+                        data: { reason: decision.handOffData?.motivo, resumen: decision.handOffData?.resumen },
+                        createdAt: now,
+                      });
+                    }
+
+                    // Dispatch guaranteed notification to WhatsApp group
+                    await notifyGroup('escalation', {
+                      name: chat.contactName || contactProfile || senderPhone,
+                      phone: senderPhone,
+                      motivo: decision.handOffData?.motivo,
+                      resumen: decision.handOffData?.resumen || messageText,
+                    });
+                  }
+
+                  // 3. Safety Net — Promise of Contact
+                  if (decision.shouldPromiseContact) {
+                    await chatsCollection.updateOne(
+                      { _id: chat._id },
+                      {
+                        $set: {
+                          pendingContactPromise: true,
+                          contactPromiseAt: now,
+                          contactPromiseDetails: decision.promiseData,
+                          updatedAt: now,
+                        },
+                      }
+                    );
+
+                    // Dispatch guaranteed Safety Net notification to WhatsApp group
+                    await notifyGroup('unregistered_promise', {
+                      phone: senderPhone,
+                      promise: decision.promiseData?.promesa,
+                      chatId: chat._id?.toString(),
                     });
                   }
                 }

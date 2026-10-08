@@ -1,0 +1,36 @@
+## EQUIPAMIENTO PARA CLIENTES POSBERRY
+
+Grupo Novati comercializa computadoras y equipamiento informático como complemento para clientes que desean implementar POSBerry y no cuentan con el hardware necesario.
+
+### CUÁNDO OFRECER UNA PC
+
+No ofrecer computadoras automáticamente a todos los interesados en POSBerry.
+
+Primero identificar si el cliente ya cuenta con una computadora.
+
+Si el cliente:
+- está abriendo un negocio desde cero;
+- no tiene computadora;
+- necesita renovar su equipo;
+- pregunta qué computadora necesita para POSBerry;
+- solicita una solución completa para comenzar a operar;
+
+se le pueden ofrecer las opciones de equipamiento disponibles en la base de conocimiento de Grupo Novati.
+
+### LÓGICA DE RECOMENDACIÓN
+
+Si el cliente ya tiene monitor, puede ofrecerse la opción de PC sola.
+
+Si el cliente no tiene computadora ni monitor, ofrecer como primera alternativa el combo PC + monitor.
+
+Si el cliente ya cuenta con una computadora, consultar sus características antes de recomendar la compra de un equipo nuevo.
+
+### RELACIÓN CON POSBERRY
+
+La computadora es un producto complementario a POSBerry.
+
+El objetivo de Grupo Novati es poder resolver en un mismo lugar las necesidades tecnológicas del comercio: sistema de gestión, equipamiento, medios de pago, implementación y soporte.
+
+No afirmar que la computadora incluye instalación, configuración, licencias, periféricos u otros servicios que no estén expresamente indicados en la base de conocimiento.
+
+Si el cliente consulta por alguno de esos servicios y la información no está disponible, solicitar los datos necesarios y derivar la consulta a un asesor de Grupo Novati.

@@ -1,16 +1,269 @@
+/**
+ * Autonomous Agent Engine — WhatsApp Bot Brain
+ *
+ * Evaluates incoming messages using the tenant's AI Brain configuration,
+ * retrieves relevant knowledge base context (RAG), builds a system prompt
+ * with the commercial plan and behavioral rules, and calls Gemini 2.0 Flash
+ * to generate a grounded response with structured tool calls.
+ *
+ * Tools available to the LLM:
+ *   - registrar_lead: Register a prospect with real commercial interest.
+ *   - escalar_a_humano: Hand off the conversation to a human agent.
+ *   - prometer_contacto: Mark that the bot promised the client someone will contact them.
+ *
+ * Fallback: If the LLM call fails, returns a deterministic greeting + handoff suggestion.
+ */
+
 import { DEFAULT_AI_BRAIN } from '../../../models/AiBrain.js';
+import { buildRAGContext, formatCommercialPlan } from './knowledgeBase.js';
+
+// --- Tool definitions for Gemini function calling ---
+const AGENT_TOOLS = [
+  {
+    name: 'registrar_lead',
+    description:
+      'Registra un prospecto con interés comercial real. Llamar cuando el prospecto muestra interés ' +
+      'implícito o explícito: pregunta precios/condiciones Y cuenta sobre su negocio. ' +
+      'NO esperar a que diga "quiero comprar".',
+    parameters: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre del contacto o del comercio.' },
+        rubro: { type: 'string', description: 'Rubro del comercio (ej: panadería, kiosco, gastronomía).' },
+        ubicacion: { type: 'string', description: 'Ciudad o zona del comercio.' },
+        interes: { type: 'string', description: 'Qué le interesa al prospecto (ej: terminal Clover, POSBerry, QR).' },
+        tamano: {
+          type: 'string',
+          enum: ['chico', 'mediano', 'grande'],
+          description: 'Tamaño estimado: chico (1 local, hasta 2 terminales), mediano (2-4 locales), grande (5+ locales).',
+        },
+        condicion_fiscal: {
+          type: 'string',
+          enum: ['monotributista', 'responsable_inscripto', 'desconocido'],
+          description: 'Condición fiscal del comercio si se identificó.',
+        },
+        es_cliente_fiserv: {
+          type: 'string',
+          enum: ['si', 'no', 'ex_cliente', 'desconocido'],
+          description: 'Si ya es o fue cliente de Fiserv/PosNet/Clover.',
+        },
+        notas: { type: 'string', description: 'Resumen breve de la conversación y lo que el prospecto necesita.' },
+      },
+      required: ['nombre', 'interes'],
+    },
+  },
+  {
+    name: 'escalar_a_humano',
+    description:
+      'Deriva la conversación a un vendedor o asesor humano. Usar cuando: ' +
+      '(1) el cliente pide explícitamente hablar con una persona, ' +
+      '(2) la consulta requiere datos que no están en la base de conocimiento, ' +
+      '(3) hay un reclamo o frustración, ' +
+      '(4) se necesita negociación comercial específica.',
+    parameters: {
+      type: 'object',
+      properties: {
+        motivo: { type: 'string', description: 'Motivo concreto de la derivación.' },
+        resumen: { type: 'string', description: 'Resumen de lo que el cliente necesita, para que el humano tenga contexto.' },
+      },
+      required: ['motivo', 'resumen'],
+    },
+  },
+  {
+    name: 'prometer_contacto',
+    description:
+      'OBLIGATORIO llamar esta herramienta cada vez que le digas al cliente que alguien lo va a contactar, ' +
+      'llamar, o que le van a pasar sus datos a un asesor. Esto dispara el aviso al equipo y la red de seguridad.',
+    parameters: {
+      type: 'object',
+      properties: {
+        promesa: { type: 'string', description: 'Qué se le prometió exactamente al cliente.' },
+      },
+      required: ['promesa'],
+    },
+  },
+];
+
+/**
+ * Builds the full system prompt for the assistant.
+ */
+function buildSystemPrompt(brain, ragContext) {
+  const plan = formatCommercialPlan(brain.commercialPlan || DEFAULT_AI_BRAIN.commercialPlan);
+  const rules = (brain.rules || DEFAULT_AI_BRAIN.rules).map((r, i) => `${i + 1}. ${r}`).join('\n');
+  const businessName = brain.businessName || DEFAULT_AI_BRAIN.businessName;
+  const businessDesc = brain.businessDescription || DEFAULT_AI_BRAIN.businessDescription;
+  const tone = brain.industryAndTone || DEFAULT_AI_BRAIN.industryAndTone;
+  const zone = brain.coverageZone || DEFAULT_AI_BRAIN.coverageZone;
+  const qualRules = brain.qualificationRules || DEFAULT_AI_BRAIN.qualificationRules;
+
+  return `Sos el asistente virtual de ${businessName}.
+${businessDesc}
+
+PERSONALIDAD Y TONO:
+${tone}
+
+ZONA DE COBERTURA: ${zone}
+
+═══════════════════════════════════════════
+REGLA DE ORO CONVERSACIONAL:
+- Primero dar una respuesta útil al cliente.
+- Después, hacer UNA SOLA pregunta por turno para avanzar.
+- NUNCA hacer más de una pregunta por mensaje.
+- No interrogar al cliente de entrada.
+═══════════════════════════════════════════
+
+PLAN COMERCIAL (El orden importa: si a un cliente le corresponden dos ofertas, ofrecé primero la de más arriba. Primero indagá si le corresponde SIN nombrar la oferta.):
+${plan}
+
+REGLAS DE CALIFICACIÓN DE LEADS:
+${qualRules}
+
+REGLAS DE COMPORTAMIENTO:
+${rules}
+
+═══════════════════════════════════════════
+BASE DE CONOCIMIENTO (usá SOLO esta información para responder):
+${ragContext}
+═══════════════════════════════════════════
+
+HERRAMIENTAS:
+- Usá "registrar_lead" cuando detectes interés real (implícito o explícito).
+- Usá "escalar_a_humano" cuando no puedas resolver o el cliente pida un humano.
+- Usá "prometer_contacto" SIEMPRE que le digas al cliente que alguien lo va a contactar.
+
+IMPORTANTE:
+- Respondé SOLO con información de la base de conocimiento. NO inventes datos.
+- Si no tenés la respuesta, decilo honestamente y ofrecé derivar a un asesor.
+- Respondé en español argentino, tuteo con "vos".
+- Mensajes cortos y directos. Máximo 2-3 párrafos breves.`;
+}
+
+/**
+ * Formats chat history for the LLM conversation context.
+ */
+function formatChatHistory(chatHistory = []) {
+  if (!Array.isArray(chatHistory) || chatHistory.length === 0) return [];
+
+  return chatHistory
+    .slice(-10) // Last 10 messages for context window
+    .map((msg) => ({
+      role: msg.direction === 'inbound' ? 'user' : 'model',
+      parts: [{ text: msg.text || '' }],
+    }))
+    .filter((msg) => msg.parts[0].text.length > 0);
+}
+
+/**
+ * Calls Gemini 2.0 Flash with the system prompt, chat history, and tools.
+ *
+ * @param {string} systemPrompt
+ * @param {Array} history - Formatted chat history
+ * @param {string} userMessage - Current user message
+ * @returns {Promise<{ text: string, toolCalls: Array }>}
+ */
+async function callGemini(systemPrompt, history, userMessage) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY not configured');
+  }
+
+  const model = 'gemini-2.0-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  // Build the contents array with history + current message
+  const contents = [
+    ...history,
+    {
+      role: 'user',
+      parts: [{ text: userMessage }],
+    },
+  ];
+
+  // Build tools specification for function calling
+  const tools = [{
+    functionDeclarations: AGENT_TOOLS.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    })),
+  }];
+
+  const requestBody = {
+    system_instruction: {
+      parts: [{ text: systemPrompt }],
+    },
+    contents,
+    tools,
+    generationConfig: {
+      temperature: 0.7,
+      topP: 0.9,
+      maxOutputTokens: 600,
+    },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ],
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errorBody.slice(0, 300)}`);
+  }
+
+  const data = await response.json();
+  const candidate = data.candidates?.[0];
+
+  if (!candidate || !candidate.content || !candidate.content.parts) {
+    throw new Error('Gemini returned empty response');
+  }
+
+  // Extract text response and tool calls
+  let text = '';
+  const toolCalls = [];
+
+  for (const part of candidate.content.parts) {
+    if (part.text) {
+      text += part.text;
+    }
+    if (part.functionCall) {
+      toolCalls.push({
+        name: part.functionCall.name,
+        args: part.functionCall.args || {},
+      });
+    }
+  }
+
+  return { text: text.trim(), toolCalls };
+}
 
 /**
  * Evaluates an incoming message with the tenant's AI Brain context.
- * Determines reply, qualification status, meeting suggestions, and hand-off.
- * 
+ * This is the main entry point called by the webhook handler.
+ *
  * @param {Object} params
- * @param {string} params.messageText
- * @param {Array} params.chatHistory
- * @param {Object} params.brain
- * @param {Object} params.lead
- * @param {string} params.channel
- * @returns {Promise<{ replyText: string, shouldQualify: boolean, shouldOfferMeeting: boolean, shouldHandOff: boolean, reason: string }>}
+ * @param {string} params.messageText - The incoming user message
+ * @param {Array} params.chatHistory - Previous messages in the conversation
+ * @param {Object} params.brain - The tenant's AI Brain configuration
+ * @param {Object} params.lead - The current lead document (if exists)
+ * @param {string} params.channel - Communication channel
+ * @returns {Promise<{
+ *   replyText: string,
+ *   shouldRegisterLead: boolean,
+ *   leadData: Object|null,
+ *   shouldHandOff: boolean,
+ *   handOffData: Object|null,
+ *   shouldPromiseContact: boolean,
+ *   promiseData: Object|null,
+ *   reason: string,
+ * }>}
  */
 export async function evaluateAutonomousAgent({
   messageText = '',
@@ -20,75 +273,183 @@ export async function evaluateAutonomousAgent({
   channel = 'whatsapp',
 }) {
   const text = (messageText || '').trim();
-  const lower = text.toLowerCase();
 
-  // 1. Detect Hand-off conditions (Human Takeover)
-  const isFrustrated = /(enojado|estafa|humano|persona real|abogado|denuncia|queja|llamar urgente|hablar con alguien)/i.test(lower);
-  const isComplexLegal = /(contrato formal|factura a|datos fiscales|cuit|licitación)/i.test(lower);
-
-  if (isFrustrated || isComplexLegal) {
+  // Empty message — no response
+  if (!text) {
     return {
-      replyText: 'Entiendo perfectamente. En este momento transfiero tu consulta con uno de nuestros ejecutivos de cuenta para que te atienda personalmente a la brevedad.',
-      shouldQualify: false,
-      shouldOfferMeeting: false,
-      shouldHandOff: true,
-      reason: isFrustrated ? 'Detección de solicitud de atención humana o reclamo' : 'Consulta compleja / administrativa',
+      replyText: '',
+      shouldRegisterLead: false,
+      leadData: null,
+      shouldHandOff: false,
+      handOffData: null,
+      shouldPromiseContact: false,
+      promiseData: null,
+      reason: 'Mensaje vacío',
     };
   }
 
-  // 2. Detect Qualification intent (Budget, Service interest, Email)
-  const hasEmail = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(text);
-  const mentionsBudget = /(presupuesto|\$|inversion|inversión|pesos|usd|dólares|dolares|100k|200k|300k|500k|mil)/i.test(lower);
-  const mentionsGoals = /(campaña|pauta|meta ads|google ads|instagram|facebook|ventas|leads|publicidad|ecommerce|clientes)/i.test(lower);
+  // Build RAG context from knowledge base using the user's message as query
+  let ragContext = '';
+  try {
+    ragContext = buildRAGContext(text, { topK: 5, context: 'sales' });
+  } catch (ragErr) {
+    console.warn('[AGENT_ENGINE] RAG context build failed:', ragErr.message);
+    ragContext = '(No se pudo cargar la base de conocimiento.)';
+  }
 
-  const shouldQualify = Boolean((hasEmail || mentionsBudget) && mentionsGoals);
+  // Build system prompt
+  const systemPrompt = buildSystemPrompt(brain, ragContext);
 
-  // 3. Detect Meeting / Setter intent
-  const asksForMeeting = /(reunion|reunión|llamada|demo|videollamada|agendar|turno|horario|cuando podemos hablar|zoom|meet)/i.test(lower);
-  const shouldOfferMeeting = Boolean(brain.autoSetterEnabled && (asksForMeeting || shouldQualify));
+  // Format chat history
+  const history = formatChatHistory(chatHistory);
 
-  // 4. Generate Grounded AI Response
+  // Try LLM call
   const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
 
   if (apiKey && !process.env.VITEST) {
     try {
-      // In production with API key, format prompt with brain context
-      const systemPrompt = `Eres un asistente virtual comercial para una empresa cuyo rubro y personalidad es: "${brain.industryAndTone}".
-Base de conocimiento de la empresa:
-${brain.knowledgeBase}
+      const { text: responseText, toolCalls } = await callGemini(systemPrompt, history, text);
 
-Reglas de calificación:
-${brain.qualificationRules}
+      // Process tool calls
+      let shouldRegisterLead = false;
+      let leadData = null;
+      let shouldHandOff = false;
+      let handOffData = null;
+      let shouldPromiseContact = false;
+      let promiseData = null;
 
-Canal actual: ${channel.toUpperCase()}.
-Instrucciones:
-1. Responde de forma muy natural, empática, ejecutiva y breve (máximo 2 párrafos cortos).
-2. Responde directamente a las dudas del prospecto usando la base de conocimiento.
-3. Si el prospecto muestra interés o califica, invítalo amablemente a coordinar una breve llamada de diagnóstico o solicita su email.
-4. No inventes precios ni servicios que no estén en la base de conocimiento.`;
+      for (const tc of toolCalls) {
+        switch (tc.name) {
+          case 'registrar_lead':
+            shouldRegisterLead = true;
+            leadData = {
+              name: tc.args.nombre || '',
+              rubro: tc.args.rubro || '',
+              ubicacion: tc.args.ubicacion || '',
+              interes: tc.args.interes || '',
+              tamano: tc.args.tamano || 'chico',
+              condicionFiscal: tc.args.condicion_fiscal || 'desconocido',
+              esClienteFiserv: tc.args.es_cliente_fiserv || 'desconocido',
+              notas: tc.args.notas || '',
+            };
+            break;
 
-      // Call provider if available (Gemini / OpenAI)
-      // Fallback seamlessly to deterministic responder if provider fails
+          case 'escalar_a_humano':
+            shouldHandOff = true;
+            handOffData = {
+              motivo: tc.args.motivo || 'Solicitud de atención humana',
+              resumen: tc.args.resumen || '',
+            };
+            break;
+
+          case 'prometer_contacto':
+            shouldPromiseContact = true;
+            promiseData = {
+              promesa: tc.args.promesa || 'Se le prometió contacto al cliente',
+            };
+            break;
+        }
+      }
+
+      // Build reason for logging
+      let reason = 'Respuesta generada por IA';
+      if (shouldRegisterLead) reason = 'Lead detectado con interés comercial';
+      if (shouldHandOff) reason = `Escalación: ${handOffData?.motivo || 'solicitud de humano'}`;
+
+      return {
+        replyText: responseText || '¡Hola! Gracias por comunicarte con Grupo Novati. ¿En qué podemos ayudarte?',
+        shouldRegisterLead,
+        shouldQualify: Boolean(shouldRegisterLead),
+        leadData,
+        shouldHandOff,
+        handOffData,
+        shouldPromiseContact,
+        promiseData,
+        reason,
+      };
     } catch (llmErr) {
-      console.warn('[AGENT_ENGINE_LLM_ERROR]', llmErr.message);
+      console.error('[AGENT_ENGINE_LLM_ERROR]', llmErr.message);
+      // Fall through to deterministic fallback
     }
   }
 
-  // Deterministic Grounded Responder
-  let replyText = '';
-  if (shouldOfferMeeting) {
-    replyText = `¡Excelente! Para evaluar tu caso en detalle y armar la propuesta a medida, podemos coordinar una breve llamada de diagnóstico de 15 minutos. ¿Te queda cómodo mañana por la mañana o por la tarde?`;
-  } else if (mentionsGoals) {
-    replyText = `¡Hola! Gracias por contactarnos. Con gusto te ayudamos a potenciar tus campañas de ${mentionsGoals ? 'Meta y Google Ads' : 'marketing'}. Trabajamos con diagnósticos iniciales y optimización continua. ¿Qué producto o servicio te gustaría promocionar principalmente?`;
-  } else {
-    replyText = `¡Hola! Gracias por comunicarte con Anima MKT. ¿En qué podemos ayudarte hoy para hacer crecer tus ventas y presencia digital?`;
+  // ============================================================
+  // Deterministic Fallback (when LLM is unavailable or in offline tests)
+  // ============================================================
+  const lower = text.toLowerCase();
+
+  // 1. Detect frustration / human request / complaints
+  const wantsHuman = /(persona|humano|vendedor|asesor|hablar con alguien|llamar|llamame|estafa|queja|enojado|denuncia)/i.test(lower);
+  if (wantsHuman) {
+    return {
+      replyText:
+        'Entiendo perfectamente. En este momento transfiero tu consulta con uno de nuestros ejecutivos de cuenta para que te atienda personalmente a la brevedad.',
+      shouldRegisterLead: false,
+      shouldQualify: false,
+      leadData: null,
+      shouldHandOff: true,
+      handOffData: { motivo: 'Cliente solicitó hablar con una persona o expresó reclamo', resumen: text.slice(0, 200) },
+      shouldPromiseContact: true,
+      promiseData: { promesa: 'Se le dijo que un asesor o ejecutivo de cuenta lo va a contactar' },
+      reason: 'Solicitud de atención humana / reclamo (fallback determinístico)',
+    };
   }
 
+  // 2. Detect commercial interest / budget / equipment inquiry (Implicit & Explicit Lead Detection)
+  const mentionsMarketingGoals = /(campaña|pauta|meta ads|google ads|publicidad|leads|anuncio)/i.test(lower);
+  const mentionsCommercial = /(presupuesto|\$|inversion|inversión|cuanto sale|cuánto sale|precio|costo|clover|posnet|posberry|terminal|monotributista|equipo|comprar|instalar|adquirir|cuotas)/i.test(lower);
+
+  if (mentionsMarketingGoals || mentionsCommercial) {
+    let fallbackReply = '';
+    let interes = 'Terminal de cobro / Solución de pago';
+
+    if (mentionsMarketingGoals) {
+      fallbackReply = '¡Excelente! Para evaluar tu caso en detalle y armar la propuesta a medida, podemos coordinar una breve llamada de diagnóstico de 15 minutos. ¿Te queda cómodo mañana por la mañana o por la tarde?';
+      interes = 'Pauta publicitaria y captación de leads';
+    } else if (/monotributista/i.test(lower)) {
+      fallbackReply = 'Para comercios monotributistas que no operan con Fiserv tenemos la propuesta especial con QR $0 los primeros 3 meses, débito 0% y terminal bonificada. ¿Hoy ya trabajás con Fiserv o tenés PosNet o Clover?';
+      interes = 'Propuesta Monotributista';
+    } else if (/clover|posberry/i.test(lower)) {
+      fallbackReply = '¡Hola! Trabajamos con terminales Clover Mini (mostrador), Flex (movilidad con impresora) y Flex Pocket integradas con POSBerry y cobro Fiserv. ¿Qué rubro es tu comercio?';
+      interes = 'Clover / POSBerry';
+    } else {
+      fallbackReply = '¡Hola! Con gusto te pasamos toda la información de terminales PosNet, Clover y sistema POSBerry. ¿Para qué rubro de comercio lo estás buscando?';
+    }
+
+    return {
+      replyText: fallbackReply,
+      shouldRegisterLead: true,
+      shouldQualify: true,
+      leadData: {
+        name: '',
+        rubro: '',
+        ubicacion: 'Tucumán',
+        interes,
+        tamano: 'chico',
+        condicionFiscal: /monotributista/i.test(lower) ? 'monotributista' : 'desconocido',
+        esClienteFiserv: 'desconocido',
+        notas: `Interés detectado en mensaje: "${text.slice(0, 150)}"`,
+      },
+      shouldHandOff: false,
+      handOffData: null,
+      shouldPromiseContact: false,
+      promiseData: null,
+      reason: 'Lead detectado por interés comercial o consulta de precios/equipos (fallback determinístico)',
+    };
+  }
+
+  // 3. Generic greeting fallback
   return {
-    replyText,
-    shouldQualify,
-    shouldOfferMeeting,
+    replyText:
+      '¡Hola! Soy el asistente de Grupo Novati 👋 Vendemos terminales de cobro PosNet y Clover con POSBerry en Tucumán. ' +
+      '¿En qué puedo ayudarte? Podés preguntarme por equipos, comisiones, medios de pago o lo que necesites.',
+    shouldRegisterLead: false,
+    shouldQualify: false,
+    leadData: null,
     shouldHandOff: false,
-    reason: shouldQualify ? 'Prospecto proporcionó datos de presupuesto/contacto e interés concreto' : 'Respuesta comercial inicial',
+    handOffData: null,
+    shouldPromiseContact: false,
+    promiseData: null,
+    reason: 'Saludo inicial (fallback determinístico)',
   };
 }

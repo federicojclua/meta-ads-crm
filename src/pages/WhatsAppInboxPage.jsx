@@ -20,6 +20,8 @@ import {
   Filter,
   AlertCircle,
   X,
+  LifeBuoy,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -29,6 +31,15 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { LEAD_STAGES } from '../../models/Lead';
+import {
+  CASE_TYPES,
+  CASE_TYPE_LABELS,
+  CASE_STATUS_LABELS,
+  CASE_STATUS_COLORS,
+  CASE_PRIORITIES,
+  CASE_PRIORITY_LABELS,
+  CASE_PRIORITY_COLORS,
+} from '../lib/constants';
 
 export function WhatsAppInboxPage() {
   const { userProfile } = useAuth();
@@ -73,6 +84,21 @@ export function WhatsAppInboxPage() {
   const [leadNotes, setLeadNotes] = useState('');
   const [isUpdatingLead, setIsUpdatingLead] = useState(false);
   const [errorBanner, setErrorBanner] = useState(null);
+
+  // Post-sales & Support Cases State (Fase 2)
+  const [rightPanelTab, setRightPanelTab] = useState('lead'); // 'lead' | 'cases'
+  const [contactCases, setContactCases] = useState([]);
+  const [isLoadingContactCases, setIsLoadingContactCases] = useState(false);
+  const [isCreateCaseModalOpen, setIsCreateCaseModalOpen] = useState(false);
+  const [isSubmittingChatCase, setIsSubmittingChatCase] = useState(false);
+  const [newChatCaseForm, setNewChatCaseForm] = useState({
+    title: '',
+    type: 'soporte_tecnico',
+    priority: 'media',
+    description: '',
+  });
+  const [resolvingCaseModal, setResolvingCaseModal] = useState(null);
+  const [chatCaseResolutionNotes, setChatCaseResolutionNotes] = useState('');
 
   const messagesEndRef = useRef(null);
   const lineDropdownRef = useRef(null);
@@ -144,6 +170,27 @@ export function WhatsAppInboxPage() {
     }
   };
 
+  // 4. Fetch Cases for Active Contact
+  const fetchContactCases = async (chat) => {
+    if (!chat || !chat.contactPhone) {
+      setContactCases([]);
+      return;
+    }
+    setIsLoadingContactCases(true);
+    try {
+      const q = new URLSearchParams();
+      q.append('phone', chat.contactPhone);
+      const res = await apiClient.get(`/api/cases?${q.toString()}`);
+      if (res?.cases) {
+        setContactCases(res.cases);
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error fetching contact cases:', err.message);
+    } finally {
+      setIsLoadingContactCases(false);
+    }
+  };
+
   // Initial Load
   useEffect(() => {
     fetchLines();
@@ -160,8 +207,10 @@ export function WhatsAppInboxPage() {
       if (currentChat?.lead) {
         setLeadNotes(currentChat.lead.notes || '');
       }
+      fetchContactCases(currentChat);
     } else {
       setMessages([]);
+      setContactCases([]);
     }
   }, [activeChatId]);
 
@@ -327,6 +376,67 @@ export function WhatsAppInboxPage() {
       }
     } catch (err) {
       console.warn('[WA_INBOX] Error toggling archive:', err.message);
+    }
+  };
+
+  // Handle Create Case from Active Chat
+  const handleCreateCaseFromChat = async (e) => {
+    e.preventDefault();
+    if (!newChatCaseForm.title.trim() || !activeChatId) return;
+    const currentChat = chats.find((c) => c.id === activeChatId);
+    if (!currentChat) return;
+
+    setIsSubmittingChatCase(true);
+    try {
+      const payload = {
+        title: newChatCaseForm.title.trim(),
+        type: newChatCaseForm.type,
+        priority: newChatCaseForm.priority,
+        description: newChatCaseForm.description.trim(),
+        contactName: currentChat.contactName || '',
+        contactPhone: currentChat.contactPhone || '',
+        chatId: currentChat.id,
+        leadId: currentChat.leadId || null,
+        clientId: clientScope,
+      };
+      const res = await apiClient.post('/api/cases', payload);
+      if (res?.case) {
+        setContactCases((prev) => [res.case, ...prev]);
+        setIsCreateCaseModalOpen(false);
+        setNewChatCaseForm({
+          title: '',
+          type: 'soporte_tecnico',
+          priority: 'media',
+          description: '',
+        });
+        setRightPanelTab('cases');
+      }
+    } catch (err) {
+      alert(err.message || 'Error al abrir el caso.');
+    } finally {
+      setIsSubmittingChatCase(false);
+    }
+  };
+
+  // Handle Resolve Case from Chat Lateral Panel
+  const handleResolveContactCase = async (e) => {
+    e.preventDefault();
+    if (!resolvingCaseModal || !chatCaseResolutionNotes.trim()) return;
+
+    try {
+      const res = await apiClient.patch(`/api/cases/${resolvingCaseModal.id}`, {
+        status: 'resuelto',
+        resolutionNotes: chatCaseResolutionNotes.trim(),
+      });
+      if (res?.case) {
+        setContactCases((prev) =>
+          prev.map((c) => (c.id === resolvingCaseModal.id ? res.case : c))
+        );
+        setResolvingCaseModal(null);
+        setChatCaseResolutionNotes('');
+      }
+    } catch (err) {
+      alert(err.message || 'Error al resolver el caso.');
     }
   };
 
@@ -822,91 +932,227 @@ export function WhatsAppInboxPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* PANEL 3 (RIGHT): CRM Context, Kanban Pipeline & Lead Notes               */}
+        {/* PANEL 3 (RIGHT): CRM Context & Post-sales Cases Tab Switcher            */}
         {/* ========================================================================= */}
         {activeChat && (
-          <div className="hidden xl:flex w-80 flex-col bg-white overflow-y-auto p-4 space-y-5 shrink-0">
-            {/* Header */}
-            <div className="border-b border-brand-border pb-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-emerald-600" />
-                Contexto Comercial (CRM)
-              </h3>
-            </div>
-
-            {/* Contact Details Card */}
-            <div className="space-y-2.5 text-xs">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Contacto</span>
-                <p className="font-semibold text-brand-text-primary">{activeChat.contactName}</p>
-              </div>
-
-              <div>
-                <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Teléfono</span>
-                <p className="font-mono text-slate-600">{activeChat.contactPhone}</p>
-              </div>
-
-              <div>
-                <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Línea Receptora</span>
-                <p className="text-slate-600">{activeChat.lineDisplayNumber || 'Línea Principal'}</p>
-              </div>
-            </div>
-
-            {/* Pipeline Kanban Stage Selector */}
-            <div className="space-y-2 border-t border-brand-border pt-4">
-              <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">
-                Etapa en el Pipeline (Kanban)
-              </span>
-              <select
-                value={activeChat.lead?.stage || 'new'}
-                onChange={(e) => handleUpdateStage(e.target.value)}
-                disabled={isUpdatingLead}
-                className="w-full text-xs bg-slate-50 border border-brand-border rounded-lg px-2.5 py-1.5 font-bold text-emerald-800 uppercase focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+          <div className="hidden xl:flex w-80 flex-col bg-white overflow-y-auto p-4 space-y-4 shrink-0">
+            {/* Tab Switcher: Lead vs Casos */}
+            <div className="flex border-b border-brand-border gap-1">
+              <button
+                type="button"
+                onClick={() => setRightPanelTab('lead')}
+                className={`flex-1 pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center justify-center gap-1.5 ${
+                  rightPanelTab === 'lead'
+                    ? 'border-emerald-600 text-emerald-800'
+                    : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
+                }`}
               >
-                {LEAD_STAGES.map((stage) => (
-                  <option key={stage} value={stage}>
-                    {stage.toUpperCase()}
-                  </option>
-                ))}
-              </select>
+                <User className="w-3.5 h-3.5" />
+                <span>Lead / Prospecto</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightPanelTab('cases')}
+                className={`flex-1 pb-2.5 text-xs font-bold border-b-2 transition-colors flex items-center justify-center gap-1.5 ${
+                  rightPanelTab === 'cases'
+                    ? 'border-emerald-600 text-emerald-800'
+                    : 'border-transparent text-brand-text-secondary hover:text-brand-text-primary'
+                }`}
+              >
+                <LifeBuoy className="w-3.5 h-3.5" />
+                <span>Casos ({contactCases.length})</span>
+              </button>
             </div>
 
-            {/* Tags Section */}
-            <div className="space-y-2 border-t border-brand-border pt-4">
-              <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Etiquetas</span>
-              <div className="flex flex-wrap gap-1.5">
-                {(activeChat.tags || []).map((tag, i) => (
-                  <Badge key={i} variant="primary" className="text-[10px]">
-                    {tag}
-                  </Badge>
-                ))}
+            {/* TAB 1: Lead Context */}
+            {rightPanelTab === 'lead' ? (
+              <div className="space-y-4">
+                {/* Contact Details Card */}
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Contacto</span>
+                    <p className="font-semibold text-brand-text-primary">{activeChat.contactName}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Teléfono</span>
+                    <p className="font-mono text-slate-600">{activeChat.contactPhone}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Línea Receptora</span>
+                    <p className="text-slate-600">{activeChat.lineDisplayNumber || 'Línea Principal'}</p>
+                  </div>
+                </div>
+
+                {/* Pipeline Kanban Stage Selector */}
+                <div className="space-y-2 border-t border-brand-border pt-3">
+                  <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">
+                    Etapa en el Pipeline (Kanban)
+                  </span>
+                  <select
+                    value={activeChat.lead?.stage || 'new'}
+                    onChange={(e) => handleUpdateStage(e.target.value)}
+                    disabled={isUpdatingLead}
+                    className="w-full text-xs bg-slate-50 border border-brand-border rounded-lg px-2.5 py-1.5 font-bold text-emerald-800 uppercase focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                  >
+                    {LEAD_STAGES.map((stage) => (
+                      <option key={stage} value={stage}>
+                        {stage.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tags Section */}
+                <div className="space-y-2 border-t border-brand-border pt-3">
+                  <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Etiquetas</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(activeChat.tags || []).map((tag, i) => (
+                      <Badge key={i} variant="primary" className="text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Internal Notes Section */}
+                <div className="space-y-2 border-t border-brand-border pt-3">
+                  <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">
+                    Notas Internas del Prospecto
+                  </span>
+                  <textarea
+                    value={leadNotes}
+                    onChange={(e) => setLeadNotes(e.target.value)}
+                    placeholder="Añadir observaciones sobre el lead..."
+                    rows={4}
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-brand-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Direct Link to CRM Lead Record */}
+                {activeChat.leadId && (
+                  <div className="pt-1">
+                    <a
+                      href="/app/leads"
+                      className="w-full text-center text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Ver Ficha Completa en CRM</span>
+                    </a>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              /* TAB 2: Casos (Post-sales & Support) */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">
+                    Casos de Posventa / Soporte
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsCreateCaseModalOpen(true)}
+                    className="h-7 px-2 text-[11px] gap-1 bg-emerald-700 hover:bg-emerald-800 text-white"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Abrir Caso</span>
+                  </Button>
+                </div>
 
-            {/* Internal Notes Section */}
-            <div className="space-y-2 border-t border-brand-border pt-4">
-              <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">
-                Notas Internas del Prospecto
-              </span>
-              <textarea
-                value={leadNotes}
-                onChange={(e) => setLeadNotes(e.target.value)}
-                placeholder="Añadir observaciones sobre el lead..."
-                rows={4}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-brand-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
+                {isLoadingContactCases ? (
+                  <div className="p-6 text-center text-brand-text-secondary text-xs">
+                    <div className="w-5 h-5 border-2 border-brand-border border-t-emerald-600 rounded-full animate-spin mx-auto mb-2"></div>
+                    <span>Cargando casos...</span>
+                  </div>
+                ) : contactCases.length === 0 ? (
+                  <div className="p-4 border border-dashed border-brand-border rounded-lg text-center space-y-2 bg-slate-50/50">
+                    <LifeBuoy className="w-6 h-6 text-slate-400 mx-auto" />
+                    <p className="text-xs text-brand-text-secondary">
+                      No hay tickets ni casos registrados para este cliente.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsCreateCaseModalOpen(true)}
+                      className="text-xs h-7"
+                    >
+                      Crear Ticket de Soporte
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {contactCases.map((cs) => (
+                      <div
+                        key={cs.id}
+                        className="p-3 border border-brand-border rounded-lg bg-slate-50/60 hover:bg-white transition-all space-y-1.5 text-xs shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-mono font-extrabold text-brand-text-primary">
+                            {cs.caseCode}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                              CASE_PRIORITY_COLORS[cs.priority] || 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {CASE_PRIORITY_LABELS[cs.priority] || cs.priority}
+                          </span>
+                        </div>
 
-            {/* Direct Link to CRM Lead Record */}
-            {activeChat.leadId && (
-              <div className="pt-2">
-                <a
-                  href="/app/leads"
-                  className="w-full text-center text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Ver Ficha Completa en CRM</span>
-                </a>
+                        <h4 className="font-semibold text-brand-text-primary line-clamp-2">
+                          {cs.title}
+                        </h4>
+
+                        <div className="flex items-center justify-between pt-1 text-[10px]">
+                          <span className="text-slate-500">
+                            {cs.typeLabel || CASE_TYPE_LABELS[cs.type] || cs.type}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-semibold border ${
+                              CASE_STATUS_COLORS[cs.status]?.badge || 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {CASE_STATUS_LABELS[cs.status] || cs.status}
+                          </span>
+                        </div>
+
+                        {cs.resolutionNotes && (
+                          <div className="mt-1 p-1.5 rounded bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-800">
+                            <span className="font-bold block">Resolución:</span>
+                            <span>{cs.resolutionNotes}</span>
+                          </div>
+                        )}
+
+                        {cs.status !== 'resuelto' && (
+                          <div className="pt-1.5 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResolvingCaseModal(cs);
+                                setChatCaseResolutionNotes('');
+                              }}
+                              className="px-2 py-0.5 rounded text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                            >
+                              Resolver Caso
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-brand-border">
+                  <a
+                    href="/app/cases"
+                    className="w-full text-center text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Ver Todos los Casos</span>
+                  </a>
+                </div>
               </div>
             )}
           </div>
@@ -1014,6 +1260,142 @@ export function WhatsAppInboxPage() {
               </Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: Abrir Caso desde Chat (Fase 2)                                   */}
+      {/* ========================================================================= */}
+      {isCreateCaseModalOpen && (
+        <Modal
+          isOpen={isCreateCaseModalOpen}
+          onClose={() => setIsCreateCaseModalOpen(false)}
+          title="Abrir Caso de Soporte / Posventa"
+          description={`Asociado al contacto: ${activeChat?.contactName || activeChat?.contactPhone || 'Cliente'}`}
+        >
+          <form onSubmit={handleCreateCaseFromChat} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-bold text-brand-text-primary mb-1">
+                Motivo / Asunto del Caso *
+              </label>
+              <Input
+                value={newChatCaseForm.title}
+                onChange={(e) => setNewChatCaseForm({ ...newChatCaseForm, title: e.target.value })}
+                placeholder="Ej: Terminal no enciende / Pedido de 10 rollos térmicos"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-brand-text-primary mb-1">
+                  Tipo de Caso *
+                </label>
+                <select
+                  value={newChatCaseForm.type}
+                  onChange={(e) => setNewChatCaseForm({ ...newChatCaseForm, type: e.target.value })}
+                  className="w-full text-xs bg-slate-50 border border-brand-border rounded-lg px-2.5 py-2 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                >
+                  {CASE_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {CASE_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-brand-text-primary mb-1">
+                  Prioridad *
+                </label>
+                <select
+                  value={newChatCaseForm.priority}
+                  onChange={(e) => setNewChatCaseForm({ ...newChatCaseForm, priority: e.target.value })}
+                  className="w-full text-xs bg-slate-50 border border-brand-border rounded-lg px-2.5 py-2 font-medium text-brand-text-primary focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                >
+                  {CASE_PRIORITIES.map((pri) => (
+                    <option key={pri} value={pri}>
+                      {CASE_PRIORITY_LABELS[pri]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-brand-text-primary mb-1">
+                Detalles del Reclamo / Insumos
+              </label>
+              <textarea
+                value={newChatCaseForm.description}
+                onChange={(e) => setNewChatCaseForm({ ...newChatCaseForm, description: e.target.value })}
+                placeholder="Ingresá los detalles del equipo, serie o motivo..."
+                rows={3}
+                className="w-full text-xs p-2.5 bg-slate-50 border border-brand-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
+              <Button type="button" variant="outline" onClick={() => setIsCreateCaseModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmittingChatCase || !newChatCaseForm.title.trim()}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
+              >
+                {isSubmittingChatCase ? 'Creando...' : 'Crear y Notificar Caso'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: Resolver Caso desde Chat (Notas Obligatorias)                   */}
+      {/* ========================================================================= */}
+      {resolvingCaseModal && (
+        <Modal
+          isOpen={Boolean(resolvingCaseModal)}
+          onClose={() => setResolvingCaseModal(null)}
+          title={`Resolver Caso ${resolvingCaseModal.caseCode}`}
+          description="Documentá la solución técnica o administrativa antes de cerrar el ticket."
+        >
+          <form onSubmit={handleResolveContactCase} className="space-y-4 text-xs">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <span className="font-bold text-emerald-900 block">{resolvingCaseModal.title}</span>
+              <span className="text-[11px] text-emerald-800 block mt-0.5">
+                Cliente: {resolvingCaseModal.contactName || resolvingCaseModal.contactPhone || 'Cliente'}
+              </span>
+            </div>
+
+            <div>
+              <label className="block font-bold text-brand-text-primary mb-1">
+                Notas de Resolución * (Obligatorio)
+              </label>
+              <textarea
+                value={chatCaseResolutionNotes}
+                onChange={(e) => setChatCaseResolutionNotes(e.target.value)}
+                placeholder="Ej: Se entregaron 10 rollos en el local / Se reinició terminal y recuperó señal..."
+                rows={4}
+                required
+                className="w-full text-xs p-2.5 bg-slate-50 border border-brand-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
+              <Button type="button" variant="outline" onClick={() => setResolvingCaseModal(null)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={!chatCaseResolutionNotes.trim()}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
+              >
+                Confirmar Resolución
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

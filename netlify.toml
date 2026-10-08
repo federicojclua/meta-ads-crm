@@ -8,6 +8,7 @@
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["base de conocimiento/**"]
 
 [[redirects]]
   from = "/api/auth/me"
@@ -60,6 +61,18 @@
 [[redirects]]
   from = "/api/sales/*"
   to = "/.netlify/functions/api-sales"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/cases"
+  to = "/.netlify/functions/api-cases"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/cases/*"
+  to = "/.netlify/functions/api-cases"
   status = 200
   force = true
 

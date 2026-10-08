@@ -16,6 +16,7 @@ import {
   Clapperboard,
   Brain,
   Zap,
+  LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -34,6 +35,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
       : []),
     { name: 'Decisiones & A/B', href: '/app/decision-center', icon: Zap },
     { name: t('sidebar.whatsappInbox'), href: '/app/whatsapp', icon: MessageSquare },
+    { name: 'Casos (Posventa)', href: '/app/cases', icon: LifeBuoy },
     { name: t('sidebar.ecommerceCro') || 'E-Commerce Intelligence', href: '/app/ecommerce', icon: ShoppingBag },
     { name: t('sidebar.creativeStudio') || 'Creative Studio (IA)', href: '/app/creative-studio', icon: Wand2 },
     { name: t('sidebar.videoStudio') || 'Video & Leads Studio', href: '/app/video-studio', icon: Clapperboard },

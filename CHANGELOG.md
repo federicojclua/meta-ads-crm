@@ -8,6 +8,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Fase 2: Gestión de Casos de Posventa y Soporte Técnico (2026-10-08)
+- **Modelo de Casos (`models/Case.js`)**:
+  - Definición de tipos de caso operativos para Grupo Novati: `soporte_tecnico`, `insumos_rollos`, `cobros_liquidaciones`, `bajas`, `otro`.
+  - Ciclo de vida y estados: `abierto`, `en_curso`, `esperando_cliente`, `resuelto`, `cancelado`.
+  - Niveles de prioridad: `baja`, `media`, `alta`, `urgente`.
+  - Validación con obligatoriedad de `resolutionNotes` al marcar un caso como resuelto (`validateCaseDocument`).
+  - Sanitización para consumo de clientes y APIs (`sanitizeCase`).
+- **Endpoint Serverless de Casos (`netlify/functions/api-cases.js`)**:
+  - `GET /api/cases`: Filtrado multidimensional por estado, tipo, prioridad, búsqueda textual (`caseCode`, cliente, teléfono, motivo) y aislamiento por tenant.
+  - `POST /api/cases`: Generación atómica secuencial de numeración (`#1001, #1002...`) mediante la colección `counters`, registro en MongoDB y despacho garantizado de alerta a grupos de WhatsApp (`notifyGroup('new_case')`).
+  - `GET /api/cases/:id`: Detalle y trazabilidad completa del ticket.
+  - `PATCH /api/cases/:id`: Actualización de estado, cambio de responsable y registro de auditoría en `activities`.
+- **Página de Gestión de Casos (`src/pages/CasesPage.jsx`)**:
+  - Vista dual con alternador: Tablero Kanban (columnas Abierto, En curso, Esperando, Resuelto) y Tabla detallada.
+  - Indicadores clave de rendimiento (KPIs) en tiempo real: Total Casos, Abiertos, En Curso, Esperando, Resueltos.
+  - Modales integrados: Creación rápida con despacho de aviso, Resolución asistida con notas obligatorias, y Ficha de detalle con historial cronológico de auditoría.
+- **Panel Lateral de Casos en WhatsApp Inbox (`src/pages/WhatsAppInboxPage.jsx`)**:
+  - Incorporado alternador de pestañas en el panel derecho: `[Lead / Prospecto]` y `[Casos (#)]`.
+  - Vista de tickets vinculados al número o chat en tiempo real.
+  - Acción rápida `+ Abrir Caso` que precompleta el formulario con el nombre y teléfono del contacto activo.
+  - Botón de resolución directa desde la misma pantalla de chat.
+- **Rutas, Navegación y Constantes**:
+  - Registro de ruta lazy-loaded `/app/cases` en `src/App.jsx`.
+  - Ítem de navegación `Casos (Posventa)` con ícono `LifeBuoy` en `src/components/layout/Sidebar.jsx`.
+  - Reglas de redirección para `/api/cases` y `/api/cases/*` en `netlify.toml`.
+  - Exportación de constantes de diseño y colores en `src/lib/constants.js`.
+- **Suite de Pruebas Automatizadas (`src/test/cases-module.test.js`)**:
+  - 10 pruebas unitarias y de integración pasando al 100% que validan el modelo, sanitización, secuenciador atómico, filtros y requerimientos de resolución.
+
+### Added — Fase 1: Motor del Asistente Novati, RAG Inline & Avisos Operativos (2026-10-08)
+- **Motor RAG Inline de Base de Conocimiento (`netlify/functions/_shared/knowledgeBase.js`)**:
+  - Carga e indexación en memoria de los 26 documentos de `base de conocimiento/`.
+  - Resumen automático de documentos masivos (`posberry_kb_articulos.md`) para optimizar tokens y tiempos de respuesta.
+  - Búsqueda semántica por palabras clave (`searchKnowledge`) con ranking por coincidencia en título, contenido y prioridad de metadata.
+  - Generación de bloques contextuales de RAG (`buildRAGContext`) para inyectar en el prompt del LLM.
+  - Extracción y formateo del Plan Comercial activo (`getCommercialPlan`, `formatCommercialPlan`).
+- **Avisos Operativos Garantizados a Grupos de WhatsApp (`netlify/functions/_shared/whatsappGroupNotifier.js`)**:
+  - Función `notifyGroup` con formato Markdown estructurado para los 5 tipos de avisos:
+    1. `new_lead`: Nuevo lead con intención explícita o implícita.
+    2. `escalation`: Conversación escalada a asesor humano.
+    3. `new_case`: Nuevo ticket de soporte/postventa.
+    4. `unregistered_promise`: Red de seguridad (Safety Net) ante promesas de contacto sin asignar.
+    5. `campaign_stopped`: Campaña de difusión pausada por errores.
+  - Despacho directo vía Meta WhatsApp Cloud API con fallback seguro en pruebas/entornos no configurados.
+- **Suite de Pruebas Automatizadas (`src/test/novati-assistant-rag.test.js`)**:
+  - 13 pruebas unitarias y de integración pasando al 100% que validan RAG, Plan Comercial, los 5 avisos y la integración del webhook con exclusión mutua.
+
+### Changed — Fase 1: Motor Conversacional & Webhook Inbound (2026-10-08)
+- **Motor del Asistente IA (`netlify/functions/_shared/agentEngine.js`)**:
+  - Actualizado con system prompt especializado para Grupo Novati, tono cercano y de vos, zona de Tucumán y Regla de Oro (aportar valor primero, una sola pregunta por turno).
+  - Invocación nativa a Gemini 2.0 Flash con historial de conversación (últimos 10 mensajes) y function calling:
+    - `registrar_lead`: Registro estructurado de prospecto ante interés implícito o explícito.
+    - `escalar_a_humano`: Derivación con motivo y resumen contextual para el asesor humano.
+    - `prometer_contacto`: Disparador de la red de seguridad cuando se asegura contacto al cliente.
+  - Fallback determinístico mejorado para entornos sin API key o sin conexión, preservando compatibilidad regresiva con la suite de pruebas.
+- **Webhook Omnicanal de WhatsApp (`netlify/functions/api-whatsapp-webhook.js`)**:
+  - Eliminada la creación automática indiscriminada de leads para cada mensaje entrante (ej. simples saludos).
+  - Creación y actualización de leads condicionada a la detección de interés comercial real por el motor (`shouldRegisterLead: true`).
+  - Implementada ventana de desduplicación de 30 días para prospectos del mismo número.
+  - Respetada la regla de exclusión mutua: si la conversación está silenciada (`isBotMuted: true`) o tiene un vendedor asignado, el bot no interviene.
+  - Inyección de los últimos 10 mensajes del hilo como contexto histórico en la llamada al evaluador.
+  - Conexión de la red de seguridad (Safety Net): si el bot promete contacto, se persiste la marca y se emite el aviso al grupo.
+  - Despacho de mensajes salientes a la API de WhatsApp Cloud para responder al usuario en tiempo real.
+- **Empaquetado Netlify (`netlify.toml`)**:
+  - Configurado `included_files = ["base de conocimiento/**"]` bajo `[functions]` para asegurar que los 26 archivos de la base de conocimiento se empaqueten dentro de las funciones serverless de producción.
+
 ### Fixed — Sincronización Resiliente de Productos a Shopify y Manejo de Errores AliExpress (2026-09-30)
 - **Fallback Resiliente de Sincronización a Shopify (`netlify/functions/api-shopify.js`)**:
   - Resuelto el fallo con código HTTP 502 (`AliExpress respondió sin datos válidos`) al pulsar "Sincronizar a Shopify con 1-Clic" en el Radar de Oportunidades.

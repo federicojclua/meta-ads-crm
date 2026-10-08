@@ -111,3 +111,59 @@ export const ACTIVITY_TYPE_LABELS = {
   status_change: 'Cambio de Estado',
   system: 'Evento del Sistema',
 };
+
+export const CASE_TYPES = [
+  'soporte_tecnico',
+  'insumos_rollos',
+  'cobros_liquidaciones',
+  'bajas',
+  'otro',
+];
+
+export const CASE_TYPE_LABELS = {
+  soporte_tecnico: 'Soporte técnico',
+  insumos_rollos: 'Insumos y rollos',
+  cobros_liquidaciones: 'Cobros y liquidaciones',
+  bajas: 'Bajas y cambios',
+  otro: 'Otro',
+};
+
+export const CASE_STATUSES = [
+  'abierto',
+  'en_curso',
+  'esperando_cliente',
+  'resuelto',
+  'cancelado',
+];
+
+export const CASE_STATUS_LABELS = {
+  abierto: 'Abierto',
+  en_curso: 'En curso',
+  esperando_cliente: 'Esperando cliente',
+  resuelto: 'Resuelto',
+  cancelado: 'Cancelado',
+};
+
+export const CASE_STATUS_COLORS = {
+  abierto: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', badge: 'bg-amber-100 text-amber-800 border-amber-200' },
+  en_curso: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-800 border-blue-200' },
+  esperando_cliente: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-800', badge: 'bg-purple-100 text-purple-800 border-purple-200' },
+  resuelto: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  cancelado: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-600', badge: 'bg-gray-100 text-gray-600 border-gray-200' },
+};
+
+export const CASE_PRIORITIES = ['baja', 'media', 'alta', 'urgente'];
+
+export const CASE_PRIORITY_LABELS = {
+  baja: 'Baja',
+  media: 'Media',
+  alta: 'Alta',
+  urgente: 'Urgente',
+};
+
+export const CASE_PRIORITY_COLORS = {
+  baja: 'bg-slate-100 text-slate-700 border-slate-200',
+  media: 'bg-blue-100 text-blue-700 border-blue-200',
+  alta: 'bg-amber-100 text-amber-800 border-amber-200',
+  urgente: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+};
