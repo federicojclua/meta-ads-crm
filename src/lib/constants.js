@@ -183,3 +183,20 @@ export const CASE_PRIORITY_COLORS = {
   alta: 'bg-amber-100 text-amber-800 border-amber-200',
   urgente: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
 };
+
+export const CONVERSATION_STATUSES = ['abierta', 'en_curso', 'esperando', 'resuelta'];
+
+export const CONVERSATION_STATUS_LABELS = {
+  abierta: 'Abierta',
+  en_curso: 'En curso',
+  esperando: 'Esperando cliente',
+  resuelta: 'Resuelta',
+};
+
+export const CONVERSATION_STATUS_COLORS = {
+  abierta: { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', badge: 'bg-sky-100 text-sky-800 border-sky-200' },
+  en_curso: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  esperando: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800 border-amber-200' },
+  resuelta: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-700 border-slate-200' },
+};
+

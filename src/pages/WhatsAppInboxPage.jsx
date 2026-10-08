@@ -22,6 +22,12 @@ import {
   X,
   LifeBuoy,
   CheckCircle2,
+  Lock,
+  Image,
+  Bell,
+  UserCheck,
+  Bot,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -39,6 +45,9 @@ import {
   CASE_PRIORITIES,
   CASE_PRIORITY_LABELS,
   CASE_PRIORITY_COLORS,
+  CONVERSATION_STATUSES,
+  CONVERSATION_STATUS_LABELS,
+  CONVERSATION_STATUS_COLORS,
 } from '../lib/constants';
 
 export function WhatsAppInboxPage() {
@@ -100,6 +109,14 @@ export function WhatsAppInboxPage() {
   const [resolvingCaseModal, setResolvingCaseModal] = useState(null);
   const [chatCaseResolutionNotes, setChatCaseResolutionNotes] = useState('');
 
+  // Fase 5: Estados de Conversación, Notas Internas, Adjuntos y Equipo
+  const [conversationStatusFilter, setConversationStatusFilter] = useState('all');
+  const [composerMode, setComposerMode] = useState('whatsapp'); // 'whatsapp' | 'note'
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
+  const [attachData, setAttachData] = useState({ type: 'image', url: '', name: '', caption: '' });
+  const [isNotifyingTeam, setIsNotifyingTeam] = useState(false);
+
   const messagesEndRef = useRef(null);
   const lineDropdownRef = useRef(null);
 
@@ -127,6 +144,9 @@ export function WhatsAppInboxPage() {
       }
       if (channelFilter !== 'all') {
         params.append('channel', channelFilter);
+      }
+      if (conversationStatusFilter !== 'all') {
+        params.append('conversationStatus', conversationStatusFilter);
       }
       if (searchQuery.trim()) {
         params.append('search', searchQuery.trim());
@@ -196,9 +216,18 @@ export function WhatsAppInboxPage() {
     fetchLines();
   }, [clientScope]);
 
+  // Load Team Members (Fase 5)
+  useEffect(() => {
+    apiClient('/api/users')
+      .then((res) => {
+        if (res?.users) setTeamMembers(res.users);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetchChats();
-  }, [selectedLineId, statusFilter, channelFilter, searchQuery, sellerFilter, tagFilter]);
+  }, [selectedLineId, statusFilter, conversationStatusFilter, channelFilter, searchQuery, sellerFilter, tagFilter]);
 
   useEffect(() => {
     if (activeChatId) {
@@ -231,7 +260,7 @@ export function WhatsAppInboxPage() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [activeChatId, selectedLineId, statusFilter, channelFilter, searchQuery, sellerFilter, tagFilter]);
+  }, [activeChatId, selectedLineId, statusFilter, conversationStatusFilter, channelFilter, searchQuery, sellerFilter, tagFilter]);
 
   // Scroll to bottom on messages update
   useEffect(() => {
@@ -251,7 +280,7 @@ export function WhatsAppInboxPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle Send Message
+  // Handle Send Message or Internal Note
   const handleSendMessage = async (e) => {
     e?.preventDefault();
     const text = messageInput.trim();
@@ -259,13 +288,16 @@ export function WhatsAppInboxPage() {
 
     setIsSending(true);
     const tempId = `temp-${Date.now()}`;
+    const isNote = composerMode === 'note';
+
     const optimisticMessage = {
       id: tempId,
       chatId: activeChatId,
-      direction: 'outbound',
-      type: 'text',
+      direction: isNote ? 'internal' : 'outbound',
+      type: isNote ? 'internal_note' : 'text',
       text,
       status: 'sent',
+      senderName: userProfile?.displayName || userProfile?.email || 'Asesor',
       timestamp: new Date().toISOString(),
     };
 
@@ -278,7 +310,7 @@ export function WhatsAppInboxPage() {
         body: JSON.stringify({
           chatId: activeChatId,
           text,
-          type: 'text',
+          type: isNote ? 'internal_note' : 'text',
         }),
       });
 
@@ -293,6 +325,107 @@ export function WhatsAppInboxPage() {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Handle Send Photo / Document Attachment
+  const handleSendAttachment = async (e) => {
+    e.preventDefault();
+    if (!attachData.url.trim() || !activeChatId || isSending) return;
+
+    setIsSending(true);
+    try {
+      const res = await apiClient('/api/whatsapp/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          chatId: activeChatId,
+          type: attachData.type,
+          mediaUrl: attachData.url.trim(),
+          fileName: attachData.name.trim() || null,
+          text: attachData.caption.trim() || null,
+        }),
+      });
+
+      if (res?.ok && res.message) {
+        setMessages((prev) => [...prev, res.message]);
+        setIsAttachModalOpen(false);
+        setAttachData({ type: 'image', url: '', name: '', caption: '' });
+        fetchChats();
+      } else {
+        throw new Error(res?.error || 'Error al enviar archivo');
+      }
+    } catch (err) {
+      alert(err.message || 'Error al enviar archivo adjunto.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Handle Takeover / Release of Bot
+  const handleTakeover = async (chatId, action) => {
+    if (!chatId) return;
+    try {
+      const res = await apiClient(`/api/whatsapp/chats/${chatId}/takeover`, {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      });
+      if (res?.ok && res.chat) {
+        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, ...res.chat } : c)));
+        fetchMessages(chatId);
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error during takeover:', err.message);
+    }
+  };
+
+  // Handle Update Conversation Status
+  const handleUpdateConversationStatus = async (chatId, newStatus) => {
+    if (!chatId) return;
+    try {
+      const res = await apiClient(`/api/whatsapp/chats/${chatId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ conversationStatus: newStatus }),
+      });
+      if (res?.ok && res.chat) {
+        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, ...res.chat } : c)));
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error updating conversation status:', err.message);
+    }
+  };
+
+  // Handle Assign Chat to Team Member
+  const handleAssignChat = async (chatId, userId) => {
+    if (!chatId) return;
+    try {
+      const res = await apiClient(`/api/whatsapp/chats/${chatId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assignedToUserId: userId || null }),
+      });
+      if (res?.ok && res.chat) {
+        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, ...res.chat } : c)));
+      }
+    } catch (err) {
+      console.warn('[WA_INBOX] Error assigning chat:', err.message);
+    }
+  };
+
+  // Handle Notify Team on WhatsApp Group
+  const handleNotifyTeam = async (chatId) => {
+    if (!chatId || isNotifyingTeam) return;
+    setIsNotifyingTeam(true);
+    try {
+      const res = await apiClient(`/api/whatsapp/chats/${chatId}/notify-takeover`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Asesor solicita atención de equipo desde el panel' }),
+      });
+      if (res?.ok) {
+        alert('📢 Aviso enviado exitosamente al grupo de WhatsApp del equipo.');
+      }
+    } catch (err) {
+      alert('Error enviando aviso: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsNotifyingTeam(false);
     }
   };
 
@@ -619,6 +752,30 @@ export function WhatsAppInboxPage() {
               </button>
             </div>
 
+            {/* Conversation Status Tabs (Fase 5: abierta, en_curso, esperando, resuelta) */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px] font-medium no-scrollbar">
+              {[
+                { id: 'all', label: 'Todas' },
+                { id: 'abierta', label: 'Abiertas' },
+                { id: 'en_curso', label: 'En curso' },
+                { id: 'esperando', label: 'Esperando' },
+                { id: 'resuelta', label: 'Resueltas' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setConversationStatusFilter(tab.id)}
+                  className={`px-2 py-0.5 rounded-md whitespace-nowrap transition-all ${
+                    conversationStatusFilter === tab.id
+                      ? 'bg-emerald-700 text-white font-bold shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* Secondary Filters: Channel, Tags & Sellers */}
             <div className="grid grid-cols-3 gap-1.5 text-[11px]">
               <select
@@ -748,14 +905,28 @@ export function WhatsAppInboxPage() {
                             {chat.lineDisplayNumber}
                           </span>
                         )}
-                        {chat.lead?.stage && (
-                          <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-sm font-bold uppercase">
-                            {chat.lead.stage}
+                        {/* Conversation Status Badge (Fase 5) */}
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                            CONVERSATION_STATUS_COLORS[chat.conversationStatus || 'abierta']?.badge || 'bg-sky-100 text-sky-800'
+                          }`}
+                        >
+                          {CONVERSATION_STATUS_LABELS[chat.conversationStatus || 'abierta'] || 'Abierta'}
+                        </span>
+
+                        {chat.isBotMuted && (
+                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-semibold">
+                            Humano
                           </span>
                         )}
-                        {chat.isBotMuted && (
-                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-sm font-semibold">
-                            Humano
+                        {chat.assignedToUser?.displayName && (
+                          <span className="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium truncate max-w-[90px]">
+                            👤 {chat.assignedToUser.displayName.split(' ')[0]}
+                          </span>
+                        )}
+                        {chat.internalNotesCount > 0 && (
+                          <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1 py-0.2 rounded font-bold">
+                            🔒 {chat.internalNotesCount}
                           </span>
                         )}
                         {chat.unreadCount > 0 && (
@@ -813,21 +984,79 @@ export function WhatsAppInboxPage() {
                   <span>Campaña Leads Novati | Ad: Video Reel 9:16</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* Bot Takeover / Hand-off Button */}
+                {/* Right controls: Status selector, Assignee, Bot takeover & Notify */}
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {/* Selector de Estado de la Conversación */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 hidden xl:inline">Estado:</span>
+                    <select
+                      value={activeChat.conversationStatus || 'abierta'}
+                      onChange={(e) => handleUpdateConversationStatus(activeChat.id, e.target.value)}
+                      className={`text-xs font-bold rounded-lg px-2 py-1 border transition-colors cursor-pointer ${
+                        CONVERSATION_STATUS_COLORS[activeChat.conversationStatus || 'abierta']?.badge || 'bg-sky-100 text-sky-800'
+                      }`}
+                    >
+                      {CONVERSATION_STATUSES.map((st) => (
+                        <option key={st} value={st}>
+                          {CONVERSATION_STATUS_LABELS[st] || st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Selector de Asignación de Asesor */}
+                  <div className="hidden sm:flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={activeChat.assignedToUserId || ''}
+                      onChange={(e) => handleAssignChat(activeChat.id, e.target.value)}
+                      className="text-xs bg-slate-50 border border-brand-border rounded-lg px-2 py-1 text-slate-700 focus:outline-hidden"
+                    >
+                      <option value="">Sin asignar</option>
+                      {teamMembers.map((m) => (
+                        <option key={m._id || m.id} value={m._id || m.id}>
+                          {m.displayName || m.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Takeover / Release Control */}
+                  {activeChat.isBotMuted ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTakeover(activeChat.id, 'release')}
+                      className="text-xs h-8 px-2.5 border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-semibold"
+                      title="Devuelve la conversación al Asistente IA 24/7"
+                    >
+                      <Bot className="w-3.5 h-3.5 mr-1 text-emerald-700" />
+                      <span>Devolver al Asistente</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTakeover(activeChat.id, 'take')}
+                      className="text-xs h-8 px-2.5 border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 font-semibold"
+                      title="Tomar el control manual y silenciar al bot"
+                    >
+                      <User className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                      <span>Tomar Conversación</span>
+                    </Button>
+                  )}
+
+                  {/* Botón de Aviso al Grupo de WhatsApp */}
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleToggleBot}
-                    disabled={isTogglingBot}
-                    className={`text-xs h-8 px-2.5 ${
-                      activeChat.isBotMuted
-                        ? 'border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100'
-                        : 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
-                    }`}
+                    onClick={() => handleNotifyTeam(activeChat.id)}
+                    disabled={isNotifyingTeam}
+                    className="text-xs h-8 px-2 border-slate-300 text-slate-700 hover:bg-slate-100"
+                    title="Manda un aviso garantizado al grupo de WhatsApp del equipo"
                   >
-                    <Sparkles className="w-3.5 h-3.5 mr-1" />
-                    <span>{activeChat.isBotMuted ? 'Bot Silenciado (Pase Humano)' : 'Bot Calificador Activo'}</span>
+                    <Bell className={`w-3.5 h-3.5 mr-1 ${isNotifyingTeam ? 'animate-spin' : 'text-slate-600'}`} />
+                    <span className="hidden xl:inline">Avisar por WhatsApp</span>
                   </Button>
 
                   <Button
@@ -863,6 +1092,27 @@ export function WhatsAppInboxPage() {
                   </div>
                 ) : (
                   messages.map((msg) => {
+                    // 1. Render Internal Private Team Notes (Fase 5)
+                    if (msg.type === 'internal_note' || msg.direction === 'internal') {
+                      return (
+                        <div key={msg.id || msg._id} className="flex flex-col items-center my-2 w-full">
+                          <div className="w-full max-w-lg bg-amber-50 border border-amber-200/90 rounded-xl p-3 shadow-2xs text-xs space-y-1">
+                            <div className="flex items-center justify-between text-[11px] text-amber-800 font-bold border-b border-amber-200/60 pb-1">
+                              <span className="flex items-center gap-1.5">
+                                <Lock className="w-3.5 h-3.5 text-amber-700" />
+                                <span>Nota Interna ({msg.senderName || 'Asesor'})</span>
+                              </span>
+                              <span className="text-[10px] font-normal text-amber-700/80">
+                                {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                            </div>
+                            <p className="text-amber-950 whitespace-pre-wrap break-words text-xs pt-0.5">{msg.text}</p>
+                            <span className="text-[9px] text-amber-600 block italic">🔒 Solo visible para el equipo, no enviada al cliente.</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     const isOutbound = msg.direction === 'outbound';
                     return (
                       <div
@@ -876,7 +1126,41 @@ export function WhatsAppInboxPage() {
                               : 'bg-white text-brand-text-primary border border-brand-border/70 rounded-bl-none'
                           }`}
                         >
-                          <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                          {/* Photo / Image rendering */}
+                          {msg.type === 'image' && msg.mediaUrl && (
+                            <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
+                              <img
+                                src={msg.mediaUrl}
+                                alt={msg.fileName || 'Foto adjunta'}
+                                className="max-h-60 w-auto object-cover rounded-lg cursor-pointer hover:opacity-95"
+                                onClick={() => window.open(msg.mediaUrl, '_blank')}
+                              />
+                            </div>
+                          )}
+
+                          {/* Document rendering */}
+                          {msg.type === 'document' && msg.mediaUrl && (
+                            <a
+                              href={msg.mediaUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2 p-2 rounded-lg mb-2 border transition-all ${
+                                isOutbound
+                                  ? 'bg-emerald-700/50 border-emerald-500/50 text-white'
+                                  : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100'
+                              }`}
+                            >
+                              <FileText className="w-5 h-5 shrink-0" />
+                              <div className="truncate flex-1">
+                                <p className="text-xs font-semibold truncate">{msg.fileName || 'Documento adjunto'}</p>
+                                {msg.fileSize && <p className="text-[10px] opacity-80">{msg.fileSize}</p>}
+                              </div>
+                              <Download className="w-3.5 h-3.5 shrink-0" />
+                            </a>
+                          )}
+
+                          {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
+
                           <div
                             className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
                               isOutbound ? 'text-emerald-100' : 'text-slate-400'
@@ -905,8 +1189,48 @@ export function WhatsAppInboxPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Message Input Box */}
-              <div className="p-3 bg-white border-t border-brand-border">
+              {/* Message Composer & Mode Switcher */}
+              <div className="p-3 bg-white border-t border-brand-border space-y-2">
+                {/* Switcher: Responder WhatsApp vs Nota Interna */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setComposerMode('whatsapp')}
+                      className={`px-3 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+                        composerMode === 'whatsapp' ? 'bg-white text-emerald-800 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <MessageSquare className="w-3 h-3 text-emerald-600" />
+                      <span>Mensaje WhatsApp</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComposerMode('note')}
+                      className={`px-3 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+                        composerMode === 'note' ? 'bg-amber-100 text-amber-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Lock className="w-3 h-3 text-amber-700" />
+                      <span>🔒 Nota Interna</span>
+                    </button>
+                  </div>
+
+                  {composerMode === 'whatsapp' && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsAttachModalOpen(true)}
+                        className="text-xs text-brand-text-secondary hover:text-emerald-700 px-2 py-1 rounded-md hover:bg-slate-100 flex items-center gap-1 font-medium transition-colors"
+                        title="Adjuntar foto o documento"
+                      >
+                        <Paperclip className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Adjuntar</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <form onSubmit={handleSendMessage} className="flex items-end gap-2">
                   <div className="flex-1 relative">
                     <textarea
@@ -918,30 +1242,53 @@ export function WhatsAppInboxPage() {
                           handleSendMessage();
                         }
                       }}
-                      placeholder="Escribí un mensaje (Presioná Enter para enviar)..."
+                      placeholder={
+                        composerMode === 'note'
+                          ? 'Escribí una nota interna (solo visible para el equipo, no se envía a WhatsApp)...'
+                          : 'Escribí un mensaje (Presioná Enter para enviar)...'
+                      }
                       rows={1}
-                      className="w-full resize-none py-2 px-3 text-xs bg-slate-50 border border-brand-border rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 focus:bg-white min-h-[38px] max-h-32"
+                      className={`w-full resize-none py-2 px-3 text-xs border rounded-xl focus:outline-hidden min-h-[38px] max-h-32 transition-colors ${
+                        composerMode === 'note'
+                          ? 'bg-amber-50/50 border-amber-300 focus:ring-1 focus:ring-amber-500 focus:bg-white text-amber-950 placeholder-amber-700/60'
+                          : 'bg-slate-50 border-brand-border focus:ring-1 focus:ring-emerald-500 focus:bg-white'
+                      }`}
                     />
                   </div>
 
-                  <Button
-                    type="button"
-                    onClick={handleSuggestResponse}
-                    disabled={isSuggesting || !activeChatId}
-                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 h-[38px] px-3 rounded-xl shrink-0 font-semibold text-xs flex items-center gap-1.5 transition-colors"
-                    title="El asistente analiza la conversación y la base de conocimiento para redactar una respuesta sugerida"
-                  >
-                    <Sparkles className={`w-3.5 h-3.5 ${isSuggesting ? 'animate-spin' : 'text-indigo-600'}`} />
-                    <span className="hidden sm:inline">{isSuggesting ? 'Pensando...' : 'Sugerir'}</span>
-                  </Button>
+                  {composerMode === 'whatsapp' && (
+                    <Button
+                      type="button"
+                      onClick={handleSuggestResponse}
+                      disabled={isSuggesting || !activeChatId}
+                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 h-[38px] px-3 rounded-xl shrink-0 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                      title="El asistente analiza la conversación y la base de conocimiento para redactar una respuesta sugerida"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${isSuggesting ? 'animate-spin' : 'text-indigo-600'}`} />
+                      <span className="hidden sm:inline">{isSuggesting ? 'Pensando...' : 'Sugerir'}</span>
+                    </Button>
+                  )}
 
                   <Button
                     type="submit"
                     disabled={isSending || !messageInput.trim()}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-[38px] px-3.5 rounded-xl shrink-0 font-medium text-xs flex items-center gap-1.5"
+                    className={`h-[38px] px-3.5 rounded-xl shrink-0 font-medium text-xs flex items-center gap-1.5 text-white ${
+                      composerMode === 'note'
+                        ? 'bg-amber-600 hover:bg-amber-700'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Enviar</span>
+                    {composerMode === 'note' ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Guardar Nota</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Enviar</span>
+                      </>
+                    )}
                   </Button>
                 </form>
               </div>
@@ -1424,6 +1771,82 @@ export function WhatsAppInboxPage() {
                 className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
               >
                 Confirmar Resolución
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {/* ========================================================================= */}
+      {/* MODAL 5: Adjuntar Foto o Documento (Fase 5)                              */}
+      {/* ========================================================================= */}
+      {isAttachModalOpen && (
+        <Modal
+          isOpen={isAttachModalOpen}
+          onClose={() => setIsAttachModalOpen(false)}
+          title="Adjuntar Foto o Documento"
+          description="Enviá archivos multimedia o documentos en la conversación de WhatsApp."
+        >
+          <form onSubmit={handleSendAttachment} className="space-y-4 text-xs">
+            <div className="space-y-2">
+              <label className="font-bold text-slate-700 block">Tipo de Archivo</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAttachData((prev) => ({ ...prev, type: 'image' }))}
+                  className={`flex-1 p-2 rounded-lg border flex items-center justify-center gap-2 font-semibold ${
+                    attachData.type === 'image' ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  <Image className="w-4 h-4" /> Foto / Imagen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttachData((prev) => ({ ...prev, type: 'document' }))}
+                  className={`flex-1 p-2 rounded-lg border flex items-center justify-center gap-2 font-semibold ${
+                    attachData.type === 'document' ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" /> Documento / PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700 block">URL del Archivo (enlace público o CDN) *</label>
+              <Input
+                value={attachData.url}
+                onChange={(e) => setAttachData((prev) => ({ ...prev, url: e.target.value }))}
+                placeholder="https://ejemplo.com/catalogo.pdf o foto.jpg"
+                required
+              />
+            </div>
+
+            {attachData.type === 'document' && (
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">Nombre del Documento</label>
+                <Input
+                  value={attachData.name}
+                  onChange={(e) => setAttachData((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="ej: Catalogo_Clover_Flex.pdf"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700 block">Texto / Epígrafe (opcional)</label>
+              <Input
+                value={attachData.caption}
+                onChange={(e) => setAttachData((prev) => ({ ...prev, caption: e.target.value }))}
+                placeholder="Te comparto la información solicitada..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
+              <Button type="button" variant="outline" onClick={() => setIsAttachModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary" disabled={!attachData.url.trim() || isSending}>
+                {isSending ? 'Enviando...' : 'Enviar Archivo'}
               </Button>
             </div>
           </form>

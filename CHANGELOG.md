@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Fase 5: Conversaciones para Trabajar, Handover y Notas Internas (2026-10-08)
+- **Estados de Conversación Operativos (`models/WhatsApp.js`, `src/lib/constants.js`)**:
+  - Incorporados 4 estados de ciclo de vida del chat: `abierta` (esperando atención humana), `en_curso` (tomada por asesor), `esperando` (en manos del cliente o asistente) y `resuelta` (caso cerrado).
+  - Selector desplegable de estado en la cabecera del chat con persistencia y registro automático de quién y cuándo resolvió (`resolvedAt`, `resolvedBy`).
+  - Barra de filtrado superior por estado en la columna de chats (`Todas`, `Abiertas`, `En curso`, `Esperando`, `Resueltas`) con contadores y badges visuales codificados por color (azul, verde, ámbar, pizarra).
+- **Control de Handover (Tomar / Devolver al Asistente)**:
+  - Botón de 1 clic en la cabecera: **"Tomar Conversación"** (silencia al bot `isBotMuted: true`, autoasigna al operador y pasa a `en_curso`) o **"Devolver al Asistente"** (reactiva el bot 24/7 y pasa a `esperando`).
+  - Registro de auditoría cronológica automática en el chat como notas de sistema ante cada traspaso.
+  - Endpoint `POST /api/whatsapp/chats/:id/takeover` con soporte para acciones `take` y `release`.
+- **Asignación de Asesor / Vendedor**:
+  - Selector desplegable en el chat para derivar o asignar la conversación a cualquier miembro del equipo (`assignedToUserId`).
+  - Badge visual de asignación en cada tarjeta de chat del listado para fácil identificación de responsables.
+- **Notas Internas Privadas (Solo para el Equipo)**:
+  - Conmutador en el compositor de mensajes: `💬 Mensaje WhatsApp` vs `🔒 Nota Interna`.
+  - Las notas internas se guardan con `direction: 'internal'` y `type: 'internal_note'`, se aíslan completamente de la API de Meta WhatsApp (el cliente NUNCA las recibe en su teléfono), y se destacan en el panel con tarjetas ámbar con ícono de candado indicando el autor y la hora.
+- **Envío y Previsualización de Multimedia (Fotos y Documentos)**:
+  - Botón de adjuntos en el compositor con soporte para imágenes (`image`) y documentos (`document` / PDF).
+  - Previsualización visual de fotos y tarjetas de descarga para archivos adjuntos tanto entrantes como salientes.
+- **Avisos de Escalación Garantizados a Grupos de WhatsApp**:
+  - Botón **"Avisar por WhatsApp"** en cabecera con endpoint `POST /api/whatsapp/chats/:id/notify-takeover` que dispara una alerta inmediata y garantizada al grupo de WhatsApp configurado (`notifyGroup('escalation')`) para intervención urgente.
+- **Suite de Pruebas Automatizadas (`src/test/whatsapp-conversations-v2.test.js`)**:
+  - 8 pruebas de integración y validación que cubren validaciones de modelos, aislamiento de notas internas, takeover/handover, dispatch a grupos de notificación y filtros por estado.
+
 ### Added — Fase 4: Embudo Comercial, Leads sin Contactar en Rojo y Tablero Operativo Octubre 2026 (2026-10-08)
 - **Detección Visual y Operativa de Leads sin Contactar ("Los que nadie contactó quedan en rojo")**:
   - Función de modelo `isLeadUncontacted(lead)` en `models/Lead.js` que verifica prospectos en etapa inicial sin `firstContactedAt`.

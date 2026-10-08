@@ -11,9 +11,11 @@ import {
   validateWaMessage,
   sanitizeWaMessage,
   normalizePhoneNumber,
+  WA_CONVERSATION_STATUSES,
 } from '../../models/WhatsApp.js';
 import { DEFAULT_AI_BRAIN } from '../../models/AiBrain.js';
 import { evaluateAutonomousAgent } from './_shared/agentEngine.js';
+import { notifyGroup } from './_shared/whatsappGroupNotifier.js';
 
 export async function handler(event) {
   const auth = await verifyAuthorizedUser(event);
@@ -161,6 +163,10 @@ export async function handler(event) {
         baseFilter.status = { $ne: 'archived' };
       } else if (params.status !== 'all') {
         baseFilter.status = { $ne: 'archived' };
+      }
+
+      if (params.conversationStatus && WA_CONVERSATION_STATUSES.includes(params.conversationStatus)) {
+        baseFilter.conversationStatus = params.conversationStatus;
       }
 
       if (params.assignedToUserId && ObjectId.isValid(params.assignedToUserId)) {
@@ -343,7 +349,16 @@ export async function handler(event) {
         return errorResponse(400, 'Payload JSON inválido.', 'INVALID_JSON');
       }
 
-      const { chatId: rawChatId, text, type = 'text', mediaUrl = null, templateName = null } = body;
+      const {
+        chatId: rawChatId,
+        text,
+        type = 'text',
+        mediaUrl = null,
+        fileName = null,
+        fileSize = null,
+        mimeType = null,
+        templateName = null,
+      } = body;
 
       if (!rawChatId || !ObjectId.isValid(rawChatId)) {
         return errorResponse(400, 'chatId válido es requerido.', 'INVALID_CHAT_ID');
@@ -357,8 +372,46 @@ export async function handler(event) {
         return errorResponse(404, 'Chat no encontrado o sin permisos.', 'CHAT_NOT_FOUND');
       }
 
+      // Handle Internal Team Notes (Private to CRM team, not sent to customer WhatsApp)
+      if (type === 'internal_note') {
+        const cleanNoteText = (text || '').trim();
+        if (!cleanNoteText) {
+          return errorResponse(400, 'El texto de la nota interna no puede estar vacío.', 'EMPTY_NOTE');
+        }
+
+        const noteDoc = {
+          clientId: chat.clientId,
+          chatId: chat._id,
+          wamid: `note.${Date.now()}.${Math.random().toString(36).substring(2, 7)}`,
+          direction: 'internal',
+          type: 'internal_note',
+          text: cleanNoteText,
+          mediaUrl: null,
+          status: 'sent',
+          timestamp: now,
+          senderName: user.displayName || user.email || 'Asesor',
+          authorId: user._id,
+          createdAt: now,
+        };
+
+        const noteInsert = await messagesCollection.insertOne(noteDoc);
+
+        await chatsCollection.updateOne(
+          { _id: chat._id },
+          {
+            $inc: { internalNotesCount: 1 },
+            $set: { updatedAt: now },
+          }
+        );
+
+        return jsonResponse(201, {
+          ok: true,
+          message: sanitizeWaMessage({ _id: noteInsert.insertedId, ...noteDoc }),
+        });
+      }
+
       if (!text && !mediaUrl && !templateName) {
-        return errorResponse(400, 'El texto del mensaje no puede estar vacío.', 'EMPTY_MESSAGE');
+        return errorResponse(400, 'El texto o archivo multimedia del mensaje no puede estar vacío.', 'EMPTY_MESSAGE');
       }
 
       const cleanText = (text || '').trim();
@@ -378,9 +431,16 @@ export async function handler(event) {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
             to: chat.contactPhone,
-            type: 'text',
-            text: { preview_url: false, body: cleanText },
+            type: type === 'image' || type === 'document' ? type : 'text',
           };
+
+          if (type === 'image') {
+            metaPayload.image = { link: mediaUrl, caption: cleanText || undefined };
+          } else if (type === 'document') {
+            metaPayload.document = { link: mediaUrl, caption: cleanText || undefined, filename: fileName || undefined };
+          } else {
+            metaPayload.text = { preview_url: false, body: cleanText };
+          }
 
           const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
             method: 'POST',
@@ -409,6 +469,9 @@ export async function handler(event) {
         type,
         text: cleanText,
         mediaUrl,
+        fileName,
+        fileSize,
+        mimeType,
         status: metaDeliveryStatus,
         timestamp: now,
         senderName: user.displayName || user.email || 'Agente',
@@ -423,7 +486,7 @@ export async function handler(event) {
         {
           $set: {
             lastMessage: {
-              text: cleanText,
+              text: cleanText || (type === 'image' ? '📷 Foto enviada' : '📄 Documento enviado'),
               type,
               direction: 'outbound',
               status: metaDeliveryStatus,
@@ -489,6 +552,18 @@ export async function handler(event) {
 
       if (body.status && ['active', 'archived'].includes(body.status)) {
         updates.status = body.status;
+      }
+
+      if (body.conversationStatus && WA_CONVERSATION_STATUSES.includes(body.conversationStatus)) {
+        updates.conversationStatus = body.conversationStatus;
+        if (body.conversationStatus === 'resuelta') {
+          updates.resolvedAt = now;
+          updates.resolvedBy = user._id;
+        }
+      }
+
+      if (typeof body.isBotMuted === 'boolean') {
+        updates.isBotMuted = body.isBotMuted;
       }
 
       if (Array.isArray(body.tags)) {
@@ -564,6 +639,134 @@ export async function handler(event) {
         ok: true,
         isBotMuted: newMutedState,
         message: newMutedState ? 'Bot IA silenciado para este chat.' : 'Bot IA reactivado para este chat.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // ROUTE 6.1: /api/whatsapp/chats/:chatId/takeover (POST)
+    // ----------------------------------------------------
+    if (segments[0] === 'chats' && segments[2] === 'takeover' && method === 'POST') {
+      const chatIdRaw = segments[1];
+      if (!ObjectId.isValid(chatIdRaw)) {
+        return errorResponse(400, 'ID de chat inválido.', 'INVALID_CHAT_ID');
+      }
+
+      const chatId = new ObjectId(chatIdRaw);
+      const chatQuery = buildTenantFilter({ _id: chatId });
+      const chat = await chatsCollection.findOne(chatQuery);
+
+      if (!chat) {
+        return errorResponse(404, 'Chat no encontrado.', 'CHAT_NOT_FOUND');
+      }
+
+      let body = {};
+      try {
+        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body || {};
+      } catch {
+        body = {};
+      }
+
+      const action = body.action === 'release' ? 'release' : 'take';
+
+      if (action === 'take') {
+        const updateFields = {
+          isBotMuted: true,
+          assignedToUserId: user._id,
+          conversationStatus: 'en_curso',
+          handOffReason: body.reason || 'Atención humana tomada desde el panel',
+          updatedAt: now,
+        };
+
+        await chatsCollection.updateOne({ _id: chatId }, { $set: updateFields });
+
+        // Insert automatic internal audit note
+        const noteDoc = {
+          clientId: chat.clientId,
+          chatId,
+          wamid: `takeover.${Date.now()}`,
+          direction: 'internal',
+          type: 'internal_note',
+          text: `Conversación tomada por ${user.displayName || user.email}. Asistente IA pausado, atención humana activa.`,
+          status: 'sent',
+          timestamp: now,
+          senderName: 'Sistema',
+          authorId: user._id,
+          createdAt: now,
+        };
+        await messagesCollection.insertOne(noteDoc);
+        await chatsCollection.updateOne({ _id: chatId }, { $inc: { internalNotesCount: 1 } });
+      } else {
+        const updateFields = {
+          isBotMuted: false,
+          conversationStatus: 'esperando',
+          updatedAt: now,
+        };
+
+        await chatsCollection.updateOne({ _id: chatId }, { $set: updateFields });
+
+        const noteDoc = {
+          clientId: chat.clientId,
+          chatId,
+          wamid: `release.${Date.now()}`,
+          direction: 'internal',
+          type: 'internal_note',
+          text: `Conversación devuelta al Asistente IA 24/7 por ${user.displayName || user.email}.`,
+          status: 'sent',
+          timestamp: now,
+          senderName: 'Sistema',
+          authorId: user._id,
+          createdAt: now,
+        };
+        await messagesCollection.insertOne(noteDoc);
+        await chatsCollection.updateOne({ _id: chatId }, { $inc: { internalNotesCount: 1 } });
+      }
+
+      const updatedChat = await chatsCollection.findOne({ _id: chatId });
+      return jsonResponse(200, {
+        ok: true,
+        action,
+        chat: sanitizeWaChat(updatedChat),
+        message: action === 'take'
+          ? 'Conversación tomada exitosamente. Asistente IA silenciado.'
+          : 'Conversación devuelta al Asistente IA.',
+      });
+    }
+
+    // ----------------------------------------------------
+    // ROUTE 6.2: /api/whatsapp/chats/:chatId/notify-takeover (POST)
+    // ----------------------------------------------------
+    if (segments[0] === 'chats' && segments[2] === 'notify-takeover' && method === 'POST') {
+      const chatIdRaw = segments[1];
+      if (!ObjectId.isValid(chatIdRaw)) {
+        return errorResponse(400, 'ID de chat inválido.', 'INVALID_CHAT_ID');
+      }
+
+      const chatId = new ObjectId(chatIdRaw);
+      const chatQuery = buildTenantFilter({ _id: chatId });
+      const chat = await chatsCollection.findOne(chatQuery);
+
+      if (!chat) {
+        return errorResponse(404, 'Chat no encontrado.', 'CHAT_NOT_FOUND');
+      }
+
+      let body = {};
+      try {
+        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body || {};
+      } catch {
+        body = {};
+      }
+
+      const notifyResult = await notifyGroup('escalation', {
+        name: chat.contactName || chat.contactPhone,
+        phone: chat.contactPhone,
+        motivo: body.reason || 'Asesor solicita intervención del equipo en panel',
+        resumen: body.summary || chat.lastMessage?.text || 'Se requiere atención humana en la conversación.',
+      });
+
+      return jsonResponse(200, {
+        ok: true,
+        dispatched: notifyResult?.dispatched || false,
+        message: 'Aviso enviado al grupo de WhatsApp del equipo.',
       });
     }
 

@@ -1,8 +1,9 @@
 export const CHANNELS = ['whatsapp', 'instagram', 'facebook'];
 export const WA_LINE_STATUSES = ['active', 'disconnected', 'pending_verification'];
 export const WA_CHAT_STATUSES = ['active', 'archived'];
-export const WA_MESSAGE_DIRECTIONS = ['inbound', 'outbound'];
-export const WA_MESSAGE_TYPES = ['text', 'image', 'document', 'template', 'audio', 'video'];
+export const WA_CONVERSATION_STATUSES = ['abierta', 'en_curso', 'esperando', 'resuelta'];
+export const WA_MESSAGE_DIRECTIONS = ['inbound', 'outbound', 'internal'];
+export const WA_MESSAGE_TYPES = ['text', 'image', 'document', 'template', 'audio', 'video', 'internal_note'];
 export const WA_MESSAGE_STATUSES = ['sent', 'delivered', 'read', 'failed'];
 
 /**
@@ -95,6 +96,10 @@ export function validateWaChat(data) {
     errors.push(`Estado del chat inválido. Debe ser uno de: ${WA_CHAT_STATUSES.join(', ')}`);
   }
 
+  if (data.conversationStatus && !WA_CONVERSATION_STATUSES.includes(data.conversationStatus)) {
+    errors.push(`Estado de conversación inválido. Debe ser uno de: ${WA_CONVERSATION_STATUSES.join(', ')}`);
+  }
+
   if (data.channel && !CHANNELS.includes(data.channel)) {
     errors.push(`Canal del chat inválido. Debe ser uno de: ${CHANNELS.join(', ')}`);
   }
@@ -124,6 +129,9 @@ export function sanitizeWaChat(doc) {
     unreadCount: Number(doc.unreadCount) || 0,
     isBotMuted: Boolean(doc.isBotMuted),
     botLastIntervenedAt: doc.botLastIntervenedAt || null,
+    conversationStatus: doc.conversationStatus || (doc.status === 'archived' ? 'resuelta' : 'abierta'),
+    handOffReason: doc.handOffReason || null,
+    internalNotesCount: Number(doc.internalNotesCount) || 0,
     lastMessage: doc.lastMessage ? {
       text: doc.lastMessage.text || '',
       type: doc.lastMessage.type || 'text',
@@ -174,7 +182,7 @@ export function validateWaMessage(data) {
   }
 
   if (!data.direction || !WA_MESSAGE_DIRECTIONS.includes(data.direction)) {
-    errors.push(`Dirección del mensaje inválida (${data.direction}). Debe ser inbound o outbound.`);
+    errors.push(`Dirección del mensaje inválida (${data.direction}). Debe ser inbound, outbound o internal.`);
   }
 
   if (data.type && !WA_MESSAGE_TYPES.includes(data.type)) {
@@ -209,6 +217,10 @@ export function sanitizeWaMessage(doc) {
     type: doc.type || 'text',
     text: doc.text || '',
     mediaUrl: doc.mediaUrl || null,
+    fileName: doc.fileName || null,
+    fileSize: doc.fileSize || null,
+    mimeType: doc.mimeType || null,
+    isInternalNote: doc.type === 'internal_note',
     status: doc.status || 'sent',
     timestamp: doc.timestamp || doc.createdAt,
     senderName: doc.senderName || null,
