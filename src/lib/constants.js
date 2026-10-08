@@ -62,12 +62,28 @@ export const LEAD_STAGE_COLORS = {
 export const LEAD_SOURCES = [
   'manual',
   'csv',
+  'whatsapp',
+  'meta_ads',
+  'web',
 ];
 
 export const LEAD_SOURCE_LABELS = {
   manual: 'Manual',
   csv: 'Importación CSV',
+  whatsapp: 'WhatsApp Bot',
+  meta_ads: 'Meta Ads',
+  web: 'Web / Landing',
 };
+
+export const LOST_REASON_PRESETS = [
+  { id: 'precio', label: 'Precio / Costo del equipo elevado' },
+  { id: 'competencia', label: 'Eligió a la competencia (PosNet / Payway / MP)' },
+  { id: 'comisiones', label: 'Comisiones por cobro altas' },
+  { id: 'sin_monotributo', label: 'Sin actividad fiscal / monotributo formal' },
+  { id: 'no_responde', label: 'No responde mensajes / Teléfono inválido' },
+  { id: 'fuera_zona', label: 'Fuera de zona de cobertura (solo Tucumán)' },
+  { id: 'otro', label: 'Otro motivo' },
+];
 
 export const SALE_STATUSES = [
   'pending',

@@ -62,6 +62,9 @@ export function LeadsPage() {
   const [selectedStage, setSelectedStage] = useState('all');
   const [selectedSalesperson, setSelectedSalesperson] = useState('all');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [filterUncontactedOnly, setFilterUncontactedOnly] = useState(
+    searchParams.get('uncontacted') === 'true' || searchParams.get('filter') === 'uncontacted'
+  );
 
   // Modals state
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -187,11 +190,12 @@ export function LeadsPage() {
   };
 
   // Quick stage transition (Kanban & Detail)
-  const handleStageChange = async (leadId, newStage, lostReason = null) => {
+  const handleStageChange = async (leadId, newStage, lostReason = null, lostReasonKey = null) => {
     try {
       await apiClient.post(`/api/leads/${leadId}/stage`, {
         stage: newStage,
         ...(lostReason ? { lostReason } : {}),
+        ...(lostReasonKey ? { lostReasonKey } : {}),
       });
 
       // Optimistic or refresh
@@ -201,7 +205,9 @@ export function LeadsPage() {
             ? {
                 ...l,
                 stage: newStage,
+                firstContactedAt: (newStage === 'contacted' || newStage === 'qualified' || newStage === 'won') ? (l.firstContactedAt || new Date().toISOString()) : l.firstContactedAt,
                 lostReason: newStage === 'lost' ? lostReason : null,
+                lostReasonKey: newStage === 'lost' ? lostReasonKey : null,
               }
             : l
         )
@@ -211,7 +217,9 @@ export function LeadsPage() {
         setSelectedLeadForDetail((prev) => ({
           ...prev,
           stage: newStage,
+          firstContactedAt: (newStage === 'contacted' || newStage === 'qualified' || newStage === 'won') ? (prev.firstContactedAt || new Date().toISOString()) : prev.firstContactedAt,
           lostReason: newStage === 'lost' ? lostReason : null,
+          lostReasonKey: newStage === 'lost' ? lostReasonKey : null,
         }));
       }
     } catch (err) {
@@ -221,6 +229,34 @@ export function LeadsPage() {
       });
       await fetchLeads();
       throw err;
+    }
+  };
+
+  // Quick mark contacted
+  const handleMarkContacted = async (leadId) => {
+    setIsActionLoading(true);
+    setFeedback(null);
+    try {
+      await apiClient.post(`/api/leads/${leadId}/contact`);
+      setFeedback({
+        type: 'success',
+        message: 'Primer contacto registrado correctamente.',
+      });
+      await fetchLeads();
+      if (selectedLeadForDetail && selectedLeadForDetail.id === leadId) {
+        setSelectedLeadForDetail((prev) => ({
+          ...prev,
+          firstContactedAt: new Date().toISOString(),
+          stage: 'contacted',
+        }));
+      }
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Error al registrar contacto.',
+      });
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -540,6 +576,23 @@ export function LeadsPage() {
               <option value="archived">{t('leads.archivedOnly')}</option>
             </select>
 
+            {/* Uncontacted Filter Pill */}
+            <button
+              type="button"
+              onClick={() => setFilterUncontactedOnly(!filterUncontactedOnly)}
+              className={`h-9 px-2.5 text-xs rounded border font-semibold flex items-center gap-1.5 transition-colors ${
+                filterUncontactedOnly
+                  ? 'bg-rose-100 text-rose-800 border-rose-300 ring-1 ring-rose-400'
+                  : 'bg-white text-rose-700 border-brand-border hover:bg-rose-50'
+              }`}
+              title="Filtrar prospectos que nadie ha contactado todavía"
+            >
+              <span>🔴 Sin contactar</span>
+              <span className="px-1.5 py-0.2 bg-rose-600 text-white rounded-full text-[10px] font-bold">
+                {leads.filter((l) => !l.firstContactedAt && (l.stage === 'new' || !l.stage)).length}
+              </span>
+            </button>
+
             {/* View Mode Toggle */}
             <div className="flex border border-brand-border rounded bg-gray-50 p-0.5">
               <button
@@ -601,7 +654,9 @@ export function LeadsPage() {
         /* KANBAN BOARD */
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
           {LEAD_STAGES.map((stg, stgIdx) => {
-            const columnLeads = leads.filter((l) => l.stage === stg);
+            const columnLeads = leads
+              .filter((l) => !filterUncontactedOnly || (!l.firstContactedAt && (l.stage === 'new' || !l.stage)))
+              .filter((l) => l.stage === stg);
             const totalValueMinor = columnLeads.reduce((acc, l) => acc + (l.valueEstimateMinor || 0), 0);
             const stgColor = LEAD_STAGE_COLORS[stg] || LEAD_STAGE_COLORS.new;
 
@@ -627,82 +682,107 @@ export function LeadsPage() {
 
                 {/* Cards */}
                 <div className="space-y-2.5 flex-1">
-                  {columnLeads.map((lead) => (
-                    <div
-                      key={lead.id}
-                      className="bg-white p-3 rounded border border-brand-border shadow-subtle hover:border-brand-primary transition-all space-y-2 text-xs"
-                    >
-                      <div className="flex items-start justify-between gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openLeadDetail(lead)}
-                          className="font-bold text-brand-text-primary hover:text-brand-primary text-left text-xs leading-snug"
-                        >
-                          {lead.name}
-                        </button>
-                        <span className="text-[10px] font-mono text-brand-text-secondary uppercase">
-                          {lead.source}
-                        </span>
-                      </div>
+                  {columnLeads.map((lead) => {
+                    const isUncontacted = !lead.firstContactedAt && (lead.stage === 'new' || !lead.stage);
+                    return (
+                      <div
+                        key={lead.id}
+                        className={`p-3 rounded border shadow-subtle transition-all space-y-2 text-xs ${
+                          isUncontacted
+                            ? 'bg-rose-50/50 border-rose-300 border-l-4 border-l-rose-500 hover:border-rose-500'
+                            : 'bg-white border-brand-border hover:border-brand-primary'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openLeadDetail(lead)}
+                            className="font-bold text-brand-text-primary hover:text-brand-primary text-left text-xs leading-snug"
+                          >
+                            {lead.name}
+                          </button>
+                          <span className="text-[10px] font-mono text-brand-text-secondary uppercase">
+                            {lead.source}
+                          </span>
+                        </div>
 
-                      {/* Contact items */}
-                      <div className="space-y-0.5 text-[11px] text-brand-text-secondary">
-                        {lead.email && (
-                          <div className="flex items-center gap-1 truncate">
-                            <Mail className="w-3 h-3 text-brand-primary flex-shrink-0" />
-                            <span className="truncate">{lead.email}</span>
+                        {/* Uncontacted Red Alert Badge */}
+                        {isUncontacted && (
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                              Nadie contactó
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleMarkContacted(lead.id)}
+                              className="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-600 hover:bg-rose-700 text-white transition-colors"
+                              title="Registrar contacto inmediatamente"
+                            >
+                              Contactar
+                            </button>
                           </div>
                         )}
-                        {lead.phone && (
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-brand-primary flex-shrink-0" />
-                            <span>{lead.phone}</span>
-                          </div>
-                        )}
+
+                        {/* Contact items */}
+                        <div className="space-y-0.5 text-[11px] text-brand-text-secondary">
+                          {lead.email && (
+                            <div className="flex items-center gap-1 truncate">
+                              <Mail className="w-3 h-3 text-brand-primary flex-shrink-0" />
+                              <span className="truncate">{lead.email}</span>
+                            </div>
+                          )}
+                          {lead.phone && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-brand-primary flex-shrink-0" />
+                              <span>{lead.phone}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Salesperson & Value */}
+                        <div className="flex items-center justify-between pt-1.5 border-t border-brand-border/60 text-[11px]">
+                          <span className="text-brand-text-secondary truncate max-w-[100px]">
+                            {lead.assignedToUser?.displayName || 'Sin asignar'}
+                          </span>
+                          <span className="font-bold font-mono text-brand-text-primary">
+                            {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency || 'ARS', language === 'es' ? 'es-AR' : 'en-US')}
+                          </span>
+                        </div>
+
+                        {/* Quick stage transition accessible buttons */}
+                        <div className="flex items-center justify-between pt-1 border-t border-brand-border/40 gap-1">
+                          <button
+                            type="button"
+                            disabled={stgIdx === 0}
+                            onClick={() => handleStageChange(lead.id, LEAD_STAGES[stgIdx - 1])}
+                            className="p-1 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={t('leads.prevStage')}
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openLeadDetail(lead)}
+                            className="px-2 py-0.5 text-[10px] rounded bg-gray-100 hover:bg-gray-200 text-brand-text-primary font-semibold"
+                          >
+                            {t('leads.viewDetail')}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={stgIdx === LEAD_STAGES.length - 1}
+                            onClick={() => handleStageChange(lead.id, LEAD_STAGES[stgIdx + 1])}
+                            className="p-1 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={t('leads.nextStage')}
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-
-                      {/* Salesperson & Value */}
-                      <div className="flex items-center justify-between pt-1.5 border-t border-brand-border/60 text-[11px]">
-                        <span className="text-brand-text-secondary truncate max-w-[100px]">
-                          {lead.assignedToUser?.displayName || 'Sin asignar'}
-                        </span>
-                        <span className="font-bold font-mono text-brand-text-primary">
-                          {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency || 'ARS', language === 'es' ? 'es-AR' : 'en-US')}
-                        </span>
-                      </div>
-
-                      {/* Quick stage transition accessible buttons */}
-                      <div className="flex items-center justify-between pt-1 border-t border-brand-border/40 gap-1">
-                        <button
-                          type="button"
-                          disabled={stgIdx === 0}
-                          onClick={() => handleStageChange(lead.id, LEAD_STAGES[stgIdx - 1])}
-                          className="p-1 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title={t('leads.prevStage')}
-                        >
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openLeadDetail(lead)}
-                          className="px-2 py-0.5 text-[10px] rounded bg-gray-100 hover:bg-gray-200 text-brand-text-primary font-semibold"
-                        >
-                          {t('leads.viewDetail')}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={stgIdx === LEAD_STAGES.length - 1}
-                          onClick={() => handleStageChange(lead.id, LEAD_STAGES[stgIdx + 1])}
-                          className="p-1 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title={t('leads.nextStage')}
-                        >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -725,65 +805,93 @@ export function LeadsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border/60">
-              {leads.map((lead) => {
-                const stgColor = LEAD_STAGE_COLORS[lead.stage] || LEAD_STAGE_COLORS.new;
-                return (
-                  <tr key={lead.id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="p-3 font-semibold text-brand-text-primary">
-                      <button
-                        type="button"
-                        onClick={() => openLeadDetail(lead)}
-                        className="hover:underline text-left font-bold"
-                      >
-                        {lead.name}
-                      </button>
-                    </td>
-                    <td className="p-3 text-brand-text-secondary font-mono space-y-0.5">
-                      <div>{lead.email || '-'}</div>
-                      <div className="text-[11px] text-gray-500">{lead.phone || '-'}</div>
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${stgColor.badge}`}>
-                        {LEAD_STAGE_LABELS[lead.stage]}
-                      </span>
-                    </td>
-                    <td className="p-3 text-brand-text-secondary">
-                      {lead.assignedToUser?.displayName || <span className="italic text-gray-400">Sin asignar</span>}
-                    </td>
-                    <td className="p-3 font-mono font-bold text-brand-text-primary">
-                      {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency, language === 'es' ? 'es-AR' : 'en-US')}
-                    </td>
-                    <td className="p-3 uppercase font-mono text-[10px] text-brand-text-secondary">
-                      {lead.source}
-                    </td>
-                    <td className="p-3 text-brand-text-secondary">
-                      {lead.acquiredAt ? formatDate(lead.acquiredAt, tenantTimezone, language === 'es' ? 'es-AR' : 'en-US') : '-'}
-                    </td>
-                    <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="secondary"
+              {leads
+                .filter((l) => !filterUncontactedOnly || (!l.firstContactedAt && (l.stage === 'new' || !l.stage)))
+                .map((lead) => {
+                  const isUncontacted = !lead.firstContactedAt && (lead.stage === 'new' || !lead.stage);
+                  const stgColor = LEAD_STAGE_COLORS[lead.stage] || LEAD_STAGE_COLORS.new;
+                  return (
+                    <tr
+                      key={lead.id}
+                      className={`transition-colors ${
+                        isUncontacted
+                          ? 'bg-rose-50/40 hover:bg-rose-50/70 border-l-4 border-l-rose-500'
+                          : 'hover:bg-gray-50/60'
+                      }`}
+                    >
+                      <td className="p-3 font-semibold text-brand-text-primary">
+                        <button
+                          type="button"
                           onClick={() => openLeadDetail(lead)}
-                          className="text-xs py-1 px-2"
-                          title="Ver Ficha y Actividad"
+                          className="hover:underline text-left font-bold"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => openSaleModal(lead)}
-                          className="text-xs py-1 px-2"
-                          title="Registrar Venta"
-                        >
-                          <DollarSign className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          {lead.name}
+                        </button>
+                      </td>
+                      <td className="p-3 text-brand-text-secondary font-mono space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span>{lead.email || '-'}</span>
+                          {isUncontacted && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                              🔴 Sin contactar
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-500">{lead.phone || '-'}</div>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${stgColor.badge}`}>
+                          {LEAD_STAGE_LABELS[lead.stage]}
+                        </span>
+                      </td>
+                      <td className="p-3 text-brand-text-secondary">
+                        {lead.assignedToUser?.displayName || <span className="italic text-gray-400">Sin asignar</span>}
+                      </td>
+                      <td className="p-3 font-mono font-bold text-brand-text-primary">
+                        {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency, language === 'es' ? 'es-AR' : 'en-US')}
+                      </td>
+                      <td className="p-3 uppercase font-mono text-[10px] text-brand-text-secondary">
+                        {lead.source}
+                      </td>
+                      <td className="p-3 text-brand-text-secondary">
+                        {lead.acquiredAt ? formatDate(lead.acquiredAt, tenantTimezone, language === 'es' ? 'es-AR' : 'en-US') : '-'}
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isUncontacted && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleMarkContacted(lead.id)}
+                              className="text-[10px] text-rose-700 hover:bg-rose-100 border-rose-300 py-1 px-2 font-bold"
+                              title="Marcar como contactado"
+                            >
+                              Contactar
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => openLeadDetail(lead)}
+                            className="text-xs py-1 px-2"
+                            title="Ver Ficha y Actividad"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => openSaleModal(lead)}
+                            className="text-xs py-1 px-2"
+                            title="Registrar Venta"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -811,6 +919,7 @@ export function LeadsPage() {
         onArchive={handleArchive}
         onReactivate={handleReactivate}
         onOpenSaleModal={openSaleModal}
+        onContact={handleMarkContacted}
         salespeople={salespeople}
         userRole={userProfile?.role}
         timezone={tenantTimezone}

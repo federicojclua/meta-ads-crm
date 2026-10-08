@@ -321,6 +321,14 @@ export async function handler(event) {
           query.stage = params.stage;
         }
 
+        if (params.uncontacted === 'true' || params.filter === 'uncontacted') {
+          query.stage = 'new';
+          query.$or = [
+            { firstContactedAt: null },
+            { firstContactedAt: { $exists: false } },
+          ];
+        }
+
         if (params.source && LEAD_SOURCES.includes(params.source)) {
           query.source = params.source;
         }
@@ -590,8 +598,8 @@ export async function handler(event) {
           updatedAt: now,
         };
 
-        // Invariant: firstContactedAt set only on first contact
-        if (nextStage === 'contacted' && !targetLead.firstContactedAt) {
+        // Invariant: firstContactedAt set on first contact or promotion
+        if ((nextStage === 'contacted' || nextStage === 'qualified' || nextStage === 'won') && !targetLead.firstContactedAt) {
           updateFields.firstContactedAt = now;
         }
         if (nextStage === 'qualified') {
@@ -607,10 +615,14 @@ export async function handler(event) {
           }
           updateFields.lostAt = now;
           updateFields.lostReason = reason;
+          if (body.lostReasonKey) {
+            updateFields.lostReasonKey = String(body.lostReasonKey).trim();
+          }
         } else if (targetLead.stage === 'lost') {
           // Cleaning active lost state when moving out of lost
           updateFields.lostAt = null;
           updateFields.lostReason = null;
+          updateFields.lostReasonKey = null;
         }
 
         await leadsCollection.updateOne({ _id: leadIdObj }, { $set: updateFields });
@@ -783,6 +795,37 @@ export async function handler(event) {
         }
 
         return errorResponse(405, 'Método no permitido.', 'METHOD_NOT_ALLOWED');
+      }
+
+      // 6. Register Contact: POST /api/leads/:id/contact
+      if (action === 'contact') {
+        if (method !== 'POST') return errorResponse(405, 'Utilice POST.', 'METHOD_NOT_ALLOWED');
+
+        const updateFields = {
+          firstContactedAt: targetLead.firstContactedAt || now,
+          updatedBy: user._id,
+          updatedAt: now,
+        };
+
+        if (targetLead.stage === 'new') {
+          updateFields.stage = 'contacted';
+        }
+
+        await leadsCollection.updateOne({ _id: leadIdObj }, { $set: updateFields });
+        const updated = await leadsCollection.findOne({ _id: leadIdObj });
+
+        await logActivity(
+          targetLead.clientId,
+          leadIdObj,
+          'stage_change',
+          `Primer contacto registrado con el prospecto.${targetLead.stage === 'new' ? ' Avanzado a etapa Contactado.' : ''}`,
+          { stage: updateFields.stage || targetLead.stage, firstContactedAt: updateFields.firstContactedAt }
+        );
+
+        return jsonResponse(200, {
+          lead: sanitizeLeadResponse(updated),
+          message: 'Primer contacto registrado correctamente.',
+        });
       }
 
       return errorResponse(404, 'Acción no encontrada.', 'ACTION_NOT_FOUND');

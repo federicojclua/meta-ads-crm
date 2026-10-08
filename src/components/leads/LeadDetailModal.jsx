@@ -11,6 +11,9 @@ import {
   RotateCcw,
   CheckCircle2,
   Tag,
+  AlertTriangle,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -25,6 +28,7 @@ import {
   SALE_STATUS_LABELS,
   SALE_STATUS_COLORS,
   ACTIVITY_TYPE_LABELS,
+  LOST_REASON_PRESETS,
 } from '../../lib/constants';
 
 export function LeadDetailModal({
@@ -36,6 +40,7 @@ export function LeadDetailModal({
   onArchive,
   onReactivate,
   onOpenSaleModal,
+  onContact,
   salespeople = [],
   userRole,
   timezone = 'America/Argentina/Buenos_Aires',
@@ -50,7 +55,9 @@ export function LeadDetailModal({
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
   const [isPromptingLost, setIsPromptingLost] = useState(false);
-  const [lostReasonInput, setLostReasonInput] = useState('');
+  const [selectedLostPreset, setSelectedLostPreset] = useState('precio');
+  const [lostReasonInput, setLostReasonInput] = useState(LOST_REASON_PRESETS[0]?.label || '');
+  const [isContacting, setIsContacting] = useState(false);
 
   const fetchActivities = useCallback(async () => {
     if (!lead?.id) return;
@@ -117,14 +124,33 @@ export function LeadDetailModal({
     if (!reason) return;
 
     try {
-      await onStageChange(lead.id, 'lost', reason);
+      await onStageChange(lead.id, 'lost', reason, selectedLostPreset);
       setIsPromptingLost(false);
-      setLostReasonInput('');
+      setLostReasonInput(LOST_REASON_PRESETS[0]?.label || '');
       await fetchActivities();
       setActionMessage('Etapa actualizada a Perdido.');
       setTimeout(() => setActionMessage(''), 3000);
     } catch (err) {
       console.warn('Error al marcar perdido:', err);
+    }
+  };
+
+  const handleMarkContactedNow = async () => {
+    setIsContacting(true);
+    try {
+      if (typeof onContact === 'function') {
+        await onContact(lead.id);
+      } else {
+        await apiClient.post(`/api/leads/${lead.id}/contact`);
+        await onStageChange(lead.id, 'contacted');
+      }
+      await fetchActivities();
+      setActionMessage('Primer contacto registrado correctamente.');
+      setTimeout(() => setActionMessage(''), 3000);
+    } catch (err) {
+      console.warn('Error al registrar contacto:', err);
+    } finally {
+      setIsContacting(false);
     }
   };
 
@@ -202,20 +228,54 @@ export function LeadDetailModal({
 
         {/* Lost Reason Prompt Box */}
         {isPromptingLost && (
-          <form onSubmit={handleConfirmLost} className="p-4 bg-rose-50 border border-rose-200 rounded-lg space-y-3">
-            <div className="text-xs font-bold text-rose-900">
-              Indique el motivo obligatorio para marcar este prospecto como Perdido:
+          <form onSubmit={handleConfirmLost} className="p-4 bg-rose-50 border border-rose-300 rounded-lg space-y-3">
+            <div className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>Indique el motivo de pérdida obligatorio:</span>
             </div>
-            <input
-              type="text"
-              required
-              maxLength={500}
-              placeholder="Ej: Precio fuera de presupuesto, eligió competencia..."
-              value={lostReasonInput}
-              onChange={(e) => setLostReasonInput(e.target.value)}
-              className="w-full h-9 px-3 text-xs rounded border border-rose-300 bg-white text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-rose-500"
-            />
-            <div className="flex justify-end gap-2">
+
+            <div className="space-y-2">
+              <label className="block text-[11px] font-semibold text-rose-800">
+                Seleccione motivo principal:
+              </label>
+              <select
+                value={selectedLostPreset}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedLostPreset(val);
+                  const preset = LOST_REASON_PRESETS.find((p) => p.id === val);
+                  if (preset && val !== 'otro') {
+                    setLostReasonInput(preset.label);
+                  } else if (val === 'otro') {
+                    setLostReasonInput('');
+                  }
+                }}
+                className="w-full h-9 px-3 text-xs rounded border border-rose-300 bg-white text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-rose-500"
+              >
+                {LOST_REASON_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-semibold text-rose-800">
+                Detalle o explicación adicional:
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={500}
+                placeholder="Especifique comentarios del cliente o contexto..."
+                value={lostReasonInput}
+                onChange={(e) => setLostReasonInput(e.target.value)}
+                className="w-full h-9 px-3 text-xs rounded border border-rose-300 bg-white text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
               <Button size="sm" variant="secondary" type="button" onClick={() => setIsPromptingLost(false)}>
                 Cancelar
               </Button>
@@ -225,6 +285,67 @@ export function LeadDetailModal({
             </div>
           </form>
         )}
+
+        {/* Uncontacted Lead Red Alert */}
+        {(!lead.firstContactedAt && (lead.stage === 'new' || !lead.stage)) && (
+          <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-rose-200 text-rose-800 flex items-center justify-center font-bold text-sm shrink-0">
+                🔴
+              </div>
+              <div>
+                <p className="font-extrabold text-rose-950 flex items-center gap-1.5">
+                  <span>Prospecto sin contactar</span>
+                  <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] rounded uppercase font-bold">Urgente</span>
+                </p>
+                <p className="text-rose-800 text-[11px] mt-0.5">
+                  Nadie de tu equipo ha registrado contacto con este prospecto todavía. Contactalo para evitar que se enfríe.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={handleMarkContactedNow}
+              disabled={isContacting}
+              className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold whitespace-nowrap shadow-xs"
+            >
+              {isContacting ? 'Registrando...' : 'Marcar como Contactado'}
+            </Button>
+          </div>
+        )}
+
+        {/* Ficha Resumen Ejecutivo */}
+        <div className="p-4 bg-slate-50 border border-brand-border rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Dueño Asignado</span>
+            <p className="font-bold text-brand-text-primary truncate mt-0.5">
+              {lead.assignedToUser?.displayName || <span className="text-gray-400 italic font-normal">Sin asignar</span>}
+            </p>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Estado Contacto</span>
+            <p className="font-semibold text-brand-text-primary mt-0.5">
+              {lead.firstContactedAt ? (
+                <span className="text-emerald-700 font-bold">Contactado ✓</span>
+              ) : (
+                <span className="text-rose-700 font-bold">🔴 Sin contactar</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Origen / Canal</span>
+            <p className="font-mono text-brand-text-primary uppercase font-bold mt-0.5">
+              {lead.source || 'Manual'}
+            </p>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-brand-text-secondary block">Valor Estimado</span>
+            <p className="font-mono font-bold text-brand-text-primary mt-0.5">
+              {formatCurrency((lead.valueEstimateMinor || 0) / 100, lead.currency || 'ARS', language === 'es' ? 'es-AR' : 'en-US')}
+            </p>
+          </div>
+        </div>
 
         {/* Lead Information Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

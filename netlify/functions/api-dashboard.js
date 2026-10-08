@@ -183,6 +183,194 @@ export async function handler(event) {
       ? Number(((wonLeadsCount / totalLeadsCount) * 100).toFixed(1))
       : null;
 
+    // Uncontacted leads count (leads in 'new' stage without firstContactedAt)
+    let uncontactedLeadsCount = 0;
+    try {
+      if (typeof leadsCollection.countDocuments === 'function') {
+        const uncontactedQuery = {
+          ...leadQuery,
+          stage: 'new',
+          $or: [{ firstContactedAt: null }, { firstContactedAt: { $exists: false } }],
+        };
+        const ucCount = await leadsCollection.countDocuments(uncontactedQuery);
+        uncontactedLeadsCount = typeof ucCount === 'number' ? ucCount : 0;
+      }
+    } catch {
+      uncontactedLeadsCount = 0;
+    }
+
+    // Commercial Funnel step conversion breakdown
+    const funnelStages = [
+      {
+        stage: 'new',
+        label: 'Nuevos',
+        count: newLeadsCount,
+        uncontactedCount: uncontactedLeadsCount,
+        conversionRateToNext: totalLeadsCount > 0 ? Number((((totalLeadsCount - newLeadsCount) / totalLeadsCount) * 100).toFixed(1)) : 0,
+      },
+      {
+        stage: 'contacted',
+        label: 'Contactados',
+        count: contactedLeadsCount,
+        conversionRateToNext: (contactedLeadsCount + qualifiedLeadsCount + wonLeadsCount) > 0
+          ? Number((((qualifiedLeadsCount + wonLeadsCount) / (contactedLeadsCount + qualifiedLeadsCount + wonLeadsCount)) * 100).toFixed(1))
+          : 0,
+      },
+      {
+        stage: 'qualified',
+        label: 'Calificados',
+        count: qualifiedLeadsCount,
+        conversionRateToNext: (qualifiedLeadsCount + wonLeadsCount) > 0
+          ? Number(((wonLeadsCount / (qualifiedLeadsCount + wonLeadsCount)) * 100).toFixed(1))
+          : 0,
+      },
+      {
+        stage: 'won',
+        label: 'Ganados (Cierres)',
+        count: wonLeadsCount,
+        overallConversionRate: conversionRate,
+      },
+      {
+        stage: 'lost',
+        label: 'Perdidos',
+        count: lostLeadsCount,
+        lostRate: totalLeadsCount > 0 ? Number(((lostLeadsCount / totalLeadsCount) * 100).toFixed(1)) : 0,
+      },
+    ];
+
+    // Lost reasons breakdown ("Por qué se pierden")
+    let lostReasonsBreakdown = [];
+    try {
+      if (leadsCollection && typeof leadsCollection.aggregate === 'function') {
+        const lostAgg = await leadsCollection.aggregate([
+          { $match: { ...leadQuery, stage: 'lost' } },
+          { $group: { _id: { $ifNull: ['$lostReason', 'Sin motivo especificado'] }, count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ]).toArray();
+        if (Array.isArray(lostAgg)) {
+          lostReasonsBreakdown = lostAgg.map((item) => ({
+            reason: item._id,
+            count: item.count,
+            percentage: lostLeadsCount > 0 ? Number(((item.count / lostLeadsCount) * 100).toFixed(1)) : 0,
+          }));
+        }
+      }
+    } catch {
+      lostReasonsBreakdown = [];
+    }
+
+    // Leads and wins by source / acquisition channel
+    let leadsBySource = [];
+    try {
+      if (leadsCollection && typeof leadsCollection.aggregate === 'function') {
+        const sourceAgg = await leadsCollection.aggregate([
+          { $match: leadQuery },
+          {
+            $group: {
+              _id: { $ifNull: ['$source', 'manual'] },
+              count: { $sum: 1 },
+              wonCount: {
+                $sum: { $cond: [{ $eq: ['$stage', 'won'] }, 1, 0] },
+              },
+            },
+          },
+          { $sort: { count: -1 } },
+        ]).toArray();
+        if (Array.isArray(sourceAgg)) {
+          leadsBySource = sourceAgg.map((item) => ({
+            source: item._id,
+            count: item.count,
+            wonCount: item.wonCount,
+            conversionRate: item.count > 0 ? Number(((item.wonCount / item.count) * 100).toFixed(1)) : 0,
+          }));
+        }
+      }
+    } catch {
+      leadsBySource = [];
+    }
+
+    // Post-sales & Support cases summary
+    let casesSummary = {
+      total: 0,
+      open: 0,
+      inProgress: 0,
+      waiting: 0,
+      resolved: 0,
+      urgentOrHigh: 0,
+      byType: {
+        soporte_tecnico: 0,
+        insumos_rollos: 0,
+        cobros_liquidaciones: 0,
+        bajas: 0,
+        otro: 0,
+      },
+    };
+    try {
+      const casesCollection = db?.collection ? db.collection('cases') : null;
+      if (casesCollection && typeof casesCollection.countDocuments === 'function') {
+        const caseMatch = {};
+        if (!isRequestingAll && targetClientId) {
+          caseMatch.clientId = targetClientId;
+        } else if (isRequestingAll && Array.isArray(allActiveIdentifiers)) {
+          caseMatch.clientId = { $in: allActiveIdentifiers };
+        }
+
+        const [
+          totalCases,
+          openCases,
+          inProgressCases,
+          waitingCases,
+          resolvedCases,
+          urgentCases,
+          byTypeAgg,
+        ] = await Promise.all([
+          casesCollection.countDocuments(caseMatch),
+          casesCollection.countDocuments({ ...caseMatch, status: 'abierto' }),
+          casesCollection.countDocuments({ ...caseMatch, status: 'en_curso' }),
+          casesCollection.countDocuments({ ...caseMatch, status: 'esperando_cliente' }),
+          casesCollection.countDocuments({ ...caseMatch, status: 'resuelto' }),
+          casesCollection.countDocuments({ ...caseMatch, priority: { $in: ['alta', 'urgente'] }, status: { $ne: 'resuelto' } }),
+          typeof casesCollection.aggregate === 'function' ? casesCollection.aggregate([
+            { $match: caseMatch },
+            { $group: { _id: '$type', count: { $sum: 1 } } },
+          ]).toArray() : [],
+        ]);
+
+        casesSummary.total = typeof totalCases === 'number' ? totalCases : 0;
+        casesSummary.open = typeof openCases === 'number' ? openCases : 0;
+        casesSummary.inProgress = typeof inProgressCases === 'number' ? inProgressCases : 0;
+        casesSummary.waiting = typeof waitingCases === 'number' ? waitingCases : 0;
+        casesSummary.resolved = typeof resolvedCases === 'number' ? resolvedCases : 0;
+        casesSummary.urgentOrHigh = typeof urgentCases === 'number' ? urgentCases : 0;
+        if (Array.isArray(byTypeAgg)) {
+          byTypeAgg.forEach((t) => {
+            if (t._id && casesSummary.byType[t._id] !== undefined) {
+              casesSummary.byType[t._id] = t.count;
+            }
+          });
+        }
+      }
+    } catch {
+      // safe fallback
+    }
+
+    // Unanswered queries ("Lo que no supo") count
+    let unansweredQueriesCount = 0;
+    try {
+      const unansweredCollection = db?.collection ? db.collection('unanswered_queries') : null;
+      if (unansweredCollection && typeof unansweredCollection.countDocuments === 'function') {
+        const uMatch = { status: 'pendiente' };
+        if (!isRequestingAll && targetClientId) {
+          uMatch.clientId = targetClientId;
+        }
+        const uCount = await unansweredCollection.countDocuments(uMatch);
+        unansweredQueriesCount = typeof uCount === 'number' ? uCount : 0;
+      }
+    } catch {
+      unansweredQueriesCount = 0;
+    }
+
     // Aggregate revenue per currency
     const revenueByCurrency = {};
     let totalCollectedDefaultMinor = 0;
@@ -321,6 +509,20 @@ export async function handler(event) {
         );
         const companyName = associatedClient ? associatedClient.name : 'Sin empresa';
 
+        let spUncontacted = 0;
+        try {
+          if (typeof leadsCollection.countDocuments === 'function') {
+            const spUcRes = await leadsCollection.countDocuments({
+              ...leadFilter,
+              stage: 'new',
+              $or: [{ firstContactedAt: null }, { firstContactedAt: { $exists: false } }],
+            });
+            spUncontacted = typeof spUcRes === 'number' ? spUcRes : 0;
+          }
+        } catch {
+          spUncontacted = 0;
+        }
+
         salespeoplePerformance.push({
           id: sp._id.toString(),
           displayName: sp.displayName || sp.email,
@@ -330,6 +532,7 @@ export async function handler(event) {
           status: sp.status,
           isPendingActivation: sp.status === 'invited',
           leadsCount: spTotal,
+          uncontactedCount: spUncontacted,
           wonLeadsCount: spWon,
           salesCount: spSales.length,
           conversionRate: spConvRate,
@@ -530,6 +733,7 @@ export async function handler(event) {
       kpis: {
         totalLeadsCount,
         activeLeadsCount: totalLeadsCount,
+        uncontactedLeadsCount,
         wonLeadsCount,
         conversionRate,
         hasConversionData,
@@ -540,6 +744,11 @@ export async function handler(event) {
           won: wonLeadsCount,
           lost: lostLeadsCount,
         },
+        funnelStages,
+        lostReasonsBreakdown,
+        leadsBySource,
+        casesSummary,
+        unansweredQueriesCount,
         revenueByCurrency: formattedRevenue,
         totalCollectedDefaultMinor,
         totalCollectedFormatted,

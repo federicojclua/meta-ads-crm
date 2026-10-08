@@ -964,6 +964,9 @@ export function WhatsAppInboxPage() {
         {/* ========================================================================= */}
         {activeChat && (
           <div className="hidden xl:flex w-80 flex-col bg-white overflow-y-auto p-4 space-y-4 shrink-0">
+            <div className="text-[10px] uppercase font-extrabold text-brand-text-secondary tracking-wider">
+              Contexto Comercial (CRM)
+            </div>
             {/* Tab Switcher: Lead vs Casos */}
             <div className="flex border-b border-brand-border gap-1">
               <button

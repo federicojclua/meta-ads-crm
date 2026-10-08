@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Fase 4: Embudo Comercial, Leads sin Contactar en Rojo y Tablero Operativo Octubre 2026 (2026-10-08)
+- **Detección Visual y Operativa de Leads sin Contactar ("Los que nadie contactó quedan en rojo")**:
+  - Función de modelo `isLeadUncontacted(lead)` en `models/Lead.js` que verifica prospectos en etapa inicial sin `firstContactedAt`.
+  - Endpoint `POST /api/leads/:id/contact` para registrar el primer contacto (fecha y canal) y avanzar automáticamente el prospecto a la etapa `contacted`.
+  - Filtro query `uncontacted=true` en `GET /api/leads` y botón toggle de filtro rápido `🔴 Sin contactar ({count})` en `LeadsPage.jsx`.
+  - Resaltado prominente en Kanban y Vista Tabla: borde rojo suave, acento `border-l-4 border-l-rose-500`, badge pulsante `🔴 Nadie contactó` y botón de 1 clic para marcar como contactado.
+  - Alerta roja destacada en la ficha del prospecto (`LeadDetailModal.jsx`) con botón directo para asentar el contacto.
+- **Embudo Comercial y Motivos de Pérdida Estructurados (`models/Lead.js`, `src/lib/constants.js`)**:
+  - Presets de motivos de pérdida específicos para Grupo Novati: `precio`, `competencia`, `comisiones`, `sin_monotributo`, `no_responde`, `fuera_zona`, `otro`.
+  - Selector desplegable de motivo estructurado con observaciones adicionales al perder un lead.
+  - Almacenamiento y persistencia en MongoDB de `lostReasonKey` y `lostReason`.
+- **Tablero Operativo de Inicio Renovado (`src/pages/DashboardPage.jsx` & `netlify/functions/api-dashboard.js`)**:
+  - **"Lo que hay para hacer hoy"**: bandeja superior de tareas operativas inmediatas con contadores de alta visibilidad:
+    - Prospectos sin contactar en rojo (acceso directo a `LeadsPage`).
+    - Casos de posventa abiertos y urgentes en ámbar (acceso directo a `CasesPage`).
+    - Dudas del bot pendientes en 'Lo que no supo' en índigo (acceso directo a `AssistantConfigPage`).
+  - **"Primeros pasos para arrancar en Grupo Novati"**: checklist interactivo y colapsable de onboarding operativo para el equipo comercial y de soporte.
+  - **Embudo Comercial Visual**: representación gráfica con barras de conversión etapa a etapa (`Nuevos` → `Contactados` → `Calificados` → `Ganados`), cálculo de porcentaje de avance intermedio y tasa de pérdida.
+  - **"Por qué se pierden"**: ranking analítico y desglose porcentual de motivos de descarte.
+  - **Rendimiento por Canal / Anuncio**: tabla con desglose de adquisición (WhatsApp directo, Meta Ads, Web, Carga Manual) con conteo de leads, cierres y tasa de éxito.
+  - **Salud de Posventa y Casos de Soporte**: widget analítico con desglose por tipo de caso (soporte técnico, rollos de insumos, liquidaciones, bajas) y tiempos de resolución.
+  - **Desempeño del Equipo de Ventas**: agregada columna `🔴 Sin contactar` por asesor comercial para auditar la velocidad de respuesta.
+- **Suite de Pruebas Automatizadas (`src/test/commercial-dashboard.test.js`)**:
+  - 6 pruebas exhaustivas que validan la detección de leads sin contactar, endpoints de contacto, guardado de motivos de pérdida y agregaciones completas del dashboard.
+
 ### Added — Fase 3: Centro de Configuración del Asistente, Base de Conocimiento con "Lo que no supo" & Sugerencias en Chat (2026-10-08)
 - **Página de Configuración del Asistente (`src/pages/AssistantConfigPage.jsx`)**:
   - Formulario visual para configurar qué sabe y cómo habla el bot sin necesidad de escribir código ni prompts en crudo.

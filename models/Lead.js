@@ -1,6 +1,36 @@
 export const LEAD_STAGES = ['new', 'contacted', 'qualified', 'won', 'lost'];
-export const LEAD_SOURCES = ['manual', 'csv'];
+export const LEAD_SOURCES = ['manual', 'csv', 'whatsapp', 'meta_ads', 'web'];
 export const LEAD_STATUSES = ['active', 'archived'];
+
+export const LOST_REASONS = [
+  'precio',
+  'competencia',
+  'comisiones',
+  'sin_monotributo',
+  'no_responde',
+  'fuera_zona',
+  'otro',
+];
+
+export const LOST_REASON_LABELS = {
+  precio: 'Precio / Costo del equipo',
+  competencia: 'Eligió a la competencia (PosNet / Payway / MP)',
+  comisiones: 'Comisiones por cobro altas',
+  sin_monotributo: 'Sin actividad fiscal / monotributo formal',
+  no_responde: 'No responde mensajes / Teléfono inválido',
+  fuera_zona: 'Fuera de zona de cobertura (solo Tucumán)',
+  otro: 'Otro motivo',
+};
+
+/**
+ * Checks if a lead has never received contact from sales.
+ * @param {Object} lead
+ * @returns {boolean}
+ */
+export function isLeadUncontacted(lead) {
+  if (!lead) return false;
+  return !lead.firstContactedAt && (lead.stage === 'new' || !lead.stage);
+}
 
 /**
  * Normalizes email address to lowercase and trimmed string.
@@ -118,10 +148,14 @@ export function sanitizeLeadResponse(doc) {
     tags: doc.tags || [],
     acquiredAt: doc.acquiredAt || doc.createdAt,
     firstContactedAt: doc.firstContactedAt || null,
+    isUncontacted: !doc.firstContactedAt && (doc.stage === 'new' || !doc.stage),
     qualifiedAt: doc.qualifiedAt || null,
     wonAt: doc.wonAt || null,
     lostAt: doc.lostAt || null,
     lostReason: doc.lostReason || null,
+    lostReasonKey: doc.lostReasonKey || null,
+    campaignName: doc.campaignName || null,
+    adName: doc.adName || null,
     status: doc.status || 'active',
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
